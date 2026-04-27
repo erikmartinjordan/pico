@@ -7,11 +7,12 @@ App de escritorio minimalista (estilo Apple) para **capturar pantalla y anotar**
 - Captura de pantalla completa (Windows).
 - Apertura de imágenes existentes (PNG/JPG/BMP/WEBP).
 - Herramientas de anotación simples:
-  - Cuadrado
-  - Flecha
-  - Texto
+  - ▢ (cuadrado)
+  - ➜ (flecha)
+  - T (texto)
 - Exportación rápida a PNG.
 - Interfaz limpia y minimalista inspirada en diseño moderno.
+- Landing minimalista (`landing.html`) para publicar la descarga de `pico.exe`.
 
 ## Requisitos
 
@@ -42,10 +43,16 @@ El ejecutable se genera en:
 
 - `dist\pico.exe`
 
+## Landing para descarga del EXE
+
+Se incluye una landing estática mínima en `landing.html` con un botón de descarga listo para apuntar a:
+
+- `./dist/pico.exe`
+
 ## Flujo de uso
 
 1. Pulsa **Capturar pantalla** o **Abrir imagen**.
-2. Elige herramienta: **Cuadrado**, **Flecha** o **Texto**.
+2. Elige herramienta: **▢**, **➜** o **T**.
 3. Dibuja/anota sobre la captura.
 4. Pulsa **Exportar PNG** y comparte.
 
