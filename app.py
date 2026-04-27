@@ -28,6 +28,7 @@ class PicoApp:
         self.preview_id = None
         self.items = []
         self.font_size = 24
+        self.stroke_width = 6
 
         self._build_ui()
         self._bind_canvas_events()
@@ -60,9 +61,9 @@ class PicoApp:
         self.mode_buttons = {}
         for mode, label in [
             ("select", "Mover"),
-            ("rect", "Cuadrado"),
-            ("arrow", "Flecha"),
-            ("text", "Texto"),
+            ("rect", "▢"),
+            ("arrow", "➜"),
+            ("text", "T"),
         ]:
             b = self._button(toolbar, label, lambda m=mode: self.set_mode(m), is_tool=True)
             b.pack(side="left", padx=6, pady=8)
@@ -224,6 +225,22 @@ class PicoApp:
         ox, oy = self._canvas_offset()
         return x - ox, y - oy
 
+    def _clamp_point(self, x: int, y: int):
+        if self.image is None:
+            return x, y
+        return max(0, min(x, self.image.width)), max(0, min(y, self.image.height))
+
+    def _square_from_points(self, x1: int, y1: int, x2: int, y2: int):
+        dx = x2 - x1
+        dy = y2 - y1
+        side = min(max(abs(dx), abs(dy)), min(self.image.width, self.image.height))
+        sx = 1 if dx >= 0 else -1
+        sy = 1 if dy >= 0 else -1
+        nx2 = x1 + (side * sx)
+        ny2 = y1 + (side * sy)
+        nx2, ny2 = self._clamp_point(nx2, ny2)
+        return x1, y1, nx2, ny2
+
     def on_press(self, event):
         if self.image is None:
             return
@@ -251,8 +268,10 @@ class PicoApp:
 
         x1, y1 = self.start
         x2, y2 = self._to_image_coords(event.x, event.y)
+        x2, y2 = self._clamp_point(x2, y2)
         ox, oy = self._canvas_offset()
         if self.draw_mode == "rect":
+            x1, y1, x2, y2 = self._square_from_points(x1, y1, x2, y2)
             self.preview_id = self.canvas.create_rectangle(
                 x1 + ox, y1 + oy, x2 + ox, y2 + oy, outline=ACCENT, width=4, dash=(7, 5)
             )
@@ -267,6 +286,7 @@ class PicoApp:
                 arrow=tk.LAST,
                 arrowshape=(18, 22, 7),
                 capstyle=tk.ROUND,
+                smooth=True,
                 dash=(10, 6),
             )
 
@@ -279,6 +299,7 @@ class PicoApp:
 
         x1, y1 = self.start
         x2, y2 = self._to_image_coords(event.x, event.y)
+        x2, y2 = self._clamp_point(x2, y2)
 
         if self.preview_id:
             self.canvas.delete(self.preview_id)
@@ -287,6 +308,10 @@ class PicoApp:
         if abs(x2 - x1) < 4 and abs(y2 - y1) < 4:
             self.start = None
             return
+        if self.draw_mode == "rect":
+            x1, y1, x2, y2 = self._square_from_points(x1, y1, x2, y2)
+            x1, x2 = sorted([x1, x2])
+            y1, y2 = sorted([y1, y2])
 
         self.items.append({"type": self.draw_mode, "coords": (x1, y1, x2, y2)})
         self._compose_image()
@@ -303,11 +328,11 @@ class PicoApp:
             kind = item["type"]
             if kind == "rect":
                 x1, y1, x2, y2 = item["coords"]
-                draw.rectangle((x1, y1, x2, y2), outline=ACCENT, width=6)
+                draw.rectangle((x1, y1, x2, y2), outline=ACCENT, width=self.stroke_width)
             elif kind == "arrow":
                 x1, y1, x2, y2 = item["coords"]
-                draw.line((x1, y1, x2, y2), fill=ACCENT, width=6)
-                self._draw_arrow_head(draw, x1, y1, x2, y2, size=16)
+                draw.line((x1, y1, x2, y2), fill=ACCENT, width=self.stroke_width)
+                self._draw_arrow_head(draw, x1, y1, x2, y2, size=22)
             elif kind == "text":
                 x, y = item["coords"]
                 draw.text((x, y), item["text"], fill=ACCENT)
