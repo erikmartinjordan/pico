@@ -47,7 +47,7 @@ Lightweight screen-capture & annotation app for **macOS** and **Windows**. Moder
 Grab the latest release for your platform:
 
 - **macOS**: `pico-x.x.x.dmg` (Universal binary for Intel & Apple Silicon)
-- **Windows**: `pico-x.x.x-portable.exe` (Portable, no install) or `pico-x.x.x-setup.exe` (Installer)
+- **Windows**: `pico-x.x.x-portable.exe` (Portable, no install needed)
 
 [Download latest release →](../../releases/latest)
 

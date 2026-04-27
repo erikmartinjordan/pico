@@ -47,7 +47,6 @@ jobs:
           name: pico-${{ matrix.platform }}
           path: |
             dist/*.dmg
-            dist/*.zip
             dist/*.exe
           if-no-files-found: ignore
 
@@ -70,7 +69,7 @@ jobs:
       - name: Collect binaries into flat folder
         run: |
           mkdir -p release
-          find artifacts -type f \( -name "*.dmg" -o -name "*.zip" -o -name "*.exe" \) -exec cp {} release/ \;
+          find artifacts -type f \( -name "*.dmg" -o -name "*.exe" \) -exec cp {} release/ \;
           echo "=== Files to release ==="
           ls -lh release/
 
@@ -112,7 +111,7 @@ jobs:
       - name: Collect binaries
         run: |
           mkdir -p release
-          find artifacts -type f \( -name "*.dmg" -o -name "*.zip" -o -name "*.exe" \) -exec cp {} release/ \;
+          find artifacts -type f \( -name "*.dmg" -o -name "*.exe" \) -exec cp {} release/ \;
 
       - name: Create versioned release
         run: |
