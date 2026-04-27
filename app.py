@@ -1,6 +1,6 @@
 import math
 import tkinter as tk
-from tkinter import filedialog, messagebox, simpledialog
+from tkinter import colorchooser, filedialog, messagebox, simpledialog
 
 from PIL import Image, ImageDraw, ImageGrab, ImageTk
 
@@ -29,31 +29,25 @@ class PicoApp:
         self.items = []
         self.font_size = 24
         self.stroke_width = 6
+        self.current_color = ACCENT
 
         self._build_ui()
         self._bind_canvas_events()
+        self._bind_shortcuts()
 
     def _build_ui(self) -> None:
         top = tk.Frame(self.root, bg=BG)
         top.pack(fill="x", padx=18, pady=(18, 10))
 
-        title = tk.Label(top, text="pico", font=("Segoe UI", 22, "bold"), fg=TEXT, bg=BG)
-        title.pack(side="left")
+        quickbar = tk.Frame(top, bg="#E9ECF2", bd=0, highlightthickness=0)
+        quickbar.pack(side="left", fill="x", expand=True)
 
-        subtitle = tk.Label(
-            top,
-            text="Captura y comparte ideas en segundos",
-            font=("Segoe UI", 11),
-            fg=MUTED,
-            bg=BG,
-        )
-        subtitle.pack(side="left", padx=10, pady=(8, 0))
+        self._button(quickbar, "Capturar ⌃⇧S", self.capture_screen).pack(side="left", padx=8, pady=8)
+        self._button(quickbar, "Abrir ⌃O", self.open_image).pack(side="left", padx=8, pady=8)
+        self._button(quickbar, "Exportar ⌃E", self.export_png).pack(side="left", padx=8, pady=8)
 
         toolbar = tk.Frame(self.root, bg=PANEL, bd=0, highlightthickness=0)
         toolbar.pack(fill="x", padx=18, pady=(0, 10))
-
-        self._button(toolbar, "Capturar pantalla", self.capture_screen).pack(side="left", padx=8, pady=8)
-        self._button(toolbar, "Abrir imagen", self.open_image).pack(side="left", padx=8, pady=8)
 
         sep = tk.Frame(toolbar, width=1, height=34, bg="#E6E7EB")
         sep.pack(side="left", padx=10)
@@ -72,11 +66,47 @@ class PicoApp:
         sep2 = tk.Frame(toolbar, width=1, height=34, bg="#E6E7EB")
         sep2.pack(side="left", padx=10)
 
-        self._button(toolbar, "Exportar PNG", self.export_png).pack(side="left", padx=8, pady=8)
+        tk.Label(toolbar, text="Color", bg=PANEL, fg=MUTED, font=("Segoe UI", 10)).pack(side="left", padx=(4, 8))
+        self.color_btn = tk.Button(
+            toolbar,
+            command=self.pick_color,
+            bg=self.current_color,
+            activebackground=self.current_color,
+            relief="flat",
+            bd=0,
+            width=3,
+            height=1,
+            cursor="hand2",
+        )
+        self.color_btn.pack(side="left", padx=(0, 12), pady=8)
+
+        tk.Label(toolbar, text="Grosor", bg=PANEL, fg=MUTED, font=("Segoe UI", 10)).pack(side="left", padx=(4, 8))
+        self.stroke_var = tk.IntVar(value=self.stroke_width)
+        stroke_spin = tk.Spinbox(
+            toolbar,
+            from_=1,
+            to=20,
+            width=4,
+            textvariable=self.stroke_var,
+            command=self.update_stroke_width,
+            relief="flat",
+            highlightthickness=1,
+            highlightbackground="#D4D8E0",
+            font=("Segoe UI", 10),
+            justify="center",
+        )
+        stroke_spin.pack(side="left", padx=(0, 8), pady=8)
+        stroke_spin.bind("<KeyRelease>", lambda _e: self.update_stroke_width())
 
         right = tk.Frame(toolbar, bg=PANEL)
         right.pack(side="right", padx=10)
-        tk.Label(right, text="Tip: arrastra para dibujar", bg=PANEL, fg=MUTED, font=("Segoe UI", 10)).pack()
+        tk.Label(
+            right,
+            text="Shortcuts: R Rectángulo · A Flecha · T Texto · V Mover",
+            bg=PANEL,
+            fg=MUTED,
+            font=("Segoe UI", 10),
+        ).pack()
 
         canvas_wrap = tk.Frame(self.root, bg=BG)
         canvas_wrap.pack(fill="both", expand=True, padx=18, pady=(0, 18))
@@ -93,7 +123,7 @@ class PicoApp:
         self.canvas.create_text(
             640,
             370,
-            text="Pulsa ‘Capturar pantalla’ u ‘Abrir imagen’ para comenzar",
+            text="Pulsa ‘Capturar’ u ‘Abrir’ para comenzar",
             fill=MUTED,
             font=("Segoe UI", 15),
             tags=("empty",),
@@ -123,6 +153,28 @@ class PicoApp:
         self.canvas.bind("<ButtonPress-1>", self.on_press)
         self.canvas.bind("<B1-Motion>", self.on_drag)
         self.canvas.bind("<ButtonRelease-1>", self.on_release)
+
+    def _bind_shortcuts(self) -> None:
+        self.root.bind("<Control-Shift-S>", lambda _e: self.capture_screen())
+        self.root.bind("<Control-o>", lambda _e: self.open_image())
+        self.root.bind("<Control-e>", lambda _e: self.export_png())
+        self.root.bind("<r>", lambda _e: self.set_mode("rect"))
+        self.root.bind("<a>", lambda _e: self.set_mode("arrow"))
+        self.root.bind("<t>", lambda _e: self.set_mode("text"))
+        self.root.bind("<v>", lambda _e: self.set_mode("select"))
+        self.root.bind("<F8>", lambda _e: self.capture_screen())
+
+    def update_stroke_width(self) -> None:
+        try:
+            self.stroke_width = int(self.stroke_var.get())
+        except tk.TclError:
+            self.stroke_width = 6
+
+    def pick_color(self) -> None:
+        color = colorchooser.askcolor(color=self.current_color, title="Elige un color")
+        if color and color[1]:
+            self.current_color = color[1]
+            self.color_btn.configure(bg=self.current_color, activebackground=self.current_color)
 
     def set_mode(self, mode: str) -> None:
         self.draw_mode = mode
@@ -194,7 +246,9 @@ class PicoApp:
         kind = item["type"]
         if kind == "rect":
             x1, y1, x2, y2 = item["coords"]
-            self.canvas.create_rectangle(x1 + ox, y1 + oy, x2 + ox, y2 + oy, outline=ACCENT, width=4)
+            self.canvas.create_rectangle(
+                x1 + ox, y1 + oy, x2 + ox, y2 + oy, outline=item["color"], width=item["width"]
+            )
         elif kind == "arrow":
             x1, y1, x2, y2 = item["coords"]
             self.canvas.create_line(
@@ -202,15 +256,22 @@ class PicoApp:
                 y1 + oy,
                 x2 + ox,
                 y2 + oy,
-                fill=ACCENT,
-                width=5,
+                fill=item["color"],
+                width=item["width"],
                 arrow=tk.LAST,
                 arrowshape=(18, 22, 7),
                 capstyle=tk.ROUND,
             )
         elif kind == "text":
             x, y = item["coords"]
-            self.canvas.create_text(x + ox, y + oy, text=item["text"], fill=ACCENT, font=("Segoe UI", self.font_size, "bold"), anchor="nw")
+            self.canvas.create_text(
+                x + ox,
+                y + oy,
+                text=item["text"],
+                fill=item["color"],
+                font=("Segoe UI", self.font_size, "bold"),
+                anchor="nw",
+            )
 
     def _canvas_offset(self):
         if self.image is None:
@@ -230,17 +291,6 @@ class PicoApp:
             return x, y
         return max(0, min(x, self.image.width)), max(0, min(y, self.image.height))
 
-    def _square_from_points(self, x1: int, y1: int, x2: int, y2: int):
-        dx = x2 - x1
-        dy = y2 - y1
-        side = min(max(abs(dx), abs(dy)), min(self.image.width, self.image.height))
-        sx = 1 if dx >= 0 else -1
-        sy = 1 if dy >= 0 else -1
-        nx2 = x1 + (side * sx)
-        ny2 = y1 + (side * sy)
-        nx2, ny2 = self._clamp_point(nx2, ny2)
-        return x1, y1, nx2, ny2
-
     def on_press(self, event):
         if self.image is None:
             return
@@ -252,7 +302,7 @@ class PicoApp:
         if self.draw_mode == "text":
             text = simpledialog.askstring("Texto", "Escribe el texto:", parent=self.root)
             if text:
-                self.items.append({"type": "text", "coords": (ix, iy), "text": text})
+                self.items.append({"type": "text", "coords": (ix, iy), "text": text, "color": self.current_color})
                 self._compose_image()
             self.start = None
 
@@ -271,9 +321,14 @@ class PicoApp:
         x2, y2 = self._clamp_point(x2, y2)
         ox, oy = self._canvas_offset()
         if self.draw_mode == "rect":
-            x1, y1, x2, y2 = self._square_from_points(x1, y1, x2, y2)
             self.preview_id = self.canvas.create_rectangle(
-                x1 + ox, y1 + oy, x2 + ox, y2 + oy, outline=ACCENT, width=4, dash=(7, 5)
+                x1 + ox,
+                y1 + oy,
+                x2 + ox,
+                y2 + oy,
+                outline=self.current_color,
+                width=self.stroke_width,
+                dash=(7, 5),
             )
         elif self.draw_mode == "arrow":
             self.preview_id = self.canvas.create_line(
@@ -281,8 +336,8 @@ class PicoApp:
                 y1 + oy,
                 x2 + ox,
                 y2 + oy,
-                fill=ACCENT,
-                width=5,
+                fill=self.current_color,
+                width=self.stroke_width,
                 arrow=tk.LAST,
                 arrowshape=(18, 22, 7),
                 capstyle=tk.ROUND,
@@ -309,11 +364,17 @@ class PicoApp:
             self.start = None
             return
         if self.draw_mode == "rect":
-            x1, y1, x2, y2 = self._square_from_points(x1, y1, x2, y2)
             x1, x2 = sorted([x1, x2])
             y1, y2 = sorted([y1, y2])
 
-        self.items.append({"type": self.draw_mode, "coords": (x1, y1, x2, y2)})
+        self.items.append(
+            {
+                "type": self.draw_mode,
+                "coords": (x1, y1, x2, y2),
+                "color": self.current_color,
+                "width": self.stroke_width,
+            }
+        )
         self._compose_image()
         self.start = None
 
@@ -328,23 +389,23 @@ class PicoApp:
             kind = item["type"]
             if kind == "rect":
                 x1, y1, x2, y2 = item["coords"]
-                draw.rectangle((x1, y1, x2, y2), outline=ACCENT, width=self.stroke_width)
+                draw.rectangle((x1, y1, x2, y2), outline=item["color"], width=item["width"])
             elif kind == "arrow":
                 x1, y1, x2, y2 = item["coords"]
-                draw.line((x1, y1, x2, y2), fill=ACCENT, width=self.stroke_width)
-                self._draw_arrow_head(draw, x1, y1, x2, y2, size=22)
+                draw.line((x1, y1, x2, y2), fill=item["color"], width=item["width"])
+                self._draw_arrow_head(draw, x1, y1, x2, y2, color=item["color"], size=22)
             elif kind == "text":
                 x, y = item["coords"]
-                draw.text((x, y), item["text"], fill=ACCENT)
+                draw.text((x, y), item["text"], fill=item["color"])
 
         self.image = out
         self._render_image()
 
-    def _draw_arrow_head(self, draw, x1, y1, x2, y2, size=16):
+    def _draw_arrow_head(self, draw, x1, y1, x2, y2, color, size=16):
         angle = math.atan2(y2 - y1, x2 - x1)
         left = (x2 - size * math.cos(angle - math.pi / 7), y2 - size * math.sin(angle - math.pi / 7))
         right = (x2 - size * math.cos(angle + math.pi / 7), y2 - size * math.sin(angle + math.pi / 7))
-        draw.polygon([(x2, y2), left, right], fill=ACCENT)
+        draw.polygon([(x2, y2), left, right], fill=color)
 
     def export_png(self) -> None:
         if self.image is None:
