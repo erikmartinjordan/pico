@@ -77,8 +77,6 @@ class PicoApp:
         right.pack(side="right", padx=10)
         tk.Label(right, text="Tip: arrastra para dibujar", bg=PANEL, fg=MUTED, font=("Segoe UI", 10)).pack()
 
-        self.set_mode("rect")
-
         canvas_wrap = tk.Frame(self.root, bg=BG)
         canvas_wrap.pack(fill="both", expand=True, padx=18, pady=(0, 18))
 
@@ -99,6 +97,8 @@ class PicoApp:
             font=("Segoe UI", 15),
             tags=("empty",),
         )
+
+        self.set_mode("rect")
 
     def _button(self, parent, text, command, is_tool=False):
         b = tk.Button(
