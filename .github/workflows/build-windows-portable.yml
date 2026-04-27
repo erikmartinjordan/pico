@@ -2,6 +2,8 @@ name: Build Windows Portable
 
 on:
   workflow_dispatch:
+  release:
+    types: [published]
   push:
     branches:
       - main
@@ -20,6 +22,8 @@ on:
 jobs:
   build-windows:
     runs-on: windows-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
@@ -46,3 +50,11 @@ jobs:
           name: pico-windows-portable
           path: dist/pico.exe
           if-no-files-found: error
+
+      - name: Upload EXE to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/pico.exe
+          fail_on_unmatched_files: true
+          overwrite_files: true

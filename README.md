@@ -71,3 +71,4 @@ Sí, pero **el `.exe` de Windows debe compilarse en Windows**.
 - Desde cualquier SO: usa el workflow de GitHub Actions **Build Windows Portable**.
   Se ejecuta manualmente (`workflow_dispatch`) y también en `push` a `main` / `pull_request` cuando cambian archivos del proyecto.
   Al terminar, descarga el artefacto `pico-windows-portable` que contiene `pico.exe`.
+- Además, cuando publicas un **Release** (`published`), el workflow compila y sube automáticamente `dist/pico.exe` como asset del release.
