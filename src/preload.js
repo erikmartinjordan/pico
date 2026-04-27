@@ -1,0 +1,29 @@
+/**
+ * pico - Preload Script
+ * Secure bridge between main and renderer processes
+ */
+
+const { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('pico', {
+  // Screen capture
+  startCapture: () => ipcRenderer.invoke('start-capture'),
+  onLoadCapture: (callback) => ipcRenderer.on('load-capture', (_, data) => callback(data)),
+  onTriggerCapture: (callback) => ipcRenderer.on('trigger-capture', () => callback()),
+  
+  // Capture overlay communication
+  onCaptureData: (callback) => ipcRenderer.on('capture-data', (_, data) => callback(data)),
+  captureComplete: (imageDataUrl) => ipcRenderer.send('capture-complete', imageDataUrl),
+  captureCancel: () => ipcRenderer.send('capture-cancel'),
+  
+  // File operations
+  openFile: () => ipcRenderer.invoke('open-file'),
+  saveFile: (dataUrl) => ipcRenderer.invoke('save-file', dataUrl),
+  copyToClipboard: (dataUrl) => ipcRenderer.invoke('copy-to-clipboard', dataUrl),
+  
+  // Display info
+  getDisplays: () => ipcRenderer.invoke('get-displays'),
+  
+  // Platform info
+  platform: process.platform,
+});

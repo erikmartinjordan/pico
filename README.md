@@ -1,106 +1,127 @@
 # pico
 
-Lightweight screen-capture & annotation app for Windows. One portable `.exe`, no installation, no dependencies.
+Lightweight screen-capture & annotation app for **macOS** and **Windows**. Modern, fast, and portable.
 
-## What it does
-
-Capture your screen (all monitors), annotate it with rectangles, arrows and text, then export to PNG. That's it.
+![pico screenshot](docs/screenshot.png)
 
 ## Features
 
-- **Multi-monitor capture** — grabs the full virtual desktop across all connected monitors (`Ctrl+Shift+S` or `F8`)
-- **Region select** — after capture, drag to crop the exact area you need
-- **Annotation tools** — rectangle, arrow and text overlays with customizable color and stroke
-- **Open any image** — PNG, JPG, BMP, WEBP (`Ctrl+O`)
-- **Export to PNG** — save the annotated result anywhere (`Ctrl+E`)
-- **Portable** — single `pico.exe`, runs from USB, desktop, wherever
-- **Icon-driven toolbar** — clean icons with tooltips, no label clutter
-- **Hi-res color palette** — anti-aliased swatches rendered via Pillow at 2× resolution
+- **Cross-platform** — Native apps for macOS (Intel & Apple Silicon) and Windows
+- **Multi-monitor capture** — Seamlessly capture across all connected displays
+- **Region selection** — Drag to crop the exact area you need
+- **Annotation tools**
+  - Rectangle & Ellipse
+  - Arrow & Line
+  - Text labels
+  - Highlighter
+  - Blur/pixelate sensitive info
+- **Color palette** — 9 preset colors + custom color picker
+- **Adjustable stroke width** — 4 thickness options
+- **Undo/Redo** — Full history support
+- **Zoom & pan** — Navigate large screenshots with ease
+- **Export options** — Save to PNG or copy directly to clipboard
+- **Portable** — Single executable, no installation required (Windows)
 
-## Keyboard shortcuts
+## Keyboard Shortcuts
 
 | Shortcut | Action |
 | --- | --- |
-| `Ctrl+Shift+S` / `F8` | Capture screen (all monitors) |
-| `Ctrl+O` | Open image |
-| `Ctrl+E` | Export PNG |
+| `Cmd/Ctrl+Shift+S` | Capture screen |
+| `Cmd/Ctrl+O` | Open image |
+| `Cmd/Ctrl+E` | Export PNG |
+| `Cmd/Ctrl+C` | Copy to clipboard |
+| `Cmd/Ctrl+Z` | Undo |
+| `Cmd/Ctrl+Shift+Z` | Redo |
 | `R` | Rectangle tool |
+| `E` | Ellipse tool |
 | `A` | Arrow tool |
+| `L` | Line tool |
 | `T` | Text tool |
-| `Ctrl+Z` | Undo |
-
-## Requirements
-
-- Python 3.10+
-- Windows 10 / 11
-
-```bash
-pip install -r requirements.txt
-```
-
-Only dependency: `Pillow >= 10.4.0`.
-
-## Run from source
-
-```bash
-python app.py
-```
-
-## Build portable EXE
-
-### Locally (Windows)
-
-```bat
-build_windows.bat
-```
-
-Produces `dist\pico.exe`.
-
-### Via GitHub Actions
-
-The **Build Windows Portable** workflow runs automatically on:
-
-- Push to `main` (when `.py`, `requirements.txt`, `build_windows.bat` or the workflow itself change)
-- Pull requests touching those files
-- Manual trigger (`workflow_dispatch`)
-- Release publish — attaches `pico.exe` as a release asset
-
-Download the artifact `pico-windows-portable` from the workflow run, or grab `pico.exe` from the latest release.
+| `H` | Highlight tool |
+| `B` | Blur tool |
+| `+` / `-` | Zoom in/out |
+| `0` | Fit to window |
 
 ## Download
 
-Grab the latest portable EXE from [Releases](../../releases/latest/download/pico.exe).
+Grab the latest release for your platform:
 
-The landing page (`index.html`) auto-detects `owner/repo` on GitHub Pages and points the download button to the latest release.
+- **macOS**: `pico-x.x.x.dmg` (Universal binary for Intel & Apple Silicon)
+- **Windows**: `pico-x.x.x-portable.exe` (Portable, no install) or `pico-x.x.x-setup.exe` (Installer)
 
-## Project structure
+[Download latest release →](../../releases/latest)
+
+## Development
+
+### Prerequisites
+
+- Node.js 18+ 
+- npm or yarn
+
+### Setup
+
+```bash
+# Install dependencies
+npm install
+
+# Run in development mode
+npm start
+```
+
+### Build
+
+```bash
+# Build for current platform
+npm run build
+
+# Build for macOS
+npm run build:mac
+
+# Build for Windows  
+npm run build:win
+
+# Build for all platforms
+npm run build:all
+```
+
+Built apps are output to the `dist/` folder.
+
+## Project Structure
 
 ```
 pico/
-├── app.py                        # Main application (tkinter + Pillow)
-├── index.html                    # Landing page for GitHub Pages
-├── requirements.txt              # Python dependencies
-├── build_windows.bat             # Local PyInstaller build script
-└── .github/workflows/
-    └── build-windows-portable.yml  # CI: build, artifact, release upload
+├── package.json          # Dependencies & build config
+├── src/
+│   ├── main.js           # Electron main process
+│   ├── preload.js        # IPC bridge
+│   ├── index.html        # Main window UI
+│   ├── styles.css        # Styling
+│   ├── renderer.js       # UI logic & canvas drawing
+│   ├── capture-overlay.html  # Screen capture overlay
+│   └── assets/
+│       └── icons/        # App icons
+└── dist/                 # Built applications
 ```
 
 ## Design
 
-The UI follows a minimal, neutral-cool palette inspired by Windows 11 and Linear:
+Dark theme with a clean, modern aesthetic:
 
-| Token | Hex | Role |
+| Token | Value | Usage |
 | --- | --- | --- |
-| `BG` | `#F7F8FA` | App background |
-| `SURFACE` | `#FFFFFF` | Toolbar, panels |
-| `ACCENT` | `#2563EB` | Active tool, links |
-| `TEXT` | `#1A1D23` | Primary text |
-| `TEXT_SEC` | `#6B7280` | Labels, inactive |
-| `TEXT_MUT` | `#A0A6B1` | Hints, status bar |
+| Background | `#0a0a0b` | App background |
+| Surface | `#111113` | Toolbar, panels |
+| Accent | `#3b82f6` | Active states, buttons |
+| Text | `#fafafa` | Primary text |
+| Muted | `#71717a` | Secondary text |
 
-Typography: Segoe UI at 9–14 px. Spacing on an 8 px grid.
+Typography: System fonts (-apple-system, Segoe UI) at 12–14px.
 
-Color palette swatches are rendered at 2× via Pillow and downscaled with Lanczos anti-aliasing for crisp circles on any DPI.
+## Tech Stack
+
+- **Electron** — Cross-platform desktop framework
+- **Canvas API** — Hardware-accelerated drawing
+- **desktopCapturer** — Native screen capture
 
 ## License
 

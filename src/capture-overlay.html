@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Capture</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      cursor: crosshair;
+    }
+    
+    #overlay {
+      position: fixed;
+      inset: 0;
+    }
+    
+    #canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+    
+    #selection {
+      position: absolute;
+      border: 2px solid #3b82f6;
+      background: transparent;
+      pointer-events: none;
+      display: none;
+    }
+    
+    #selection.visible {
+      display: block;
+    }
+    
+    #selection::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(59, 130, 246, 0.1);
+    }
+    
+    #dimensions {
+      position: absolute;
+      background: rgba(0, 0, 0, 0.75);
+      color: white;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 12px;
+      pointer-events: none;
+      display: none;
+    }
+    
+    #dimensions.visible {
+      display: block;
+    }
+    
+    #instructions {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.75);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14px;
+      pointer-events: none;
+      backdrop-filter: blur(10px);
+    }
+    
+    #instructions kbd {
+      background: rgba(255, 255, 255, 0.2);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: inherit;
+    }
+  </style>
+</head>
+<body>
+  <div id="overlay">
+    <canvas id="canvas"></canvas>
+    <div id="selection"></div>
+    <div id="dimensions"></div>
+    <div id="instructions">
+      Drag to select region · Press <kbd>Esc</kbd> to cancel
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const selection = document.getElementById('selection');
+    const dimensions = document.getElementById('dimensions');
+    
+    let captureData = null;
+    let isSelecting = false;
+    let startX = 0, startY = 0;
+    let currentX = 0, currentY = 0;
+    
+    // Listen for capture data from main process
+    window.pico.onCaptureData(async (data) => {
+      captureData = data;
+      
+      if (data.type === 'multi') {
+        // Multi-monitor: composite all screens
+        await compositeScreens(data);
+      } else {
+        // Single screen
+        const img = new Image();
+        img.onload = () => {
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
+          applyDarkOverlay();
+        };
+        img.src = data.dataUrl;
+      }
+    });
+    
+    async function compositeScreens(data) {
+      const { screens, virtualBounds } = data;
+      
+      canvas.width = virtualBounds.width;
+      canvas.height = virtualBounds.height;
+      
+      // Load and draw all screens
+      for (const screen of screens) {
+        const img = await loadImage(screen.dataUrl);
+        const x = screen.bounds.x - virtualBounds.x;
+        const y = screen.bounds.y - virtualBounds.y;
+        ctx.drawImage(img, x, y, screen.bounds.width, screen.bounds.height);
+      }
+      
+      applyDarkOverlay();
+    }
+    
+    function loadImage(src) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.src = src;
+      });
+    }
+    
+    function applyDarkOverlay() {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    
+    // Mouse events
+    document.addEventListener('mousedown', (e) => {
+      isSelecting = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      currentX = startX;
+      currentY = startY;
+      
+      selection.classList.add('visible');
+      dimensions.classList.add('visible');
+      updateSelection();
+    });
+    
+    document.addEventListener('mousemove', (e) => {
+      if (!isSelecting) return;
+      
+      currentX = e.clientX;
+      currentY = e.clientY;
+      updateSelection();
+    });
+    
+    document.addEventListener('mouseup', (e) => {
+      if (!isSelecting) return;
+      isSelecting = false;
+      
+      const x = Math.min(startX, currentX);
+      const y = Math.min(startY, currentY);
+      const width = Math.abs(currentX - startX);
+      const height = Math.abs(currentY - startY);
+      
+      // Minimum size check
+      if (width < 10 || height < 10) {
+        window.pico.captureCancel();
+        return;
+      }
+      
+      // Capture the region
+      captureRegion(x, y, width, height);
+    });
+    
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        window.pico.captureCancel();
+      }
+    });
+    
+    function updateSelection() {
+      const x = Math.min(startX, currentX);
+      const y = Math.min(startY, currentY);
+      const width = Math.abs(currentX - startX);
+      const height = Math.abs(currentY - startY);
+      
+      selection.style.left = x + 'px';
+      selection.style.top = y + 'px';
+      selection.style.width = width + 'px';
+      selection.style.height = height + 'px';
+      
+      dimensions.textContent = `${width} × ${height}`;
+      dimensions.style.left = (x + 5) + 'px';
+      dimensions.style.top = (y - 25) + 'px';
+      
+      if (y < 30) {
+        dimensions.style.top = (y + height + 5) + 'px';
+      }
+    }
+    
+    function captureRegion(x, y, width, height) {
+      // Create a temp canvas for the cropped region
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = width;
+      tempCanvas.height = height;
+      const tempCtx = tempCanvas.getContext('2d');
+      
+      if (captureData.type === 'multi') {
+        // For multi-monitor, we need to get the original (non-darkened) image
+        // Re-draw without overlay
+        const originalCanvas = document.createElement('canvas');
+        originalCanvas.width = canvas.width;
+        originalCanvas.height = canvas.height;
+        const origCtx = originalCanvas.getContext('2d');
+        
+        // Load all screens again without overlay
+        Promise.all(captureData.screens.map(s => loadImage(s.dataUrl))).then(images => {
+          images.forEach((img, i) => {
+            const screen = captureData.screens[i];
+            const sx = screen.bounds.x - captureData.virtualBounds.x;
+            const sy = screen.bounds.y - captureData.virtualBounds.y;
+            origCtx.drawImage(img, sx, sy, screen.bounds.width, screen.bounds.height);
+          });
+          
+          tempCtx.drawImage(originalCanvas, x, y, width, height, 0, 0, width, height);
+          window.pico.captureComplete(tempCanvas.toDataURL('image/png'));
+        });
+      } else {
+        // Single screen - load original without overlay
+        const img = new Image();
+        img.onload = () => {
+          tempCtx.drawImage(img, x, y, width, height, 0, 0, width, height);
+          window.pico.captureComplete(tempCanvas.toDataURL('image/png'));
+        };
+        img.src = captureData.dataUrl;
+      }
+    }
+  </script>
+</body>
+</html>

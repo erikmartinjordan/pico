@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:;">
+  <title>pico</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Title bar (macOS drag region) -->
+  <div class="titlebar" id="titlebar">
+    <div class="titlebar-drag"></div>
+    <span class="titlebar-title">pico</span>
+  </div>
+
+  <!-- Main toolbar -->
+  <div class="toolbar">
+    <!-- Left: Actions -->
+    <div class="toolbar-group">
+      <button class="toolbar-btn action-btn" id="btn-capture" data-tooltip="Capture Screen (⌘⇧S)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M12 1v4M12 19v4M1 12h4M19 12h4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+        </svg>
+      </button>
+      <button class="toolbar-btn action-btn" id="btn-open" data-tooltip="Open Image (⌘O)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M3 7v13a2 2 0 002 2h14a2 2 0 002-2V7"/>
+          <path d="M21 7l-3-4H6L3 7"/>
+          <path d="M12 11v8"/>
+          <path d="M9 14l3-3 3 3"/>
+        </svg>
+      </button>
+      <button class="toolbar-btn action-btn" id="btn-save" data-tooltip="Export PNG (⌘E)" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M12 3v12"/>
+          <path d="M8 11l4 4 4-4"/>
+          <path d="M3 17v2a2 2 0 002 2h14a2 2 0 002-2v-2"/>
+        </svg>
+      </button>
+      <button class="toolbar-btn action-btn" id="btn-copy" data-tooltip="Copy to Clipboard (⌘C)" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="9" y="9" width="13" height="13" rx="2"/>
+          <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="toolbar-separator"></div>
+
+    <!-- Middle: Drawing tools -->
+    <div class="toolbar-group tools">
+      <button class="toolbar-btn tool-btn active" data-tool="rect" data-tooltip="Rectangle (R)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="3" y="3" width="18" height="18" rx="2"/>
+        </svg>
+      </button>
+      <button class="toolbar-btn tool-btn" data-tool="ellipse" data-tooltip="Ellipse (E)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <ellipse cx="12" cy="12" rx="9" ry="6"/>
+        </svg>
+      </button>
+      <button class="toolbar-btn tool-btn" data-tool="arrow" data-tooltip="Arrow (A)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M5 19L19 5"/>
+          <path d="M19 5v6"/>
+          <path d="M19 5h-6"/>
+        </svg>
+      </button>
+      <button class="toolbar-btn tool-btn" data-tool="line" data-tooltip="Line (L)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M5 19L19 5"/>
+        </svg>
+      </button>
+      <button class="toolbar-btn tool-btn" data-tool="text" data-tooltip="Text (T)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M4 7V4h16v3"/>
+          <path d="M12 4v16"/>
+          <path d="M8 20h8"/>
+        </svg>
+      </button>
+      <button class="toolbar-btn tool-btn" data-tool="highlight" data-tooltip="Highlight (H)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+          <path d="M2 17l10 5 10-5"/>
+          <path d="M2 12l10 5 10-5"/>
+        </svg>
+      </button>
+      <button class="toolbar-btn tool-btn" data-tool="blur" data-tooltip="Blur (B)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="12" cy="12" r="4" opacity="0.3"/>
+          <circle cx="12" cy="12" r="7" opacity="0.2"/>
+          <circle cx="12" cy="12" r="10" opacity="0.1"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="toolbar-separator"></div>
+
+    <!-- Color palette -->
+    <div class="toolbar-group colors">
+      <button class="color-swatch active" data-color="#ef4444" style="--swatch-color: #ef4444"></button>
+      <button class="color-swatch" data-color="#f97316" style="--swatch-color: #f97316"></button>
+      <button class="color-swatch" data-color="#eab308" style="--swatch-color: #eab308"></button>
+      <button class="color-swatch" data-color="#22c55e" style="--swatch-color: #22c55e"></button>
+      <button class="color-swatch" data-color="#3b82f6" style="--swatch-color: #3b82f6"></button>
+      <button class="color-swatch" data-color="#8b5cf6" style="--swatch-color: #8b5cf6"></button>
+      <button class="color-swatch" data-color="#ec4899" style="--swatch-color: #ec4899"></button>
+      <button class="color-swatch" data-color="#ffffff" style="--swatch-color: #ffffff"></button>
+      <button class="color-swatch" data-color="#000000" style="--swatch-color: #000000"></button>
+      <button class="color-picker-btn" id="custom-color" data-tooltip="Custom Color">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="12" cy="12" r="9"/>
+          <path d="M12 3v4M12 17v4M3 12h4M17 12h4"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="toolbar-separator"></div>
+
+    <!-- Stroke width -->
+    <div class="toolbar-group strokes">
+      <button class="stroke-btn" data-width="2" data-tooltip="Thin">
+        <span class="stroke-preview" style="height: 2px"></span>
+      </button>
+      <button class="stroke-btn active" data-width="4" data-tooltip="Medium">
+        <span class="stroke-preview" style="height: 4px"></span>
+      </button>
+      <button class="stroke-btn" data-width="8" data-tooltip="Thick">
+        <span class="stroke-preview" style="height: 8px"></span>
+      </button>
+      <button class="stroke-btn" data-width="12" data-tooltip="Extra Thick">
+        <span class="stroke-preview" style="height: 12px"></span>
+      </button>
+    </div>
+
+    <div class="toolbar-separator"></div>
+
+    <!-- Undo/Redo -->
+    <div class="toolbar-group">
+      <button class="toolbar-btn" id="btn-undo" data-tooltip="Undo (⌘Z)" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M3 7h12a5 5 0 015 5 5 5 0 01-5 5H8"/>
+          <path d="M7 11L3 7l4-4"/>
+        </svg>
+      </button>
+      <button class="toolbar-btn" id="btn-redo" data-tooltip="Redo (⌘⇧Z)" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M21 7H9a5 5 0 00-5 5 5 5 0 005 5h9"/>
+          <path d="M17 11l4-4-4-4"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Right: Zoom -->
+    <div class="toolbar-spacer"></div>
+    <div class="toolbar-group zoom-group">
+      <button class="toolbar-btn" id="btn-zoom-out" data-tooltip="Zoom Out (-)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="11" cy="11" r="8"/>
+          <path d="M21 21l-4.35-4.35"/>
+          <path d="M8 11h6"/>
+        </svg>
+      </button>
+      <span class="zoom-level" id="zoom-level">100%</span>
+      <button class="toolbar-btn" id="btn-zoom-in" data-tooltip="Zoom In (+)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="11" cy="11" r="8"/>
+          <path d="M21 21l-4.35-4.35"/>
+          <path d="M11 8v6"/>
+          <path d="M8 11h6"/>
+        </svg>
+      </button>
+      <button class="toolbar-btn" id="btn-zoom-fit" data-tooltip="Fit to Window">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M8 3H5a2 2 0 00-2 2v3"/>
+          <path d="M21 8V5a2 2 0 00-2-2h-3"/>
+          <path d="M3 16v3a2 2 0 002 2h3"/>
+          <path d="M16 21h3a2 2 0 002-2v-3"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Canvas area -->
+  <div class="canvas-container" id="canvas-container">
+    <div class="empty-state" id="empty-state">
+      <div class="empty-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+          <rect x="2" y="2" width="20" height="20" rx="3"/>
+          <circle cx="8" cy="8" r="2"/>
+          <path d="M21 15l-5-5L5 21"/>
+        </svg>
+      </div>
+      <h2>No image loaded</h2>
+      <p>Capture your screen or open an image to start annotating</p>
+      <div class="empty-actions">
+        <button class="btn btn-primary" id="empty-capture">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M12 1v4M12 19v4M1 12h4M19 12h4"/>
+          </svg>
+          Capture Screen
+        </button>
+        <button class="btn btn-secondary" id="empty-open">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M3 7v13a2 2 0 002 2h14a2 2 0 002-2V7"/>
+            <path d="M21 7l-3-4H6L3 7"/>
+          </svg>
+          Open Image
+        </button>
+      </div>
+    </div>
+    <canvas id="canvas"></canvas>
+  </div>
+
+  <!-- Status bar -->
+  <div class="statusbar">
+    <span class="status-tool" id="status-tool">Rectangle</span>
+    <span class="status-separator">·</span>
+    <span class="status-size" id="status-size">—</span>
+    <div class="statusbar-spacer"></div>
+    <span class="status-annotations" id="status-annotations">0 annotations</span>
+    <span class="status-separator">·</span>
+    <span class="status-version">pico v2.0</span>
+  </div>
+
+  <!-- Text input modal -->
+  <div class="modal" id="text-modal">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <h3>Add Text</h3>
+      <input type="text" id="text-input" placeholder="Enter text..." autofocus>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" id="text-cancel">Cancel</button>
+        <button class="btn btn-primary" id="text-confirm">Add</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden color picker -->
+  <input type="color" id="color-picker-input" style="position:absolute;opacity:0;pointer-events:none;">
+
+  <!-- Toast notifications -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

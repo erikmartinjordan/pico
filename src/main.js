@@ -1,0 +1,258 @@
+/**
+ * pico - Main Process
+ * Handles window creation, screen capture, and native dialogs
+ */
+
+const { app, BrowserWindow, ipcMain, desktopCapturer, dialog, screen, globalShortcut, nativeImage, clipboard } = require('electron');
+const path = require('path');
+const fs = require('fs');
+
+let mainWindow = null;
+let captureWindow = null;
+
+// ── Window Creation ─────────────────────────────────────────────────────────
+
+function createMainWindow() {
+  mainWindow = new BrowserWindow({
+    width: 1200,
+    height: 800,
+    minWidth: 900,
+    minHeight: 600,
+    backgroundColor: '#0a0a0b',
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    frame: process.platform !== 'darwin',
+    trafficLightPosition: { x: 16, y: 16 },
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+    icon: path.join(__dirname, 'assets', 'icons', 'icon.png'),
+    show: false,
+  });
+
+  mainWindow.loadFile(path.join(__dirname, 'index.html'));
+
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+  });
+
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
+}
+
+// ── Screen Capture ──────────────────────────────────────────────────────────
+
+async function captureAllScreens() {
+  const displays = screen.getAllDisplays();
+  
+  // Calculate virtual screen bounds (union of all displays)
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  displays.forEach(d => {
+    minX = Math.min(minX, d.bounds.x);
+    minY = Math.min(minY, d.bounds.y);
+    maxX = Math.max(maxX, d.bounds.x + d.bounds.width);
+    maxY = Math.max(maxY, d.bounds.y + d.bounds.height);
+  });
+  
+  const totalWidth = maxX - minX;
+  const totalHeight = maxY - minY;
+
+  try {
+    const sources = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: { width: totalWidth, height: totalHeight },
+    });
+
+    // If multiple displays, we need to composite them
+    if (displays.length > 1 && sources.length > 1) {
+      // Return all sources for the renderer to composite
+      const screensData = await Promise.all(sources.map(async (source, i) => {
+        const display = displays[i] || displays[0];
+        return {
+          dataUrl: source.thumbnail.toDataURL(),
+          bounds: display.bounds,
+          scaleFactor: display.scaleFactor || 1,
+        };
+      }));
+      
+      return {
+        type: 'multi',
+        screens: screensData,
+        virtualBounds: { x: minX, y: minY, width: totalWidth, height: totalHeight },
+      };
+    } else {
+      // Single screen
+      return {
+        type: 'single',
+        dataUrl: sources[0].thumbnail.toDataURL(),
+        bounds: displays[0].bounds,
+      };
+    }
+  } catch (err) {
+    console.error('Screen capture failed:', err);
+    throw err;
+  }
+}
+
+function createCaptureOverlay(captureData) {
+  const { virtualBounds } = captureData.type === 'multi' 
+    ? captureData 
+    : { virtualBounds: captureData.bounds };
+
+  captureWindow = new BrowserWindow({
+    x: virtualBounds.x || 0,
+    y: virtualBounds.y || 0,
+    width: virtualBounds.width,
+    height: virtualBounds.height,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    resizable: false,
+    movable: false,
+    fullscreenable: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  captureWindow.loadFile(path.join(__dirname, 'capture-overlay.html'));
+  
+  captureWindow.webContents.once('did-finish-load', () => {
+    captureWindow.webContents.send('capture-data', captureData);
+  });
+
+  captureWindow.on('closed', () => {
+    captureWindow = null;
+  });
+}
+
+// ── IPC Handlers ────────────────────────────────────────────────────────────
+
+ipcMain.handle('start-capture', async () => {
+  if (mainWindow) mainWindow.hide();
+  
+  // Small delay to ensure window is hidden
+  await new Promise(r => setTimeout(r, 200));
+  
+  try {
+    const captureData = await captureAllScreens();
+    createCaptureOverlay(captureData);
+    return { success: true };
+  } catch (err) {
+    if (mainWindow) mainWindow.show();
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.on('capture-complete', (event, imageDataUrl) => {
+  if (captureWindow) {
+    captureWindow.close();
+    captureWindow = null;
+  }
+  if (mainWindow) {
+    mainWindow.show();
+    mainWindow.webContents.send('load-capture', imageDataUrl);
+  }
+});
+
+ipcMain.on('capture-cancel', () => {
+  if (captureWindow) {
+    captureWindow.close();
+    captureWindow = null;
+  }
+  if (mainWindow) {
+    mainWindow.show();
+  }
+});
+
+ipcMain.handle('open-file', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openFile'],
+    filters: [
+      { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif'] },
+    ],
+  });
+  
+  if (result.canceled || !result.filePaths[0]) {
+    return null;
+  }
+  
+  const filePath = result.filePaths[0];
+  const buffer = fs.readFileSync(filePath);
+  const ext = path.extname(filePath).toLowerCase().slice(1);
+  const mime = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', bmp: 'image/bmp', gif: 'image/gif' }[ext] || 'image/png';
+  
+  return `data:${mime};base64,${buffer.toString('base64')}`;
+});
+
+ipcMain.handle('save-file', async (event, dataUrl) => {
+  const result = await dialog.showSaveDialog(mainWindow, {
+    defaultPath: `screenshot-${Date.now()}.png`,
+    filters: [
+      { name: 'PNG Image', extensions: ['png'] },
+      { name: 'JPEG Image', extensions: ['jpg'] },
+    ],
+  });
+  
+  if (result.canceled || !result.filePath) {
+    return { success: false };
+  }
+  
+  try {
+    const base64Data = dataUrl.replace(/^data:image\/\w+;base64,/, '');
+    const buffer = Buffer.from(base64Data, 'base64');
+    fs.writeFileSync(result.filePath, buffer);
+    return { success: true, path: result.filePath };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('copy-to-clipboard', async (event, dataUrl) => {
+  try {
+    const image = nativeImage.createFromDataURL(dataUrl);
+    clipboard.writeImage(image);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('get-displays', () => {
+  return screen.getAllDisplays();
+});
+
+// ── App Lifecycle ───────────────────────────────────────────────────────────
+
+app.whenReady().then(() => {
+  createMainWindow();
+
+  // Register global shortcut for capture
+  globalShortcut.register('CommandOrControl+Shift+S', () => {
+    if (mainWindow) {
+      mainWindow.webContents.send('trigger-capture');
+    }
+  });
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createMainWindow();
+    }
+  });
+});
+
+app.on('window-all-closed', () => {
+  globalShortcut.unregisterAll();
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
+});
+
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
+});
