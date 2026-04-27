@@ -1,0 +1,40 @@
+name: Build Windows Portable
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'app.py'
+      - 'requirements.txt'
+      - 'build_windows.bat'
+      - '.github/workflows/build-windows-portable.yml'
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install pyinstaller
+
+      - name: Build portable EXE
+        run: |
+          pyinstaller --noconfirm --onefile --windowed --name pico app.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pico-windows-portable
+          path: dist/pico.exe
+          if-no-files-found: error
