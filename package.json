@@ -43,7 +43,7 @@
       "publisherName": ["Erik Martín Jordán"],
       "target": [
         {
-          "target": "portable",
+          "target": "nsis",
           "arch": [
             "x64"
           ]
