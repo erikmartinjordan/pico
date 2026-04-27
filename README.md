@@ -55,5 +55,6 @@ El ejecutable se genera en:
 Sí, pero **el `.exe` de Windows debe compilarse en Windows**.
 
 - En local (Windows): ejecuta `build_windows.bat`.
-- Desde cualquier SO: usa el workflow de GitHub Actions **Build Windows Portable** (manual con `workflow_dispatch`).
+- Desde cualquier SO: usa el workflow de GitHub Actions **Build Windows Portable**.
+  Se ejecuta manualmente (`workflow_dispatch`) y también en `push` a `main` / `pull_request` cuando cambian archivos del proyecto.
   Al terminar, descarga el artefacto `pico-windows-portable` que contiene `pico.exe`.

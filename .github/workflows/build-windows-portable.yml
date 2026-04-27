@@ -3,8 +3,16 @@ name: Build Windows Portable
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
     paths:
-      - 'app.py'
+      - '**.py'
+      - 'requirements.txt'
+      - 'build_windows.bat'
+      - '.github/workflows/build-windows-portable.yml'
+  pull_request:
+    paths:
+      - '**.py'
       - 'requirements.txt'
       - 'build_windows.bat'
       - '.github/workflows/build-windows-portable.yml'
