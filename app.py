@@ -24,6 +24,20 @@ ACCENT_BG = "#EBF2FF"
 HOVER_BG  = "#F0F2F5"
 PRESS_BG  = "#E4E7EC"
 
+PALETTE = [
+    "#EF4444",  # Red
+    "#F97316",  # Orange
+    "#EAB308",  # Yellow
+    "#22C55E",  # Green
+    "#2563EB",  # Blue
+    "#8B5CF6",  # Purple
+    "#EC4899",  # Pink
+    "#1A1D23",  # Dark
+    "#FFFFFF",  # White
+]
+
+STROKES = [2, 4, 7, 12]
+
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -44,9 +58,9 @@ def _hover_unbind(widget, fixed_bg):
 
 class PicoApp:
     TOOL_LABELS = {
-        "select": ("⊹", "Mover"),
-        "rect":   ("□", "Rectángulo"),
-        "arrow":  ("↗", "Flecha"),
+        "select": ("\u22c9", "Mover"),
+        "rect":   ("\u25a1", "Rect\u00e1ngulo"),
+        "arrow":  ("\u2197", "Flecha"),
         "text":   ("T", "Texto"),
     }
 
@@ -66,8 +80,17 @@ class PicoApp:
         self.preview_id = None
         self.items = []
         self.font_size = 24
-        self.stroke_width = 3
+        self.stroke_width = 4
         self.current_color = ACCENT
+
+        # Region capture state
+        self._full_grab = None
+        self._overlay = None
+        self._overlay_img = None
+        self._overlay_canvas = None
+        self._region_start = None
+        self._region_rect_id = None
+        self._region_preview_tk = None
 
         # ── Build ────────────────────────────────────────────────────────
         self._build_toolbar()
@@ -80,14 +103,13 @@ class PicoApp:
     # ── Toolbar ──────────────────────────────────────────────────────────
 
     def _build_toolbar(self) -> None:
-        # Toolbar frame – fixed 48 px
-        bar = tk.Frame(self.root, bg=SURFACE, height=48)
+        bar = tk.Frame(self.root, bg=SURFACE, height=52)
         bar.pack(fill="x")
         bar.pack_propagate(False)
 
         # 1) Action buttons ------------------------------------------------
         for label, cmd in [
-            ("Capturar", self.capture_screen),
+            ("Capturar", self.capture_region),
             ("Abrir",    self.open_image),
             ("Exportar", self.export_png),
         ]:
@@ -97,7 +119,7 @@ class PicoApp:
                 relief="flat", bd=0, highlightthickness=0,
                 padx=12, pady=4, font=(FONT, 10), cursor="hand2",
             )
-            b.pack(side="left", padx=(8, 0), pady=8)
+            b.pack(side="left", padx=(8, 0), pady=10)
             _hover_bind(b, SURFACE, HOVER_BG)
 
         self._sep(bar)
@@ -112,56 +134,118 @@ class PicoApp:
                 relief="flat", bd=0, highlightthickness=0,
                 width=3, pady=4, font=(FONT, 12), cursor="hand2",
             )
-            b.pack(side="left", padx=2, pady=8)
+            b.pack(side="left", padx=2, pady=10)
             self.mode_buttons[mode] = b
 
         self._sep(bar)
 
-        # 3) Properties: color swatch + stroke width -----------------------
-        self.color_swatch = tk.Canvas(
-            bar, width=24, height=24, bg=SURFACE,
+        # 3) Color palette --------------------------------------------------
+        palette_frame = tk.Frame(bar, bg=SURFACE)
+        palette_frame.pack(side="left", padx=(4, 0), pady=10)
+
+        self.color_swatches = []
+        for color in PALETTE:
+            sw = tk.Canvas(
+                palette_frame, width=18, height=18, bg=SURFACE,
+                highlightthickness=0, bd=0, cursor="hand2",
+            )
+            sw.pack(side="left", padx=1)
+            sw._color = color
+            self._draw_palette_dot(sw, color, selected=(color == self.current_color))
+            sw.bind("<Button-1>", lambda _e, c=color: self._select_color(c))
+            self.color_swatches.append(sw)
+
+        # Custom color (+)
+        plus = tk.Canvas(
+            palette_frame, width=18, height=18, bg=SURFACE,
             highlightthickness=0, bd=0, cursor="hand2",
         )
-        self.color_swatch.pack(side="left", padx=(8, 6), pady=12)
-        self._draw_swatch()
-        self.color_swatch.bind("<Button-1>", lambda _e: self.pick_color())
+        plus.pack(side="left", padx=(3, 0))
+        plus.create_oval(2, 2, 16, 16, fill=HOVER_BG, outline=BORDER, width=1)
+        plus.create_line(6, 9, 12, 9, fill=TEXT_SEC, width=1.5)
+        plus.create_line(9, 6, 9, 12, fill=TEXT_SEC, width=1.5)
+        plus.bind("<Button-1>", lambda _e: self._pick_custom_color())
 
-        tk.Label(
-            bar, text="Grosor", bg=SURFACE, fg=TEXT_SEC, font=(FONT, 9),
-        ).pack(side="left", padx=(4, 4))
+        self._sep(bar)
 
-        self.stroke_entry = tk.Entry(
-            bar, width=3, justify="center",
-            bg=HOVER_BG, fg=TEXT, font=(FONT, 10),
-            relief="flat", bd=0,
-            highlightthickness=1, highlightbackground=BORDER_LT, highlightcolor=ACCENT,
-            insertbackground=TEXT,
+        # 4) Stroke width selector ------------------------------------------
+        stroke_frame = tk.Frame(bar, bg=SURFACE)
+        stroke_frame.pack(side="left", padx=(4, 0), pady=10)
+
+        self.stroke_buttons = []
+        for w in STROKES:
+            sw = tk.Canvas(
+                stroke_frame, width=26, height=26, bg=SURFACE,
+                highlightthickness=0, bd=0, cursor="hand2",
+            )
+            sw.pack(side="left", padx=1)
+            sw._stroke_w = w
+            self._draw_stroke_icon(sw, w, selected=(w == self.stroke_width))
+            sw.bind("<Button-1>", lambda _e, ww=w: self._select_stroke(ww))
+            self.stroke_buttons.append(sw)
+
+        self._sep(bar)
+
+        # 5) Undo button ----------------------------------------------------
+        undo = tk.Button(
+            bar, text="\u21a9", command=self.undo,
+            bg=SURFACE, fg=TEXT_SEC, activebackground=HOVER_BG, activeforeground=TEXT_SEC,
+            relief="flat", bd=0, highlightthickness=0,
+            width=3, pady=4, font=(FONT, 12), cursor="hand2",
         )
-        self.stroke_entry.insert(0, str(self.stroke_width))
-        self.stroke_entry.pack(side="left", padx=(0, 8), pady=12)
-        self.stroke_entry.bind("<KeyRelease>", lambda _e: self._sync_stroke())
-        self.stroke_entry.bind("<FocusOut>", lambda _e: self._sync_stroke())
+        undo.pack(side="left", padx=2, pady=10)
+        _hover_bind(undo, SURFACE, HOVER_BG)
 
-        # 4) Hints (right-aligned) -----------------------------------------
+        # 6) Hints (right) -------------------------------------------------
         tk.Label(
-            bar, text="R rect · A flecha · T texto · V mover",
+            bar, text="R rect \u00b7 A flecha \u00b7 T texto \u00b7 V mover \u00b7 \u2303Z deshacer",
             bg=SURFACE, fg=TEXT_MUT, font=(FONT, 9),
         ).pack(side="right", padx=12)
 
-        # Bottom 1 px border line
+        # Bottom border
         tk.Frame(self.root, bg=BORDER, height=1).pack(fill="x")
 
-    def _sep(self, parent) -> None:
-        """Insert a 1 px × 22 px vertical separator."""
-        s = tk.Frame(parent, width=1, height=22, bg=BORDER)
-        s.pack(side="left", padx=8, pady=13)
+    # ── Toolbar widget helpers ───────────────────────────────────────────
 
-    def _draw_swatch(self) -> None:
-        self.color_swatch.delete("all")
-        self.color_swatch.create_oval(
-            3, 3, 21, 21,
-            fill=self.current_color, outline=BORDER, width=1,
+    def _sep(self, parent) -> None:
+        tk.Frame(parent, width=1, height=24, bg=BORDER).pack(
+            side="left", padx=8, pady=14,
         )
+
+    def _draw_palette_dot(self, canvas, color, selected=False):
+        canvas.delete("all")
+        if selected:
+            canvas.create_oval(0, 0, 17, 17, outline=ACCENT, width=2, fill="")
+            canvas.create_oval(4, 4, 13, 13, fill=color, outline="")
+        else:
+            ol = BORDER if color == "#FFFFFF" else ""
+            canvas.create_oval(2, 2, 15, 15, fill=color, outline=ol, width=1)
+
+    def _draw_stroke_icon(self, canvas, width, selected=False):
+        canvas.delete("all")
+        bg = ACCENT_BG if selected else SURFACE
+        fg = ACCENT if selected else TEXT_SEC
+        canvas.configure(bg=bg)
+        vis = max(1, min(width, 10))
+        canvas.create_line(5, 13, 21, 13, fill=fg, width=vis, capstyle=tk.ROUND)
+
+    def _select_color(self, color):
+        self.current_color = color
+        for sw in self.color_swatches:
+            self._draw_palette_dot(sw, sw._color, selected=(sw._color == color))
+
+    def _pick_custom_color(self):
+        result = colorchooser.askcolor(color=self.current_color, title="Elige un color")
+        if result and result[1]:
+            self.current_color = result[1]
+            # Deselect all palette dots
+            for sw in self.color_swatches:
+                self._draw_palette_dot(sw, sw._color, selected=False)
+
+    def _select_stroke(self, width):
+        self.stroke_width = width
+        for sw in self.stroke_buttons:
+            self._draw_stroke_icon(sw, sw._stroke_w, selected=(sw._stroke_w == width))
 
     # ── Canvas area ──────────────────────────────────────────────────────
 
@@ -178,7 +262,6 @@ class PicoApp:
         )
         self.canvas.pack(fill="both", expand=True, padx=1, pady=1)
 
-        # Empty-state hint (centered later via <Configure>)
         self._empty_id = self.canvas.create_text(
             0, 0,
             text="Pulsa 'Capturar' u 'Abrir' para comenzar",
@@ -187,7 +270,6 @@ class PicoApp:
         self.canvas.bind("<Configure>", self._on_canvas_configure)
 
     def _on_canvas_configure(self, event) -> None:
-        """Keep the empty-state text centred when the window resizes."""
         if self.canvas.find_withtag("empty"):
             self.canvas.coords("empty", event.width / 2, event.height / 2)
         if self.image is not None:
@@ -213,11 +295,12 @@ class PicoApp:
 
     def _update_status(self) -> None:
         tool_name = self.TOOL_LABELS.get(self.draw_mode, ("", ""))[1]
+        parts = [tool_name]
         if self.image:
-            dims = f"{self.image.width}×{self.image.height}"
-            self.status_left.configure(text=f"{tool_name} · {dims}")
-        else:
-            self.status_left.configure(text=tool_name)
+            parts.append(f"{self.image.width}\u00d7{self.image.height}")
+        if self.items:
+            parts.append(f"{len(self.items)} anotaci\u00f3n{'es' if len(self.items) != 1 else ''}")
+        self.status_left.configure(text=" \u00b7 ".join(parts))
 
     # ── Tool mode ────────────────────────────────────────────────────────
 
@@ -237,25 +320,15 @@ class PicoApp:
         self.canvas.configure(cursor=cursors.get(mode, "crosshair"))
         self._update_status()
 
-    # ── Color & stroke ───────────────────────────────────────────────────
+    # ── Undo ─────────────────────────────────────────────────────────────
 
-    def pick_color(self) -> None:
-        color = colorchooser.askcolor(color=self.current_color, title="Elige un color")
-        if color and color[1]:
-            self.current_color = color[1]
-            self._draw_swatch()
-
-    def _sync_stroke(self) -> None:
-        raw = self.stroke_entry.get().strip()
-        try:
-            val = int(raw)
-            if val < 1:
-                val = 1
-            elif val > 20:
-                val = 20
-            self.stroke_width = val
-        except ValueError:
-            pass
+    def undo(self) -> None:
+        if not self.items:
+            return
+        self.items.pop()
+        if self.base_image:
+            self._compose_image()
+        self._update_status()
 
     # ── Canvas events ────────────────────────────────────────────────────
 
@@ -265,33 +338,140 @@ class PicoApp:
         self.canvas.bind("<ButtonRelease-1>", self.on_release)
 
     def _bind_shortcuts(self) -> None:
-        self.root.bind("<Control-Shift-S>", lambda _e: self.capture_screen())
+        self.root.bind("<Control-Shift-S>", lambda _e: self.capture_region())
         self.root.bind("<Control-o>",       lambda _e: self.open_image())
         self.root.bind("<Control-e>",       lambda _e: self.export_png())
-        self.root.bind("<F8>",              lambda _e: self.capture_screen())
+        self.root.bind("<Control-z>",       lambda _e: self.undo())
+        self.root.bind("<F8>",              lambda _e: self.capture_region())
+        self.root.bind("<r>", lambda _e: self.set_mode("rect"))
+        self.root.bind("<a>", lambda _e: self.set_mode("arrow"))
+        self.root.bind("<t>", lambda _e: self.set_mode("text"))
+        self.root.bind("<v>", lambda _e: self.set_mode("select"))
 
-        for key, mode in [("r", "rect"), ("a", "arrow"), ("t", "text"), ("v", "select")]:
-            self.root.bind(
-                f"<{key}>",
-                lambda _e, m=mode: self.set_mode(m)
-                    if self.root.focus_get() != self.stroke_entry else None,
-            )
+    # ── Region capture ───────────────────────────────────────────────────
 
-    # ── Image loading ────────────────────────────────────────────────────
-
-    def capture_screen(self) -> None:
+    def capture_region(self) -> None:
         self.root.withdraw()
-        self.root.after(300, self._grab_screen)
+        self.root.after(350, self._start_region_select)
 
-    def _grab_screen(self) -> None:
+    def _start_region_select(self) -> None:
         try:
-            grabbed = ImageGrab.grab(all_screens=True)
+            self._full_grab = ImageGrab.grab(all_screens=False)
         except Exception as exc:
             self.root.deiconify()
-            messagebox.showerror("Error", f"No se pudo capturar la pantalla:\n{exc}")
+            messagebox.showerror("Error", f"No se pudo capturar:\n{exc}")
             return
+
+        self._overlay = tk.Toplevel(self.root)
+        self._overlay.overrideredirect(True)
+        self._overlay.attributes("-topmost", True)
+
+        sw = self.root.winfo_screenwidth()
+        sh = self.root.winfo_screenheight()
+        self._overlay.geometry(f"{sw}x{sh}+0+0")
+
+        # Darkened background
+        tinted = self._full_grab.copy().convert("RGBA")
+        dark = Image.new("RGBA", tinted.size, (0, 0, 0, 120))
+        tinted = Image.alpha_composite(tinted, dark).convert("RGB")
+        self._overlay_img = ImageTk.PhotoImage(tinted)
+
+        self._overlay_canvas = tk.Canvas(
+            self._overlay, highlightthickness=0, bd=0, cursor="crosshair",
+        )
+        self._overlay_canvas.pack(fill="both", expand=True)
+        self._overlay_canvas.create_image(
+            0, 0, image=self._overlay_img, anchor="nw", tags="bg",
+        )
+
+        # Hint text
+        self._overlay_canvas.create_text(
+            sw // 2, 40,
+            text="Arrastra para seleccionar zona \u00b7 Esc para cancelar",
+            fill="white", font=(FONT, 12), tags="hint",
+        )
+
+        self._region_start = None
+        self._region_rect_id = None
+        self._region_preview_tk = None
+
+        self._overlay_canvas.bind("<ButtonPress-1>", self._on_region_press)
+        self._overlay_canvas.bind("<B1-Motion>", self._on_region_drag)
+        self._overlay_canvas.bind("<ButtonRelease-1>", self._on_region_release)
+        self._overlay.bind("<Escape>", self._on_region_cancel)
+
+    def _on_region_press(self, event):
+        self._region_start = (event.x, event.y)
+
+    def _on_region_drag(self, event):
+        if self._region_start is None:
+            return
+
+        x1, y1 = self._region_start
+        x2, y2 = event.x, event.y
+        rx1, ry1 = min(x1, x2), min(y1, y2)
+        rx2, ry2 = max(x1, x2), max(y1, y2)
+
+        # Clean previous
+        self._overlay_canvas.delete("sel_bright")
+        self._overlay_canvas.delete("sel_rect")
+        self._overlay_canvas.delete("sel_dims")
+
+        # Bright preview of selected region
+        if rx2 - rx1 > 4 and ry2 - ry1 > 4:
+            region = self._full_grab.crop((rx1, ry1, rx2, ry2))
+            self._region_preview_tk = ImageTk.PhotoImage(region)
+            self._overlay_canvas.create_image(
+                rx1, ry1, image=self._region_preview_tk, anchor="nw", tags="sel_bright",
+            )
+
+        # Selection border
+        self._overlay_canvas.create_rectangle(
+            x1, y1, x2, y2, outline="white", width=1, tags="sel_rect",
+        )
+
+        # Dimensions label
+        w_px, h_px = abs(x2 - x1), abs(y2 - y1)
+        if w_px > 30 and h_px > 20:
+            self._overlay_canvas.create_text(
+                rx1 + 6, ry1 - 8,
+                text=f"{w_px}\u00d7{h_px}", fill="white",
+                font=(FONT, 9), anchor="sw", tags="sel_dims",
+            )
+
+    def _on_region_release(self, event):
+        if self._region_start is None:
+            self._cleanup_overlay()
+            return
+
+        x1, y1 = self._region_start
+        x2, y2 = event.x, event.y
+        rx1, ry1 = min(x1, x2), min(y1, y2)
+        rx2, ry2 = max(x1, x2), max(y1, y2)
+
+        grab = self._full_grab
+        self._cleanup_overlay()
+
+        if rx2 - rx1 > 10 and ry2 - ry1 > 10 and grab:
+            cropped = grab.crop((rx1, ry1, rx2, ry2))
+            self.load_image(cropped)
+
+    def _on_region_cancel(self, _event):
+        self._cleanup_overlay()
+
+    def _cleanup_overlay(self):
+        if self._overlay:
+            self._overlay.destroy()
+        self._overlay = None
+        self._overlay_img = None
+        self._overlay_canvas = None
+        self._full_grab = None
+        self._region_start = None
+        self._region_rect_id = None
+        self._region_preview_tk = None
         self.root.deiconify()
-        self.load_image(grabbed)
+
+    # ── Open / load ──────────────────────────────────────────────────────
 
     def open_image(self) -> None:
         path = filedialog.askopenfilename(
@@ -395,6 +575,7 @@ class PicoApp:
                     "text": text, "color": self.current_color,
                 })
                 self._compose_image()
+                self._update_status()
             self.start = None
 
     def on_drag(self, event):
@@ -455,6 +636,7 @@ class PicoApp:
             "width": self.stroke_width,
         })
         self._compose_image()
+        self._update_status()
         self.start = None
 
     # ── Compositing (PIL) ────────────────────────────────────────────────
