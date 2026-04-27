@@ -4,28 +4,30 @@ Lightweight screen-capture & annotation app for Windows. One portable `.exe`, no
 
 ## What it does
 
-Capture your screen or open any image, annotate it with rectangles, arrows and text, then export to PNG. That's it.
+Capture your screen (all monitors), annotate it with rectangles, arrows and text, then export to PNG. That's it.
 
 ## Features
 
-- **Full-screen capture** — grab all monitors instantly (`Ctrl+Shift+S` or `F8`)
+- **Multi-monitor capture** — grabs the full virtual desktop across all connected monitors (`Ctrl+Shift+S` or `F8`)
+- **Region select** — after capture, drag to crop the exact area you need
 - **Annotation tools** — rectangle, arrow and text overlays with customizable color and stroke
 - **Open any image** — PNG, JPG, BMP, WEBP (`Ctrl+O`)
 - **Export to PNG** — save the annotated result anywhere (`Ctrl+E`)
 - **Portable** — single `pico.exe`, runs from USB, desktop, wherever
-- **Minimal UI** — unified toolbar, hover states, status bar, keyboard shortcuts
+- **Icon-driven toolbar** — clean icons with tooltips, no label clutter
+- **Hi-res color palette** — anti-aliased swatches rendered via Pillow at 2× resolution
 
 ## Keyboard shortcuts
 
 | Shortcut | Action |
 | --- | --- |
-| `Ctrl+Shift+S` / `F8` | Capture screen |
+| `Ctrl+Shift+S` / `F8` | Capture screen (all monitors) |
 | `Ctrl+O` | Open image |
 | `Ctrl+E` | Export PNG |
 | `R` | Rectangle tool |
 | `A` | Arrow tool |
 | `T` | Text tool |
-| `V` | Move / select |
+| `Ctrl+Z` | Undo |
 
 ## Requirements
 
@@ -97,6 +99,8 @@ The UI follows a minimal, neutral-cool palette inspired by Windows 11 and Linear
 | `TEXT_MUT` | `#A0A6B1` | Hints, status bar |
 
 Typography: Segoe UI at 9–14 px. Spacing on an 8 px grid.
+
+Color palette swatches are rendered at 2× via Pillow and downscaled with Lanczos anti-aliasing for crisp circles on any DPI.
 
 ## License
 
