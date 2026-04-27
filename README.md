@@ -12,7 +12,7 @@ App de escritorio minimalista (estilo Apple) para **capturar pantalla y anotar**
   - T (texto)
 - Exportación rápida a PNG.
 - Interfaz limpia y minimalista inspirada en diseño moderno.
-- Landing minimalista (`landing.html`) para publicar la descarga de `pico.exe`.
+- Landing estática (`index.html`) para publicar la descarga de `pico.exe` desde el último release.
 
 ## Requisitos
 
@@ -45,9 +45,15 @@ El ejecutable se genera en:
 
 ## Landing para descarga del EXE
 
-Se incluye una landing estática mínima en `landing.html` con un botón de descarga listo para apuntar a:
+La landing principal ahora está en `index.html` (GitHub Pages la sirve por defecto).
 
-- `./dist/pico.exe`
+El botón de descarga se autoconfigura para apuntar al último release:
+
+- `https://github.com/<owner>/<repo>/releases/latest/download/pico.exe`
+
+Notas:
+- En GitHub Pages detecta `owner/repo` automáticamente por URL.
+- Fuera de GitHub Pages, define `data-github-owner` y `data-github-repo` en `<body>` para activar el enlace.
 
 ## Flujo de uso
 
