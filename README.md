@@ -12,7 +12,7 @@ App de escritorio minimalista (estilo Apple) para **capturar pantalla y anotar**
   - T (texto)
 - Exportación rápida a PNG.
 - Interfaz limpia y minimalista inspirada en diseño moderno.
-- Landing minimalista (`landing.html`) para publicar la descarga de `pico.exe`.
+- Landing estática (`index.html`) para publicar la descarga de `pico.exe` desde el último release.
 
 ## Requisitos
 
@@ -45,9 +45,36 @@ El ejecutable se genera en:
 
 ## Landing para descarga del EXE
 
-Se incluye una landing estática mínima en `landing.html` con un botón de descarga listo para apuntar a:
+La landing principal ahora está en `index.html` (GitHub Pages la sirve por defecto).
 
-- `./dist/pico.exe`
+El botón de descarga se autoconfigura para apuntar al último release:
+
+- `https://github.com/<owner>/<repo>/releases/latest/download/pico.exe`
+
+Notas:
+- En GitHub Pages detecta `owner/repo` automáticamente por URL.
+- Fuera de GitHub Pages, define `data-github-owner` y `data-github-repo` en `<body>` para activar el enlace.
+
+
+## Publicar una release con descarga automática del EXE
+
+Sí: para que el enlace `releases/latest/download/pico.exe` funcione, cada release debe incluir un asset llamado exactamente **`pico.exe`**.
+
+### Opción manual (GitHub UI)
+
+1. Ve a **GitHub → Releases → Draft a new release**.
+2. Crea/taggea la versión (por ejemplo `v1.2.0`).
+3. En **Attach binaries** sube el archivo `dist/pico.exe`.
+4. Verifica que el nombre final del asset sea exactamente `pico.exe` (sin sufijos).
+5. Publica la release.
+
+Si cambias el nombre del asset (por ejemplo `pico-v1.2.0.exe`), el botón de la landing no encontrará el archivo esperado.
+
+### Opción recomendada (automática con GitHub Actions)
+
+- Genera `pico.exe` en el workflow de Windows.
+- Al publicar una release en GitHub, el workflow **Build Windows Portable** compila y sube automáticamente `dist/pico.exe` como asset de la release publicada.
+- Así no necesitas adjuntarlo manualmente y el enlace de `latest` siempre descarga la versión más reciente.
 
 ## Flujo de uso
 
