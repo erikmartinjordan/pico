@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     tags:
-      - 'v*'
+      - 'v*.*.*'
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -14,6 +14,8 @@ permissions:
 
 jobs:
   build:
+    permissions:
+      contents: write
     strategy:
       matrix:
         include:
@@ -33,13 +35,24 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-modules-
+
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build
         run: npm run build:${{ matrix.platform }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -47,10 +60,10 @@ jobs:
           name: pico-${{ matrix.platform }}
           path: |
             dist/*.dmg
+            dist/*.zip
             dist/*.exe
           if-no-files-found: ignore
 
-  # ── Auto-release on every push to main ───────────────────────────────
   release:
     needs: build
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -69,7 +82,7 @@ jobs:
       - name: Collect binaries into flat folder
         run: |
           mkdir -p release
-          find artifacts -type f \( -name "*.dmg" -o -name "*.exe" \) -exec cp {} release/ \;
+          find artifacts -type f \( -name "*.dmg" -o -name "*.zip" -o -name "*.exe" \) -exec cp {} release/ \;
           echo "=== Files to release ==="
           ls -lh release/
 
@@ -87,13 +100,12 @@ jobs:
           Built from [\`${GITHUB_SHA::7}\`](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}) on $(date -u '+%Y-%m-%d %H:%M UTC').
 
           **Download:**
-          - **macOS** — \`.dmg\` (Universal: Intel + Apple Silicon)
-          - **Windows** — \`.exe\` (Portable, no install needed)" \
+          - **macOS** — \`.dmg\` and \`.zip\` (Universal: Intel + Apple Silicon)
+          - **Windows** — portable \`.exe\` (no install needed)" \
             --latest
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # ── Versioned release (push a tag like v2.1.0) ──────────────────────
   release-versioned:
     needs: build
     if: startsWith(github.ref, 'refs/tags/v')
@@ -111,7 +123,7 @@ jobs:
       - name: Collect binaries
         run: |
           mkdir -p release
-          find artifacts -type f \( -name "*.dmg" -o -name "*.exe" \) -exec cp {} release/ \;
+          find artifacts -type f \( -name "*.dmg" -o -name "*.zip" -o -name "*.exe" \) -exec cp {} release/ \;
 
       - name: Create versioned release
         run: |
