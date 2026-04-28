@@ -46,8 +46,10 @@ Lightweight screen-capture & annotation app for **macOS** and **Windows**. Moder
 
 Grab the latest release for your platform:
 
-- **macOS**: `pico-x.x.x.dmg` (Universal binary for Intel & Apple Silicon)
+- **macOS**: `pico-x.x.x.dmg` and `pico-x.x.x-mac.zip` (Universal binaries for Intel & Apple Silicon)
 - **Windows**: `pico-x.x.x-portable.exe` (Portable, no install needed)
+
+> **Windows first-run note:** because current releases are not yet Authenticode-signed, Windows SmartScreen may show a warning the first time you launch pico. Click **More info → Run anyway** to continue. Signed releases are planned for a future version.
 
 [Download latest release →](../../releases/latest)
 
@@ -55,7 +57,7 @@ Grab the latest release for your platform:
 
 ### Prerequisites
 
-- Node.js 18+ 
+- Node.js 20+ 
 - npm or yarn
 
 ### Setup
@@ -85,6 +87,21 @@ npm run build:all
 ```
 
 Built apps are output to the `dist/` folder.
+
+### Code signing (Windows)
+
+Electron Builder supports optional Authenticode signing in CI when certificate secrets are configured:
+
+```bash
+# Base64-encoded .p12 certificate
+export CSC_LINK=<base64-p12>
+export CSC_KEY_PASSWORD=<p12-password>
+# Keep local/unsigned builds working when no certificate is configured
+export CSC_IDENTITY_AUTO_DISCOVERY=false
+```
+
+> TODO: For production releases, use a DigiCert or Sectigo Authenticode OV/EV certificate and configure `signingHashAlgorithms: ["sha256"]`. EV certificates typically establish SmartScreen reputation faster than OV certificates.
+
 
 ## Project Structure
 
