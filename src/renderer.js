@@ -57,9 +57,6 @@ const elements = {
   btnCopy: $('#btn-copy'),
   btnUndo: $('#btn-undo'),
   btnRedo: $('#btn-redo'),
-  btnZoomIn: $('#btn-zoom-in'),
-  btnZoomOut: $('#btn-zoom-out'),
-  btnZoomFit: $('#btn-zoom-fit'),
   
   // Empty state buttons
   emptyCapture: $('#empty-capture'),
@@ -69,13 +66,11 @@ const elements = {
   toolBtns: $$('.tool-btn'),
   colorSwatches: $$('.color-swatch'),
   strokeBtns: $$('.stroke-btn'),
-  customColor: $('#custom-color'),
-  colorPickerInput: $('#color-picker-input'),
   
   // Status
   statusTool: $('#status-tool'),
-  statusSize: $('#status-size'),
   statusAnnotations: $('#status-annotations'),
+  statusZoom: $('#status-zoom'),
   zoomLevel: $('#zoom-level'),
   
   // Modal
@@ -121,9 +116,6 @@ function bindToolbar() {
   elements.btnCopy.addEventListener('click', copyToClipboard);
   elements.btnUndo.addEventListener('click', undo);
   elements.btnRedo.addEventListener('click', redo);
-  elements.btnZoomIn.addEventListener('click', () => setZoom(state.zoom * 1.25));
-  elements.btnZoomOut.addEventListener('click', () => setZoom(state.zoom / 1.25));
-  elements.btnZoomFit.addEventListener('click', fitToWindow);
   
   // Empty state buttons
   elements.emptyCapture.addEventListener('click', startCapture);
@@ -139,13 +131,6 @@ function bindToolbar() {
     swatch.addEventListener('click', () => selectColor(swatch.dataset.color));
   });
   
-  // Custom color
-  elements.customColor.addEventListener('click', () => {
-    elements.colorPickerInput.click();
-  });
-  elements.colorPickerInput.addEventListener('input', (e) => {
-    selectColor(e.target.value);
-  });
   
   // Stroke width
   elements.strokeBtns.forEach(btn => {
@@ -221,8 +206,6 @@ function bindKeyboard() {
       case 'a': selectTool('arrow'); break;
       case 'l': selectTool('line'); break;
       case 't': selectTool('text'); break;
-      case 'h': selectTool('highlight'); break;
-      case 'b': selectTool('blur'); break;
       case '=':
       case '+': setZoom(state.zoom * 1.25); break;
       case '-': setZoom(state.zoom / 1.25); break;
@@ -793,16 +776,12 @@ function updateStatus() {
   
   elements.statusTool.textContent = toolNames[state.currentTool] || state.currentTool;
   
-  if (state.image) {
-    elements.statusSize.textContent = `${state.imageWidth} × ${state.imageHeight}`;
-  } else {
-    elements.statusSize.textContent = '—';
-  }
-  
   const count = state.annotations.length;
   elements.statusAnnotations.textContent = `${count} annotation${count !== 1 ? 's' : ''}`;
   
-  elements.zoomLevel.textContent = `${Math.round(state.zoom * 100)}%`;
+  const zoomText = `${Math.round(state.zoom * 100)}%`;
+  elements.zoomLevel.textContent = zoomText;
+  elements.statusZoom.textContent = zoomText;
 }
 
 function updateToolbarState() {
