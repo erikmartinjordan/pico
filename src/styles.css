@@ -29,7 +29,7 @@
   --error: #ef4444;
   
   /* Spacing */
-  --toolbar-height: 52px;
+  --toolbar-height: 44px;
   --statusbar-height: 28px;
   --titlebar-height: 38px;
   
@@ -38,10 +38,6 @@
   --transition-normal: 0.15s ease;
   --transition-slow: 0.25s ease;
   
-  /* Shadows */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 
 /* ── Reset ─────────────────────────────────────────────────────────────────── */
@@ -106,7 +102,7 @@ body.platform-win32 .titlebar {
   display: flex;
   align-items: center;
   padding: 0 12px;
-  gap: 4px;
+  gap: 2px;
 }
 
 .toolbar-group {
@@ -129,9 +125,9 @@ body.platform-win32 .titlebar {
 /* ── Toolbar Buttons ───────────────────────────────────────────────────────── */
 
 .toolbar-btn {
-  width: 36px;
-  height: 36px;
-  border: none;
+  width: 30px;
+  height: 30px;
+  border: 0.5px solid transparent;
   border-radius: 8px;
   background: transparent;
   color: var(--text-secondary);
@@ -170,8 +166,8 @@ body.platform-win32 .titlebar {
 }
 
 .action-btn {
-  width: 40px;
-  height: 40px;
+  width: 30px;
+  height: 30px;
 }
 
 .action-btn svg {
@@ -217,35 +213,11 @@ body.platform-win32 .titlebar {
   border-color: var(--border-default);
 }
 
-.color-picker-btn {
-  width: 24px;
-  height: 24px;
-  border: 1px dashed var(--border-default);
-  border-radius: 50%;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all var(--transition-fast);
-}
-
-.color-picker-btn svg {
-  width: 14px;
-  height: 14px;
-}
-
-.color-picker-btn:hover {
-  border-color: var(--text-secondary);
-  color: var(--text-secondary);
-}
-
 /* ── Stroke Width Buttons ──────────────────────────────────────────────────── */
 
 .stroke-btn {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   border: none;
   border-radius: 6px;
   background: transparent;
@@ -278,7 +250,7 @@ body.platform-win32 .titlebar {
 /* ── Zoom Controls ─────────────────────────────────────────────────────────── */
 
 .zoom-group {
-  gap: 4px;
+  gap: 2px;
 }
 
 .zoom-level {
@@ -310,7 +282,7 @@ body.platform-win32 .titlebar {
 
 #canvas {
   display: none;
-  box-shadow: var(--shadow-lg);
+  box-shadow: none;
   image-rendering: -webkit-optimize-contrast;
   image-rendering: crisp-edges;
 }
@@ -323,7 +295,7 @@ body.platform-win32 .titlebar {
 
 .empty-state {
   text-align: center;
-  padding: 48px;
+  padding: 28px;
 }
 
 .empty-state.hidden {
@@ -331,16 +303,13 @@ body.platform-win32 .titlebar {
 }
 
 .empty-icon {
-  width: 80px;
-  height: 80px;
-  margin: 0 auto 24px;
-  color: var(--text-muted);
-  opacity: 0.5;
-}
-
-.empty-icon svg {
-  width: 100%;
-  height: 100%;
+  width: 28px;
+  height: 28px;
+  margin: 0 auto 12px;
+  border-radius: 50%;
+  border: 0.5px solid var(--border-default);
+  background: var(--bg-hover);
+  opacity: 1;
 }
 
 .empty-state h2 {
@@ -455,7 +424,7 @@ body.platform-win32 .titlebar {
   border-radius: 12px;
   padding: 24px;
   min-width: 320px;
-  box-shadow: var(--shadow-lg);
+  box-shadow: none;
 }
 
 .modal-content h3 {
@@ -504,7 +473,7 @@ body.platform-win32 .titlebar {
   background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
-  box-shadow: var(--shadow-md);
+  box-shadow: none;
   font-size: 13px;
   color: var(--text-primary);
   display: flex;

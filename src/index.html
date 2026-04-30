@@ -80,20 +80,6 @@
           <path d="M8 20h8"/>
         </svg>
       </button>
-      <button class="toolbar-btn tool-btn" data-tool="highlight" data-tooltip="Highlight (H)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-          <path d="M2 17l10 5 10-5"/>
-          <path d="M2 12l10 5 10-5"/>
-        </svg>
-      </button>
-      <button class="toolbar-btn tool-btn" data-tool="blur" data-tooltip="Blur (B)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <circle cx="12" cy="12" r="4" opacity="0.3"/>
-          <circle cx="12" cy="12" r="7" opacity="0.2"/>
-          <circle cx="12" cy="12" r="10" opacity="0.1"/>
-        </svg>
-      </button>
     </div>
 
     <div class="toolbar-separator"></div>
@@ -102,19 +88,10 @@
     <div class="toolbar-group colors">
       <button class="color-swatch active" data-color="#ef4444" style="--swatch-color: #ef4444"></button>
       <button class="color-swatch" data-color="#f97316" style="--swatch-color: #f97316"></button>
-      <button class="color-swatch" data-color="#eab308" style="--swatch-color: #eab308"></button>
       <button class="color-swatch" data-color="#22c55e" style="--swatch-color: #22c55e"></button>
       <button class="color-swatch" data-color="#3b82f6" style="--swatch-color: #3b82f6"></button>
       <button class="color-swatch" data-color="#8b5cf6" style="--swatch-color: #8b5cf6"></button>
-      <button class="color-swatch" data-color="#ec4899" style="--swatch-color: #ec4899"></button>
-      <button class="color-swatch" data-color="#ffffff" style="--swatch-color: #ffffff"></button>
       <button class="color-swatch" data-color="#000000" style="--swatch-color: #000000"></button>
-      <button class="color-picker-btn" id="custom-color" data-tooltip="Custom Color">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <circle cx="12" cy="12" r="9"/>
-          <path d="M12 3v4M12 17v4M3 12h4M17 12h4"/>
-        </svg>
-      </button>
     </div>
 
     <div class="toolbar-separator"></div>
@@ -129,9 +106,6 @@
       </button>
       <button class="stroke-btn" data-width="8" data-tooltip="Thick">
         <span class="stroke-preview" style="height: 8px"></span>
-      </button>
-      <button class="stroke-btn" data-width="12" data-tooltip="Extra Thick">
-        <span class="stroke-preview" style="height: 12px"></span>
       </button>
     </div>
 
@@ -156,45 +130,16 @@
     <!-- Right: Zoom -->
     <div class="toolbar-spacer"></div>
     <div class="toolbar-group zoom-group">
-      <button class="toolbar-btn" id="btn-zoom-out" data-tooltip="Zoom Out (-)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <circle cx="11" cy="11" r="8"/>
-          <path d="M21 21l-4.35-4.35"/>
-          <path d="M8 11h6"/>
-        </svg>
-      </button>
       <span class="zoom-level" id="zoom-level">100%</span>
-      <button class="toolbar-btn" id="btn-zoom-in" data-tooltip="Zoom In (+)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <circle cx="11" cy="11" r="8"/>
-          <path d="M21 21l-4.35-4.35"/>
-          <path d="M11 8v6"/>
-          <path d="M8 11h6"/>
-        </svg>
-      </button>
-      <button class="toolbar-btn" id="btn-zoom-fit" data-tooltip="Fit to Window">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M8 3H5a2 2 0 00-2 2v3"/>
-          <path d="M21 8V5a2 2 0 00-2-2h-3"/>
-          <path d="M3 16v3a2 2 0 002 2h3"/>
-          <path d="M16 21h3a2 2 0 002-2v-3"/>
-        </svg>
-      </button>
     </div>
   </div>
 
   <!-- Canvas area -->
   <div class="canvas-container" id="canvas-container">
     <div class="empty-state" id="empty-state">
-      <div class="empty-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
-          <rect x="2" y="2" width="20" height="20" rx="3"/>
-          <circle cx="8" cy="8" r="2"/>
-          <path d="M21 15l-5-5L5 21"/>
-        </svg>
-      </div>
+      <div class="empty-icon"></div>
       <h2>No image loaded</h2>
-      <p>Capture your screen or open an image to start annotating</p>
+      <p>Capture your screen or open an image to begin</p>
       <div class="empty-actions">
         <button class="btn btn-primary" id="empty-capture">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -219,11 +164,9 @@
   <div class="statusbar">
     <span class="status-tool" id="status-tool">Rectangle</span>
     <span class="status-separator">·</span>
-    <span class="status-size" id="status-size">—</span>
-    <div class="statusbar-spacer"></div>
     <span class="status-annotations" id="status-annotations">0 annotations</span>
-    <span class="status-separator">·</span>
-    <span class="status-version">pico v2.0</span>
+    <div class="statusbar-spacer"></div>
+    <span class="zoom-level" id="status-zoom">100%</span>
   </div>
 
   <!-- Text input modal -->
@@ -239,8 +182,6 @@
     </div>
   </div>
 
-  <!-- Hidden color picker -->
-  <input type="color" id="color-picker-input" style="position:absolute;opacity:0;pointer-events:none;">
 
   <!-- Toast notifications -->
   <div class="toast-container" id="toast-container"></div>

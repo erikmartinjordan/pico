@@ -61,20 +61,35 @@ async function captureAllScreens() {
   const totalHeight = maxY - minY;
 
   try {
-    const sources = await desktopCapturer.getSources({
-      types: ['screen'],
-      thumbnailSize: { width: totalWidth, height: totalHeight },
-    });
+    const sources = await desktopCapturer.getSources({ types: ['screen'] });
 
-    // If multiple displays, we need to composite them
-    if (displays.length > 1 && sources.length > 1) {
-      // Return all sources for the renderer to composite
-      const screensData = await Promise.all(sources.map(async (source, i) => {
-        const display = displays[i] || displays[0];
+    const sourceByDisplayId = new Map();
+    for (const source of sources) {
+      if (source.display_id) sourceByDisplayId.set(String(source.display_id), source);
+    }
+
+    // If multiple displays, composite exact source->display matches.
+    if (displays.length > 1) {
+      const screensData = await Promise.all(displays.map(async (display) => {
+        const source = sourceByDisplayId.get(String(display.id));
+        if (!source) {
+          throw new Error(`No screen source found for display ${display.id}`);
+        }
+
+        const nativeWidth = Math.round(display.bounds.width * (display.scaleFactor || 1));
+        const nativeHeight = Math.round(display.bounds.height * (display.scaleFactor || 1));
+        const thumbnail = source.thumbnail.resize({
+          width: nativeWidth,
+          height: nativeHeight,
+          quality: 'best',
+        });
+
         return {
-          dataUrl: source.thumbnail.toDataURL(),
+          dataUrl: thumbnail.toDataURL(),
           bounds: display.bounds,
           scaleFactor: display.scaleFactor || 1,
+          nativeWidth,
+          nativeHeight,
         };
       }));
       
@@ -84,11 +99,22 @@ async function captureAllScreens() {
         virtualBounds: { x: minX, y: minY, width: totalWidth, height: totalHeight },
       };
     } else {
+      const display = displays[0];
+      const source = sourceByDisplayId.get(String(display.id)) || sources[0];
+      const nativeWidth = Math.round(display.bounds.width * (display.scaleFactor || 1));
+      const nativeHeight = Math.round(display.bounds.height * (display.scaleFactor || 1));
+      const thumbnail = source.thumbnail.resize({
+        width: nativeWidth,
+        height: nativeHeight,
+        quality: 'best',
+      });
+
       // Single screen
       return {
         type: 'single',
-        dataUrl: sources[0].thumbnail.toDataURL(),
-        bounds: displays[0].bounds,
+        dataUrl: thumbnail.toDataURL(),
+        bounds: display.bounds,
+        scaleFactor: display.scaleFactor || 1,
       };
     }
   } catch (err) {
