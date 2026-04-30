@@ -39,15 +39,23 @@ jobs:
         uses: actions/cache@v4
         with:
           path: node_modules
-          key: ${{ runner.os }}-node-modules-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('package.json') }}
           restore-keys: |
             ${{ runner.os }}-node-modules-
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
-      - name: Build
-        run: npm run build:${{ matrix.platform }}
+      - name: Build (macOS)
+        if: matrix.platform == 'mac'
+        run: npm run build:mac
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Build (Windows)
+        if: matrix.platform == 'win'
+        run: npm run build:win
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
