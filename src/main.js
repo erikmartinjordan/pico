@@ -140,6 +140,7 @@ function createCaptureOverlay(captureData) {
     resizable: false,
     movable: false,
     fullscreenable: false,
+    enableLargerThanScreen: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

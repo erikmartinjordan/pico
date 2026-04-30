@@ -2,7 +2,6 @@
 
 Lightweight screen-capture & annotation app for **macOS** and **Windows**. Modern, fast, and portable.
 
-![pico screenshot](docs/screenshot.png)
 
 ## Features
 
