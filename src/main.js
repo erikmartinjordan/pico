@@ -137,19 +137,20 @@ function createCaptureOverlay(captureData) {
     : captureData.bounds;
 
   captureWindow = new BrowserWindow({
-    x: Math.floor(virtualBounds.x || 0),
-    y: Math.floor(virtualBounds.y || 0),
-    width: Math.ceil(virtualBounds.width),
-    height: Math.ceil(virtualBounds.height),
+    x: virtualBounds.x,
+    y: virtualBounds.y,
+    width: virtualBounds.width,
+    height: virtualBounds.height,
     frame: false,
-    transparent: true,
-    alwaysOnTop: true,
+    transparent: false,
+    backgroundColor: '#000000',
     hasShadow: false,
     skipTaskbar: true,
     resizable: false,
     movable: false,
-    fullscreenable: false,
+    fullscreenable: true,
     enableLargerThanScreen: true,
+    show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -158,9 +159,19 @@ function createCaptureOverlay(captureData) {
     },
   });
 
+  captureWindow.setAlwaysOnTop(true, 'screen-saver');
+
   captureWindow.loadFile(path.join(__dirname, 'capture-overlay.html'));
   
   captureWindow.webContents.once('did-finish-load', () => {
+    // Force bounds after content load (Windows DPI workaround)
+    captureWindow.setBounds({
+      x: virtualBounds.x,
+      y: virtualBounds.y,
+      width: virtualBounds.width,
+      height: virtualBounds.height,
+    });
+    captureWindow.show();
     captureWindow.webContents.send('capture-data', captureData);
   });
 

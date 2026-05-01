@@ -23,6 +23,8 @@
       position: absolute;
       top: 0;
       left: 0;
+      width: 100vw;
+      height: 100vh;
     }
     
     #selection {
@@ -108,16 +110,16 @@
     window.pico.onCaptureData(async (data) => {
       captureData = data;
       
+      // Always size canvas to actual viewport (handles DPI mismatches)
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      
       if (data.type === 'multi') {
-        // Multi-monitor: composite all screens
         await compositeScreens(data);
       } else {
-        // Single screen
         const img = new Image();
         img.onload = () => {
-          canvas.width = data.bounds.width;
-          canvas.height = data.bounds.height;
-          ctx.drawImage(img, 0, 0, data.bounds.width, data.bounds.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
           applyDarkOverlay();
         };
         img.src = data.dataUrl;
@@ -127,15 +129,17 @@
     async function compositeScreens(data) {
       const { screens, virtualBounds } = data;
       
-      canvas.width = virtualBounds.width;
-      canvas.height = virtualBounds.height;
+      // Draw each screen positioned relative to virtual bounds, scaled to viewport
+      const scaleX = canvas.width / virtualBounds.width;
+      const scaleY = canvas.height / virtualBounds.height;
       
-      // Load and draw all screens
       for (const screen of screens) {
         const img = await loadImage(screen.dataUrl);
-        const x = screen.bounds.x - virtualBounds.x;
-        const y = screen.bounds.y - virtualBounds.y;
-        ctx.drawImage(img, x, y, screen.bounds.width, screen.bounds.height);
+        const x = (screen.bounds.x - virtualBounds.x) * scaleX;
+        const y = (screen.bounds.y - virtualBounds.y) * scaleY;
+        const w = screen.bounds.width * scaleX;
+        const h = screen.bounds.height * scaleY;
+        ctx.drawImage(img, x, y, w, h);
       }
       
       applyDarkOverlay();
@@ -184,13 +188,11 @@
       const width = Math.abs(currentX - startX);
       const height = Math.abs(currentY - startY);
       
-      // Minimum size check
       if (width < 10 || height < 10) {
         window.pico.captureCancel();
         return;
       }
       
-      // Capture the region
       captureRegion(x, y, width, height);
     });
     
@@ -221,35 +223,44 @@
     }
     
     function captureRegion(x, y, width, height) {
-      // Create a temp canvas for the cropped region
       const tempCanvas = document.createElement('canvas');
       const tempCtx = tempCanvas.getContext('2d');
       
+      // Map viewport coordinates to native image coordinates
+      const viewW = window.innerWidth;
+      const viewH = window.innerHeight;
+      
       if (captureData.type === 'multi') {
-        // Multi-monitor capture: crop in native pixels per display to preserve sharpness
         Promise.all(captureData.screens.map(s => loadImage(s.dataUrl))).then(images => {
-          const x2 = x + width;
-          const y2 = y + height;
-
+          const { virtualBounds } = captureData;
+          
+          // Convert viewport selection to virtual-bounds coordinate space
+          const selX = (x / viewW) * virtualBounds.width;
+          const selY = (y / viewH) * virtualBounds.height;
+          const selW = (width / viewW) * virtualBounds.width;
+          const selH = (height / viewH) * virtualBounds.height;
+          const selX2 = selX + selW;
+          const selY2 = selY + selH;
+          
           let outputWidth = 0;
           let outputHeight = 0;
 
           captureData.screens.forEach((screen) => {
-            const screenX = screen.bounds.x - captureData.virtualBounds.x;
-            const screenY = screen.bounds.y - captureData.virtualBounds.y;
+            const screenX = screen.bounds.x - virtualBounds.x;
+            const screenY = screen.bounds.y - virtualBounds.y;
             const screenX2 = screenX + screen.bounds.width;
             const screenY2 = screenY + screen.bounds.height;
 
-            const overlapX1 = Math.max(x, screenX);
-            const overlapY1 = Math.max(y, screenY);
-            const overlapX2 = Math.min(x2, screenX2);
-            const overlapY2 = Math.min(y2, screenY2);
+            const overlapX1 = Math.max(selX, screenX);
+            const overlapY1 = Math.max(selY, screenY);
+            const overlapX2 = Math.min(selX2, screenX2);
+            const overlapY2 = Math.min(selY2, screenY2);
 
             if (overlapX2 <= overlapX1 || overlapY2 <= overlapY1) return;
 
             const scale = screen.scaleFactor || 1;
-            outputWidth = Math.max(outputWidth, Math.round((overlapX2 - x) * scale));
-            outputHeight = Math.max(outputHeight, Math.round((overlapY2 - y) * scale));
+            outputWidth = Math.max(outputWidth, Math.round((overlapX2 - selX) * scale));
+            outputHeight = Math.max(outputHeight, Math.round((overlapY2 - selY) * scale));
           });
 
           if (outputWidth <= 0 || outputHeight <= 0) {
@@ -264,15 +275,15 @@
             const screen = captureData.screens[i];
             const scale = screen.scaleFactor || 1;
 
-            const screenX = screen.bounds.x - captureData.virtualBounds.x;
-            const screenY = screen.bounds.y - captureData.virtualBounds.y;
+            const screenX = screen.bounds.x - virtualBounds.x;
+            const screenY = screen.bounds.y - virtualBounds.y;
             const screenX2 = screenX + screen.bounds.width;
             const screenY2 = screenY + screen.bounds.height;
 
-            const overlapX1 = Math.max(x, screenX);
-            const overlapY1 = Math.max(y, screenY);
-            const overlapX2 = Math.min(x2, screenX2);
-            const overlapY2 = Math.min(y2, screenY2);
+            const overlapX1 = Math.max(selX, screenX);
+            const overlapY1 = Math.max(selY, screenY);
+            const overlapX2 = Math.min(selX2, screenX2);
+            const overlapY2 = Math.min(selY2, screenY2);
 
             if (overlapX2 <= overlapX1 || overlapY2 <= overlapY1) return;
 
@@ -281,8 +292,8 @@
             const srcW = Math.round((overlapX2 - overlapX1) * scale);
             const srcH = Math.round((overlapY2 - overlapY1) * scale);
 
-            const destX = Math.round((overlapX1 - x) * scale);
-            const destY = Math.round((overlapY1 - y) * scale);
+            const destX = Math.round((overlapX1 - selX) * scale);
+            const destY = Math.round((overlapY1 - selY) * scale);
 
             tempCtx.drawImage(img, srcX, srcY, srcW, srcH, destX, destY, srcW, srcH);
           });
@@ -290,11 +301,11 @@
           window.pico.captureComplete(tempCanvas.toDataURL('image/png'));
         });
       } else {
-        // Single screen - load original without overlay
+        // Single screen - map viewport selection to native image pixels
         const img = new Image();
         img.onload = () => {
-          const scaleX = img.width / captureData.bounds.width;
-          const scaleY = img.height / captureData.bounds.height;
+          const scaleX = img.width / viewW;
+          const scaleY = img.height / viewH;
           const cropX = x * scaleX;
           const cropY = y * scaleY;
           const cropWidth = width * scaleX;
