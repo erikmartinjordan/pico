@@ -8,7 +8,7 @@ const path = require('path');
 const fs = require('fs');
 
 let mainWindow = null;
-let captureWindow = null;
+let captureWindows = [];
 
 // ── Window Creation ─────────────────────────────────────────────────────────
 
@@ -131,52 +131,68 @@ async function captureAllScreens() {
   }
 }
 
-function createCaptureOverlay(captureData) {
-  const virtualBounds = captureData.type === 'multi'
-    ? captureData.virtualBounds
-    : captureData.bounds;
+function createCaptureOverlays(captureData) {
+  const displays = screen.getAllDisplays();
 
-  captureWindow = new BrowserWindow({
-    x: virtualBounds.x,
-    y: virtualBounds.y,
-    width: virtualBounds.width,
-    height: virtualBounds.height,
-    frame: false,
-    transparent: false,
-    backgroundColor: '#000000',
-    hasShadow: false,
-    skipTaskbar: true,
-    resizable: false,
-    movable: false,
-    fullscreenable: true,
-    enableLargerThanScreen: true,
-    show: false,
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  });
-
-  captureWindow.setAlwaysOnTop(true, 'screen-saver');
-
-  captureWindow.loadFile(path.join(__dirname, 'capture-overlay.html'));
-  
-  captureWindow.webContents.once('did-finish-load', () => {
-    // Force bounds after content load (Windows DPI workaround)
-    captureWindow.setBounds({
-      x: virtualBounds.x,
-      y: virtualBounds.y,
-      width: virtualBounds.width,
-      height: virtualBounds.height,
+  displays.forEach((display) => {
+    const win = new BrowserWindow({
+      x: display.bounds.x,
+      y: display.bounds.y,
+      width: display.bounds.width,
+      height: display.bounds.height,
+      frame: false,
+      transparent: false,
+      backgroundColor: '#000000',
+      hasShadow: false,
+      skipTaskbar: true,
+      resizable: false,
+      movable: false,
+      fullscreenable: true,
+      enableLargerThanScreen: true,
+      show: false,
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
     });
-    captureWindow.show();
-    captureWindow.webContents.send('capture-data', captureData);
-  });
 
-  captureWindow.on('closed', () => {
-    captureWindow = null;
+    win.setAlwaysOnTop(true, 'screen-saver');
+    win.loadFile(path.join(__dirname, 'capture-overlay.html'));
+
+    win.webContents.once('did-finish-load', () => {
+      win.setBounds({
+        x: display.bounds.x,
+        y: display.bounds.y,
+        width: display.bounds.width,
+        height: display.bounds.height,
+      });
+      win.show();
+
+      // Send this display's specific screen data
+      const screenData = captureData.type === 'multi'
+        ? captureData.screens.find(s =>
+            s.bounds.x === display.bounds.x &&
+            s.bounds.y === display.bounds.y &&
+            s.bounds.width === display.bounds.width &&
+            s.bounds.height === display.bounds.height
+          )
+        : captureData;
+
+      win.webContents.send('capture-data', {
+        type: 'single',
+        dataUrl: screenData ? screenData.dataUrl : captureData.dataUrl,
+        bounds: display.bounds,
+        scaleFactor: display.scaleFactor || 1,
+      });
+    });
+
+    win.on('closed', () => {
+      captureWindows = captureWindows.filter(w => w !== win);
+    });
+
+    captureWindows.push(win);
   });
 }
 
@@ -190,7 +206,7 @@ ipcMain.handle('start-capture', async () => {
   
   try {
     const captureData = await captureAllScreens();
-    createCaptureOverlay(captureData);
+    createCaptureOverlays(captureData);
     return { success: true };
   } catch (err) {
     if (mainWindow) mainWindow.show();
@@ -199,10 +215,8 @@ ipcMain.handle('start-capture', async () => {
 });
 
 ipcMain.on('capture-complete', (event, imageDataUrl) => {
-  if (captureWindow) {
-    captureWindow.close();
-    captureWindow = null;
-  }
+  captureWindows.forEach(w => { if (!w.isDestroyed()) w.close(); });
+  captureWindows = [];
   if (mainWindow) {
     mainWindow.show();
     mainWindow.webContents.send('load-capture', imageDataUrl);
@@ -210,10 +224,8 @@ ipcMain.on('capture-complete', (event, imageDataUrl) => {
 });
 
 ipcMain.on('capture-cancel', () => {
-  if (captureWindow) {
-    captureWindow.close();
-    captureWindow = null;
-  }
+  captureWindows.forEach(w => { if (!w.isDestroyed()) w.close(); });
+  captureWindows = [];
   if (mainWindow) {
     mainWindow.show();
   }
