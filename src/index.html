@@ -8,12 +8,6 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="titlebar" id="titlebar">
-    <div class="traffic-lights"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></div>
-    <div class="title-meta"><span class="titlebar-title">pico</span><span class="titlebar-file">Untitled</span></div>
-    <div class="titlebar-drag"></div>
-  </div>
-
   <div class="canvas-container" id="canvas-container">
     <div class="toolbar">
       <div class="toolbar-group tools">
@@ -44,8 +38,8 @@
       </div>
       <div class="toolbar-separator"></div>
       <div class="toolbar-group">
-        <button class="toolbar-btn" id="btn-undo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 7L4 12l5 5"/><path d="M20 7h-8a8 8 0 000 16"/></svg></button>
-        <button class="toolbar-btn" id="btn-redo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 7l5 5-5 5"/><path d="M4 7h8a8 8 0 010 16"/></svg></button>
+        <button class="toolbar-btn" id="btn-undo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 10h13a4 4 0 010 8H7"/><path d="M7 6L3 10l4 4"/></svg></button>
+        <button class="toolbar-btn" id="btn-redo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 10H8a4 4 0 000 8h9"/><path d="M17 6l4 4-4 4"/></svg></button>
       </div>
     </div>
 
@@ -59,6 +53,9 @@
       </div>
     </div>
     <canvas id="canvas"></canvas>
+    <div class="text-input-wrapper" id="text-input-wrapper">
+      <textarea id="inline-text-input" placeholder="Type here..."></textarea>
+    </div>
   </div>
 
   <div class="statusbar">
@@ -67,7 +64,6 @@
     <span class="zoom-level" id="status-zoom">100%</span>
   </div>
 
-  <div class="modal" id="text-modal"><div class="modal-backdrop"></div><div class="modal-content"><h3>Add Text</h3><input type="text" id="text-input" placeholder="Enter text..." autofocus><div class="modal-actions"><button class="btn btn-secondary" id="text-cancel">Cancel</button><button class="btn btn-primary" id="text-confirm">Add</button></div></div></div>
   <div class="toast-container" id="toast-container"></div>
 
   <script src="renderer.js"></script>

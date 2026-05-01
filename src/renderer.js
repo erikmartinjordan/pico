@@ -33,8 +33,14 @@ const state = {
   history: [],
   historyIndex: -1,
   
-  // Text input
-  pendingTextPos: null,
+  // Text
+  isEditingText: false,
+  
+  // Text dragging
+  isDraggingText: false,
+  dragTextIndex: -1,
+  dragOffsetX: 0,
+  dragOffsetY: 0,
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -51,9 +57,6 @@ const elements = {
   emptyState: $('#empty-state'),
   
   // Buttons
-  btnCapture: $('#btn-capture'),
-  btnOpen: $('#btn-open'),
-  btnSave: $('#btn-save'),
   btnCopy: $('#btn-copy'),
   btnUndo: $('#btn-undo'),
   btnRedo: $('#btn-redo'),
@@ -69,15 +72,11 @@ const elements = {
   
   // Status
   statusTool: $('#status-tool'),
-  statusAnnotations: $('#status-annotations'),
   statusZoom: $('#status-zoom'),
-  zoomLevel: $('#zoom-level'),
   
-  // Modal
-  textModal: $('#text-modal'),
-  textInput: $('#text-input'),
-  textCancel: $('#text-cancel'),
-  textConfirm: $('#text-confirm'),
+  // Inline text
+  textWrapper: $('#text-input-wrapper'),
+  textInput: $('#inline-text-input'),
   
   // Toast
   toastContainer: $('#toast-container'),
@@ -90,19 +89,15 @@ function on(el, event, handler) { if (el) el.addEventListener(event, handler); }
 // ══════════════════════════════════════════════════════════════════════════════
 
 function init() {
-  // Set platform class
   document.body.classList.add(`platform-${window.pico.platform}`);
-  
-  // Get canvas context
   elements.ctx = elements.canvas.getContext('2d');
   
-  // Bind event listeners
   bindToolbar();
   bindCanvas();
   bindKeyboard();
   bindIPC();
+  bindInlineText();
   
-  // Update UI
   updateStatus();
 }
 
@@ -111,42 +106,24 @@ function init() {
 // ══════════════════════════════════════════════════════════════════════════════
 
 function bindToolbar() {
-  // Action buttons
-  on(elements.btnCapture, 'click', startCapture);
-  on(elements.btnOpen, 'click', openFile);
-  on(elements.btnSave, 'click', saveFile);
   on(elements.btnCopy, 'click', copyToClipboard);
   on(elements.btnUndo, 'click', undo);
   on(elements.btnRedo, 'click', redo);
   
-  // Empty state buttons
   elements.emptyCapture.addEventListener('click', startCapture);
   elements.emptyOpen.addEventListener('click', openFile);
   
-  // Tool selection
   elements.toolBtns.forEach(btn => {
     btn.addEventListener('click', () => selectTool(btn.dataset.tool));
   });
   
-  // Color selection
   elements.colorSwatches.forEach(swatch => {
     swatch.addEventListener('click', () => selectColor(swatch.dataset.color));
   });
   
-  
-  // Stroke width
   elements.strokeBtns.forEach(btn => {
     btn.addEventListener('click', () => selectStrokeWidth(parseInt(btn.dataset.width)));
   });
-  
-  // Text modal
-  elements.textCancel.addEventListener('click', closeTextModal);
-  elements.textConfirm.addEventListener('click', confirmText);
-  elements.textInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') confirmText();
-    if (e.key === 'Escape') closeTextModal();
-  });
-  $('#text-modal .modal-backdrop').addEventListener('click', closeTextModal);
 }
 
 function bindCanvas() {
@@ -158,16 +135,16 @@ function bindCanvas() {
   canvas.addEventListener('mouseup', onCanvasMouseUp);
   canvas.addEventListener('mouseleave', onCanvasMouseUp);
   
-  // Zoom with wheel
   container.addEventListener('wheel', onWheel, { passive: false });
 }
 
 function bindKeyboard() {
   document.addEventListener('keydown', (e) => {
+    if (state.isEditingText) return;
+    
     const isMac = window.pico.platform === 'darwin';
     const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
     
-    // Global shortcuts
     if (cmdOrCtrl && e.shiftKey && e.key.toLowerCase() === 's') {
       e.preventDefault();
       startCapture();
@@ -199,9 +176,6 @@ function bindKeyboard() {
       return;
     }
     
-    // Tool shortcuts (only when not in modal)
-    if (elements.textModal.classList.contains('visible')) return;
-    
     switch (e.key.toLowerCase()) {
       case 'r': selectTool('rect'); break;
       case 'e': selectTool('ellipse'); break;
@@ -217,17 +191,31 @@ function bindKeyboard() {
 }
 
 function bindIPC() {
-  // Listen for capture trigger from main process
-  window.pico.onTriggerCapture(() => {
-    startCapture();
-  });
-  
-  // Listen for loaded capture
-  window.pico.onLoadCapture((dataUrl) => {
-    loadImage(dataUrl);
-  });
+  window.pico.onTriggerCapture(() => startCapture());
+  window.pico.onLoadCapture((dataUrl) => loadImage(dataUrl));
 }
 
+function bindInlineText() {
+  elements.textInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      commitInlineText();
+    }
+    if (e.key === 'Escape') {
+      cancelInlineText();
+    }
+  });
+  
+  elements.textInput.addEventListener('blur', () => {
+    if (state.isEditingText) {
+      commitInlineText();
+    }
+  });
+  
+  elements.textInput.addEventListener('input', () => {
+    autoResizeTextInput();
+  });
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // File Operations
@@ -242,35 +230,23 @@ async function startCapture() {
 
 async function openFile() {
   const dataUrl = await window.pico.openFile();
-  if (dataUrl) {
-    loadImage(dataUrl);
-  }
+  if (dataUrl) loadImage(dataUrl);
 }
 
 async function saveFile() {
   if (!state.image) return;
-  
   const dataUrl = getCompositeImage();
   const result = await window.pico.saveFile(dataUrl);
-  
-  if (result.success) {
-    showToast('Image saved successfully', 'success');
-  } else {
-    showToast('Failed to save image', 'error');
-  }
+  if (result.success) showToast('Image saved successfully', 'success');
+  else showToast('Failed to save image', 'error');
 }
 
 async function copyToClipboard() {
   if (!state.image) return;
-  
   const dataUrl = getCompositeImage();
   const result = await window.pico.copyToClipboard(dataUrl);
-  
-  if (result.success) {
-    showToast('Copied to clipboard', 'success');
-  } else {
-    showToast('Failed to copy to clipboard', 'error');
-  }
+  if (result.success) showToast('Copied to clipboard', 'success');
+  else showToast('Failed to copy to clipboard', 'error');
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -284,22 +260,17 @@ function loadImage(dataUrl) {
     state.imageWidth = img.width;
     state.imageHeight = img.height;
     
-    // Reset state
     state.annotations = [];
     state.history = [];
     state.historyIndex = -1;
     state.zoom = 1;
     
-    // Setup canvas
     elements.canvas.width = img.width;
     elements.canvas.height = img.height;
     elements.canvas.classList.add('visible');
     elements.emptyState.classList.add('hidden');
     
-    // Fit to window initially
     fitToWindow();
-    
-    // Draw
     render();
     updateStatus();
     updateToolbarState();
@@ -312,31 +283,24 @@ function loadImage(dataUrl) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 function setZoom(newZoom) {
-  const minZoom = 0.1;
-  const maxZoom = 10;
-  state.zoom = Math.max(minZoom, Math.min(maxZoom, newZoom));
-  
+  state.zoom = Math.max(0.1, Math.min(10, newZoom));
   applyZoom();
   updateStatus();
 }
 
 function applyZoom() {
-  const canvas = elements.canvas;
-  canvas.style.transform = `scale(${state.zoom})`;
-  canvas.style.transformOrigin = 'center center';
+  elements.canvas.style.transform = `scale(${state.zoom})`;
+  elements.canvas.style.transformOrigin = 'center center';
 }
 
 function fitToWindow() {
   if (!state.image) return;
-  
   const container = elements.container;
   const padding = 40;
   const availableWidth = container.clientWidth - padding * 2;
   const availableHeight = container.clientHeight - padding * 2;
-  
   const scaleX = availableWidth / state.imageWidth;
   const scaleY = availableHeight / state.imageHeight;
-  
   state.zoom = Math.min(scaleX, scaleY, 1);
   applyZoom();
   updateStatus();
@@ -345,9 +309,7 @@ function fitToWindow() {
 function onWheel(e) {
   if (!state.image) return;
   if (!e.ctrlKey && !e.metaKey) return;
-  
   e.preventDefault();
-  
   const delta = e.deltaY > 0 ? 0.9 : 1.1;
   setZoom(state.zoom * delta);
 }
@@ -357,31 +319,27 @@ function onWheel(e) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 function selectTool(tool) {
+  if (state.isEditingText) commitInlineText();
   state.currentTool = tool;
-  
-  // Update button states
   elements.toolBtns.forEach(btn => {
     btn.classList.toggle('active', btn.dataset.tool === tool);
   });
-  
-  // Update cursor
   elements.container.className = 'canvas-container tool-' + tool;
-  
   updateStatus();
 }
 
 function selectColor(color) {
   state.currentColor = color;
-  
-  // Update swatch states
   elements.colorSwatches.forEach(swatch => {
     swatch.classList.toggle('active', swatch.dataset.color === color);
   });
+  if (state.isEditingText) {
+    elements.textInput.style.color = color;
+  }
 }
 
 function selectStrokeWidth(width) {
   state.strokeWidth = width;
-  
   elements.strokeBtns.forEach(btn => {
     btn.classList.toggle('active', parseInt(btn.dataset.width) === width);
   });
@@ -395,21 +353,64 @@ function getCanvasCoords(e) {
   const rect = elements.canvas.getBoundingClientRect();
   const scaleX = state.imageWidth / rect.width;
   const scaleY = state.imageHeight / rect.height;
-  
   return {
     x: (e.clientX - rect.left) * scaleX,
     y: (e.clientY - rect.top) * scaleY,
   };
 }
 
+function getScreenCoordsFromCanvas(canvasX, canvasY) {
+  const rect = elements.canvas.getBoundingClientRect();
+  const scaleX = rect.width / state.imageWidth;
+  const scaleY = rect.height / state.imageHeight;
+  return {
+    x: rect.left + canvasX * scaleX,
+    y: rect.top + canvasY * scaleY,
+  };
+}
+
+function findTextAnnotationAt(coords) {
+  const ctx = elements.ctx;
+  for (let i = state.annotations.length - 1; i >= 0; i--) {
+    const ann = state.annotations[i];
+    if (ann.type !== 'text') continue;
+    
+    ctx.font = `bold ${ann.fontSize || 24}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+    const metrics = ctx.measureText(ann.text);
+    const textWidth = metrics.width;
+    const textHeight = (ann.fontSize || 24) * 1.2;
+    
+    if (coords.x >= ann.x - 5 && coords.x <= ann.x + textWidth + 5 &&
+        coords.y >= ann.y - textHeight && coords.y <= ann.y + 5) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 function onCanvasMouseDown(e) {
   if (!state.image) return;
+  if (state.isEditingText) {
+    commitInlineText();
+    return;
+  }
   
   const coords = getCanvasCoords(e);
   
+  // Check if clicking on existing text annotation (to drag)
   if (state.currentTool === 'text') {
-    state.pendingTextPos = coords;
-    openTextModal();
+    const textIdx = findTextAnnotationAt(coords);
+    if (textIdx >= 0) {
+      state.isDraggingText = true;
+      state.dragTextIndex = textIdx;
+      state.dragOffsetX = coords.x - state.annotations[textIdx].x;
+      state.dragOffsetY = coords.y - state.annotations[textIdx].y;
+      elements.canvas.style.cursor = 'grabbing';
+      return;
+    }
+    
+    // Start inline text editing at click position
+    openInlineText(coords);
     return;
   }
   
@@ -419,22 +420,47 @@ function onCanvasMouseDown(e) {
 }
 
 function onCanvasMouseMove(e) {
-  if (!state.isDrawing || !state.image) return;
+  if (!state.image) return;
+  
+  if (state.isDraggingText) {
+    const coords = getCanvasCoords(e);
+    const ann = state.annotations[state.dragTextIndex];
+    ann.x = coords.x - state.dragOffsetX;
+    ann.y = coords.y - state.dragOffsetY;
+    render();
+    return;
+  }
+  
+  if (state.currentTool === 'text' && !state.isDrawing) {
+    const coords = getCanvasCoords(e);
+    const textIdx = findTextAnnotationAt(coords);
+    elements.canvas.style.cursor = textIdx >= 0 ? 'grab' : 'text';
+  }
+  
+  if (!state.isDrawing) return;
   
   const coords = getCanvasCoords(e);
-  
-  // Render with preview
   render();
   drawPreview(state.startX, state.startY, coords.x, coords.y);
 }
 
 function onCanvasMouseUp(e) {
+  if (state.isDraggingText) {
+    state.isDraggingText = false;
+    elements.canvas.style.cursor = 'text';
+    // Save the moved position to history
+    state.history = state.history.slice(0, state.historyIndex + 1);
+    state.history.push([...state.annotations.map(a => ({...a}))]);
+    state.historyIndex = state.history.length - 1;
+    updateToolbarState();
+    return;
+  }
+  
   if (!state.isDrawing || !state.image) return;
   
   const coords = getCanvasCoords(e);
   state.isDrawing = false;
   
-  // Don't add if too small
   const dx = Math.abs(coords.x - state.startX);
   const dy = Math.abs(coords.y - state.startY);
   if (dx < 5 && dy < 5) {
@@ -442,9 +468,67 @@ function onCanvasMouseUp(e) {
     return;
   }
   
-  // Create annotation
   const annotation = createAnnotation(state.startX, state.startY, coords.x, coords.y);
   addAnnotation(annotation);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Inline Text Editing
+// ══════════════════════════════════════════════════════════════════════════════
+
+function openInlineText(coords) {
+  state.isEditingText = true;
+  state.pendingTextPos = coords;
+  
+  const screenPos = getScreenCoordsFromCanvas(coords.x, coords.y);
+  const wrapper = elements.textWrapper;
+  
+  wrapper.style.left = screenPos.x + 'px';
+  wrapper.style.top = screenPos.y + 'px';
+  wrapper.classList.add('visible');
+  
+  const input = elements.textInput;
+  input.value = '';
+  input.style.color = state.currentColor;
+  input.style.fontSize = Math.round(24 * state.zoom) + 'px';
+  input.focus();
+  autoResizeTextInput();
+}
+
+function commitInlineText() {
+  const text = elements.textInput.value.trim();
+  state.isEditingText = false;
+  elements.textWrapper.classList.remove('visible');
+  
+  if (!text || !state.pendingTextPos) {
+    state.pendingTextPos = null;
+    return;
+  }
+  
+  const annotation = {
+    type: 'text',
+    x: state.pendingTextPos.x,
+    y: state.pendingTextPos.y,
+    text,
+    color: state.currentColor,
+    fontSize: 24,
+  };
+  addAnnotation(annotation);
+  state.pendingTextPos = null;
+}
+
+function cancelInlineText() {
+  state.isEditingText = false;
+  elements.textWrapper.classList.remove('visible');
+  state.pendingTextPos = null;
+}
+
+function autoResizeTextInput() {
+  const input = elements.textInput;
+  input.style.height = 'auto';
+  input.style.height = input.scrollHeight + 'px';
+  input.style.width = 'auto';
+  input.style.width = Math.max(120, input.scrollWidth + 20) + 'px';
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -473,29 +557,15 @@ function createAnnotation(x1, y1, x2, y2) {
   }
 }
 
-function createTextAnnotation(x, y, text) {
-  return {
-    type: 'text',
-    x, y,
-    text,
-    color: state.currentColor,
-    fontSize: 24,
-  };
-}
-
 // ══════════════════════════════════════════════════════════════════════════════
 // History (Undo/Redo)
 // ══════════════════════════════════════════════════════════════════════════════
 
 function addAnnotation(annotation) {
-  // Truncate future history
   state.history = state.history.slice(0, state.historyIndex + 1);
-  
-  // Add to history
   state.history.push([...state.annotations, annotation]);
   state.historyIndex = state.history.length - 1;
   state.annotations = [...state.annotations, annotation];
-  
   render();
   updateStatus();
   updateToolbarState();
@@ -503,12 +573,10 @@ function addAnnotation(annotation) {
 
 function undo() {
   if (state.historyIndex < 0) return;
-  
   state.historyIndex--;
   state.annotations = state.historyIndex >= 0 
-    ? [...state.history[state.historyIndex]]
+    ? [...state.history[state.historyIndex].map(a => ({...a}))]
     : [];
-  
   render();
   updateStatus();
   updateToolbarState();
@@ -516,15 +584,12 @@ function undo() {
 
 function redo() {
   if (state.historyIndex >= state.history.length - 1) return;
-  
   state.historyIndex++;
-  state.annotations = [...state.history[state.historyIndex]];
-  
+  state.annotations = [...state.history[state.historyIndex].map(a => ({...a}))];
   render();
   updateStatus();
   updateToolbarState();
 }
-
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Rendering
@@ -532,22 +597,16 @@ function redo() {
 
 function render() {
   if (!state.image) return;
-  
   const ctx = elements.ctx;
   const canvas = elements.canvas;
-  
-  // Clear and draw base image
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(state.image, 0, 0);
-  
-  // Draw all annotations
   state.annotations.forEach(drawAnnotation);
 }
 
 function drawPreview(x1, y1, x2, y2) {
   const ctx = elements.ctx;
   ctx.save();
-  
   ctx.strokeStyle = state.currentColor;
   ctx.lineWidth = state.strokeWidth;
   ctx.lineCap = 'round';
@@ -576,18 +635,15 @@ function drawPreview(x1, y1, x2, y2) {
       ctx.fillRect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1));
       break;
     case 'blur':
-      // Preview just shows outline
       ctx.strokeRect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1));
       break;
   }
-  
   ctx.restore();
 }
 
 function drawAnnotation(ann) {
   const ctx = elements.ctx;
   ctx.save();
-  
   ctx.strokeStyle = ann.color;
   ctx.fillStyle = ann.color;
   ctx.lineWidth = ann.strokeWidth || 4;
@@ -598,116 +654,79 @@ function drawAnnotation(ann) {
     case 'rect':
       ctx.strokeRect(ann.x, ann.y, ann.width, ann.height);
       break;
-      
     case 'ellipse':
       drawEllipse(ctx, ann.x, ann.y, ann.width, ann.height, true);
       break;
-      
     case 'arrow':
       drawArrow(ctx, ann.x1, ann.y1, ann.x2, ann.y2, true);
       break;
-      
     case 'line':
       ctx.beginPath();
       ctx.moveTo(ann.x1, ann.y1);
       ctx.lineTo(ann.x2, ann.y2);
       ctx.stroke();
       break;
-      
     case 'text':
       ctx.font = `bold ${ann.fontSize || 24}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
       ctx.fillText(ann.text, ann.x, ann.y);
       break;
-      
     case 'highlight':
       ctx.fillStyle = ann.color + '40';
       ctx.fillRect(ann.x, ann.y, ann.width, ann.height);
       break;
-      
     case 'blur':
       applyBlur(ctx, ann.x, ann.y, ann.width, ann.height);
       break;
   }
-  
   ctx.restore();
 }
 
 function drawEllipse(ctx, x, y, width, height, solid) {
   const centerX = x + width / 2;
   const centerY = y + height / 2;
-  const radiusX = width / 2;
-  const radiusY = height / 2;
-  
   ctx.beginPath();
-  ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, Math.PI * 2);
+  ctx.ellipse(centerX, centerY, width / 2, height / 2, 0, 0, Math.PI * 2);
   ctx.stroke();
 }
 
 function drawArrow(ctx, x1, y1, x2, y2, solid) {
   const headLength = 15;
   const angle = Math.atan2(y2 - y1, x2 - x1);
-  
-  // Draw line
   ctx.beginPath();
   ctx.moveTo(x1, y1);
   ctx.lineTo(x2, y2);
   ctx.stroke();
-  
-  // Draw arrowhead
-  if (solid) {
-    ctx.setLineDash([]);
-  }
+  if (solid) ctx.setLineDash([]);
   ctx.beginPath();
   ctx.moveTo(x2, y2);
-  ctx.lineTo(
-    x2 - headLength * Math.cos(angle - Math.PI / 7),
-    y2 - headLength * Math.sin(angle - Math.PI / 7)
-  );
-  ctx.lineTo(
-    x2 - headLength * Math.cos(angle + Math.PI / 7),
-    y2 - headLength * Math.sin(angle + Math.PI / 7)
-  );
+  ctx.lineTo(x2 - headLength * Math.cos(angle - Math.PI / 7), y2 - headLength * Math.sin(angle - Math.PI / 7));
+  ctx.lineTo(x2 - headLength * Math.cos(angle + Math.PI / 7), y2 - headLength * Math.sin(angle + Math.PI / 7));
   ctx.closePath();
   ctx.fill();
 }
 
 function applyBlur(ctx, x, y, width, height) {
-  // Simple pixelation blur effect
   const pixelSize = 10;
   const imageData = ctx.getImageData(x, y, width, height);
   const data = imageData.data;
-  
   for (let py = 0; py < height; py += pixelSize) {
     for (let px = 0; px < width; px += pixelSize) {
-      // Get average color of pixel block
       let r = 0, g = 0, b = 0, count = 0;
-      
       for (let dy = 0; dy < pixelSize && py + dy < height; dy++) {
         for (let dx = 0; dx < pixelSize && px + dx < width; dx++) {
           const i = ((py + dy) * width + (px + dx)) * 4;
-          r += data[i];
-          g += data[i + 1];
-          b += data[i + 2];
-          count++;
+          r += data[i]; g += data[i + 1]; b += data[i + 2]; count++;
         }
       }
-      
-      r = Math.floor(r / count);
-      g = Math.floor(g / count);
-      b = Math.floor(b / count);
-      
-      // Fill block with average color
+      r = Math.floor(r / count); g = Math.floor(g / count); b = Math.floor(b / count);
       for (let dy = 0; dy < pixelSize && py + dy < height; dy++) {
         for (let dx = 0; dx < pixelSize && px + dx < width; dx++) {
           const i = ((py + dy) * width + (px + dx)) * 4;
-          data[i] = r;
-          data[i + 1] = g;
-          data[i + 2] = b;
+          data[i] = r; data[i + 1] = g; data[i + 2] = b;
         }
       }
     }
   }
-  
   ctx.putImageData(imageData, x, y);
 }
 
@@ -716,49 +735,16 @@ function applyBlur(ctx, x, y, width, height) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 function getCompositeImage() {
-  // Create temp canvas with annotations
   const tempCanvas = document.createElement('canvas');
   tempCanvas.width = state.imageWidth;
   tempCanvas.height = state.imageHeight;
   const tempCtx = tempCanvas.getContext('2d');
-  
-  // Draw image
   tempCtx.drawImage(state.image, 0, 0);
-  
-  // Draw annotations
   const originalCtx = elements.ctx;
   elements.ctx = tempCtx;
   state.annotations.forEach(drawAnnotation);
   elements.ctx = originalCtx;
-  
   return tempCanvas.toDataURL('image/png');
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// Text Modal
-// ══════════════════════════════════════════════════════════════════════════════
-
-function openTextModal() {
-  elements.textModal.classList.add('visible');
-  elements.textInput.value = '';
-  elements.textInput.focus();
-}
-
-function closeTextModal() {
-  elements.textModal.classList.remove('visible');
-  state.pendingTextPos = null;
-}
-
-function confirmText() {
-  const text = elements.textInput.value.trim();
-  if (!text || !state.pendingTextPos) {
-    closeTextModal();
-    return;
-  }
-  
-  const annotation = createTextAnnotation(state.pendingTextPos.x, state.pendingTextPos.y, text);
-  addAnnotation(annotation);
-  closeTextModal();
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -767,30 +753,15 @@ function confirmText() {
 
 function updateStatus() {
   const toolNames = {
-    rect: 'Rectangle',
-    ellipse: 'Ellipse',
-    arrow: 'Arrow',
-    line: 'Line',
-    text: 'Text',
-    highlight: 'Highlight',
-    blur: 'Blur',
+    rect: 'Rectangle', ellipse: 'Ellipse', arrow: 'Arrow',
+    line: 'Line', text: 'Text', highlight: 'Highlight', blur: 'Blur',
   };
-  
   elements.statusTool.textContent = toolNames[state.currentTool] || state.currentTool;
-  
-  const count = state.annotations.length;
-  if (elements.statusAnnotations) elements.statusAnnotations.textContent = `${count} annotation${count !== 1 ? 's' : ''}`;
-
-  const zoomText = `${Math.round(state.zoom * 100)}%`;
-  if (elements.zoomLevel) elements.zoomLevel.textContent = zoomText;
-  elements.statusZoom.textContent = zoomText;
+  elements.statusZoom.textContent = `${Math.round(state.zoom * 100)}%`;
 }
 
 function updateToolbarState() {
-  const hasImage = !!state.image;
-  
-  if (elements.btnSave) elements.btnSave.disabled = !hasImage;
-  elements.btnCopy.disabled = !hasImage;
+  elements.btnCopy.disabled = !state.image;
   elements.btnUndo.disabled = state.historyIndex < 0;
   elements.btnRedo.disabled = state.historyIndex >= state.history.length - 1;
 }
@@ -803,12 +774,8 @@ function showToast(message, type = 'info') {
   const toast = document.createElement('div');
   toast.className = `toast toast-${type}`;
   toast.textContent = message;
-  
   elements.toastContainer.appendChild(toast);
-  
-  setTimeout(() => {
-    toast.remove();
-  }, 3000);
+  setTimeout(() => toast.remove(), 3000);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
