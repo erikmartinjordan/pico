@@ -61,7 +61,15 @@ async function captureAllScreens() {
   const totalHeight = maxY - minY;
 
   try {
-    const sources = await desktopCapturer.getSources({ types: ['screen'] });
+    // Use max scale factor across all displays so every screen is captured at native resolution
+    const maxScale = Math.max(...displays.map(d => d.scaleFactor || 1));
+    const sources = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: {
+        width: Math.round(totalWidth * maxScale),
+        height: Math.round(totalHeight * maxScale),
+      },
+    });
 
     const sourceByDisplayId = new Map();
     for (const source of sources) {
