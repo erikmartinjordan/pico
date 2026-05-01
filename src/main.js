@@ -124,18 +124,19 @@ async function captureAllScreens() {
 }
 
 function createCaptureOverlay(captureData) {
-  const { virtualBounds } = captureData.type === 'multi' 
-    ? captureData 
-    : { virtualBounds: captureData.bounds };
+  const virtualBounds = captureData.type === 'multi'
+    ? captureData.virtualBounds
+    : captureData.bounds;
 
   captureWindow = new BrowserWindow({
-    x: virtualBounds.x || 0,
-    y: virtualBounds.y || 0,
-    width: virtualBounds.width,
-    height: virtualBounds.height,
+    x: Math.floor(virtualBounds.x || 0),
+    y: Math.floor(virtualBounds.y || 0),
+    width: Math.ceil(virtualBounds.width),
+    height: Math.ceil(virtualBounds.height),
     frame: false,
     transparent: true,
     alwaysOnTop: true,
+    hasShadow: false,
     skipTaskbar: true,
     resizable: false,
     movable: false,

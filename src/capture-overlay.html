@@ -115,9 +115,9 @@
         // Single screen
         const img = new Image();
         img.onload = () => {
-          canvas.width = img.width;
-          canvas.height = img.height;
-          ctx.drawImage(img, 0, 0);
+          canvas.width = data.bounds.width;
+          canvas.height = data.bounds.height;
+          ctx.drawImage(img, 0, 0, data.bounds.width, data.bounds.height);
           applyDarkOverlay();
         };
         img.src = data.dataUrl;
@@ -223,11 +223,12 @@
     function captureRegion(x, y, width, height) {
       // Create a temp canvas for the cropped region
       const tempCanvas = document.createElement('canvas');
-      tempCanvas.width = width;
-      tempCanvas.height = height;
       const tempCtx = tempCanvas.getContext('2d');
       
       if (captureData.type === 'multi') {
+        tempCanvas.width = width;
+        tempCanvas.height = height;
+
         // For multi-monitor, we need to get the original (non-darkened) image
         // Re-draw without overlay
         const originalCanvas = document.createElement('canvas');
@@ -251,7 +252,27 @@
         // Single screen - load original without overlay
         const img = new Image();
         img.onload = () => {
-          tempCtx.drawImage(img, x, y, width, height, 0, 0, width, height);
+          const scaleX = img.width / captureData.bounds.width;
+          const scaleY = img.height / captureData.bounds.height;
+          const cropX = x * scaleX;
+          const cropY = y * scaleY;
+          const cropWidth = width * scaleX;
+          const cropHeight = height * scaleY;
+
+          tempCanvas.width = Math.round(cropWidth);
+          tempCanvas.height = Math.round(cropHeight);
+
+          tempCtx.drawImage(
+            img,
+            cropX,
+            cropY,
+            cropWidth,
+            cropHeight,
+            0,
+            0,
+            tempCanvas.width,
+            tempCanvas.height
+          );
           window.pico.captureComplete(tempCanvas.toDataURL('image/png'));
         };
         img.src = captureData.dataUrl;
