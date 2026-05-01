@@ -83,6 +83,8 @@ const elements = {
   toastContainer: $('#toast-container'),
 };
 
+function on(el, event, handler) { if (el) el.addEventListener(event, handler); }
+
 // ══════════════════════════════════════════════════════════════════════════════
 // Initialization
 // ══════════════════════════════════════════════════════════════════════════════
@@ -110,12 +112,12 @@ function init() {
 
 function bindToolbar() {
   // Action buttons
-  elements.btnCapture.addEventListener('click', startCapture);
-  elements.btnOpen.addEventListener('click', openFile);
-  elements.btnSave.addEventListener('click', saveFile);
-  elements.btnCopy.addEventListener('click', copyToClipboard);
-  elements.btnUndo.addEventListener('click', undo);
-  elements.btnRedo.addEventListener('click', redo);
+  on(elements.btnCapture, 'click', startCapture);
+  on(elements.btnOpen, 'click', openFile);
+  on(elements.btnSave, 'click', saveFile);
+  on(elements.btnCopy, 'click', copyToClipboard);
+  on(elements.btnUndo, 'click', undo);
+  on(elements.btnRedo, 'click', redo);
   
   // Empty state buttons
   elements.emptyCapture.addEventListener('click', startCapture);
@@ -777,17 +779,17 @@ function updateStatus() {
   elements.statusTool.textContent = toolNames[state.currentTool] || state.currentTool;
   
   const count = state.annotations.length;
-  elements.statusAnnotations.textContent = `${count} annotation${count !== 1 ? 's' : ''}`;
-  
+  if (elements.statusAnnotations) elements.statusAnnotations.textContent = `${count} annotation${count !== 1 ? 's' : ''}`;
+
   const zoomText = `${Math.round(state.zoom * 100)}%`;
-  elements.zoomLevel.textContent = zoomText;
+  if (elements.zoomLevel) elements.zoomLevel.textContent = zoomText;
   elements.statusZoom.textContent = zoomText;
 }
 
 function updateToolbarState() {
   const hasImage = !!state.image;
   
-  elements.btnSave.disabled = !hasImage;
+  if (elements.btnSave) elements.btnSave.disabled = !hasImage;
   elements.btnCopy.disabled = !hasImage;
   elements.btnUndo.disabled = state.historyIndex < 0;
   elements.btnRedo.disabled = state.historyIndex >= state.history.length - 1;
