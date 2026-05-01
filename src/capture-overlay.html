@@ -226,26 +226,67 @@
       const tempCtx = tempCanvas.getContext('2d');
       
       if (captureData.type === 'multi') {
-        tempCanvas.width = width;
-        tempCanvas.height = height;
-
-        // For multi-monitor, we need to get the original (non-darkened) image
-        // Re-draw without overlay
-        const originalCanvas = document.createElement('canvas');
-        originalCanvas.width = canvas.width;
-        originalCanvas.height = canvas.height;
-        const origCtx = originalCanvas.getContext('2d');
-        
-        // Load all screens again without overlay
+        // Multi-monitor capture: crop in native pixels per display to preserve sharpness
         Promise.all(captureData.screens.map(s => loadImage(s.dataUrl))).then(images => {
+          const x2 = x + width;
+          const y2 = y + height;
+
+          let outputWidth = 0;
+          let outputHeight = 0;
+
+          captureData.screens.forEach((screen) => {
+            const screenX = screen.bounds.x - captureData.virtualBounds.x;
+            const screenY = screen.bounds.y - captureData.virtualBounds.y;
+            const screenX2 = screenX + screen.bounds.width;
+            const screenY2 = screenY + screen.bounds.height;
+
+            const overlapX1 = Math.max(x, screenX);
+            const overlapY1 = Math.max(y, screenY);
+            const overlapX2 = Math.min(x2, screenX2);
+            const overlapY2 = Math.min(y2, screenY2);
+
+            if (overlapX2 <= overlapX1 || overlapY2 <= overlapY1) return;
+
+            const scale = screen.scaleFactor || 1;
+            outputWidth = Math.max(outputWidth, Math.round((overlapX2 - x) * scale));
+            outputHeight = Math.max(outputHeight, Math.round((overlapY2 - y) * scale));
+          });
+
+          if (outputWidth <= 0 || outputHeight <= 0) {
+            window.pico.captureCancel();
+            return;
+          }
+
+          tempCanvas.width = outputWidth;
+          tempCanvas.height = outputHeight;
+
           images.forEach((img, i) => {
             const screen = captureData.screens[i];
-            const sx = screen.bounds.x - captureData.virtualBounds.x;
-            const sy = screen.bounds.y - captureData.virtualBounds.y;
-            origCtx.drawImage(img, sx, sy, screen.bounds.width, screen.bounds.height);
+            const scale = screen.scaleFactor || 1;
+
+            const screenX = screen.bounds.x - captureData.virtualBounds.x;
+            const screenY = screen.bounds.y - captureData.virtualBounds.y;
+            const screenX2 = screenX + screen.bounds.width;
+            const screenY2 = screenY + screen.bounds.height;
+
+            const overlapX1 = Math.max(x, screenX);
+            const overlapY1 = Math.max(y, screenY);
+            const overlapX2 = Math.min(x2, screenX2);
+            const overlapY2 = Math.min(y2, screenY2);
+
+            if (overlapX2 <= overlapX1 || overlapY2 <= overlapY1) return;
+
+            const srcX = Math.round((overlapX1 - screenX) * scale);
+            const srcY = Math.round((overlapY1 - screenY) * scale);
+            const srcW = Math.round((overlapX2 - overlapX1) * scale);
+            const srcH = Math.round((overlapY2 - overlapY1) * scale);
+
+            const destX = Math.round((overlapX1 - x) * scale);
+            const destY = Math.round((overlapY1 - y) * scale);
+
+            tempCtx.drawImage(img, srcX, srcY, srcW, srcH, destX, destY, srcW, srcH);
           });
-          
-          tempCtx.drawImage(originalCanvas, x, y, width, height, 0, 0, width, height);
+
           window.pico.captureComplete(tempCanvas.toDataURL('image/png'));
         });
       } else {
