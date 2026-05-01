@@ -214,6 +214,86 @@ ipcMain.handle('start-capture', async () => {
   }
 });
 
+ipcMain.handle('start-capture-window', async () => {
+  if (mainWindow) mainWindow.hide();
+  await new Promise(r => setTimeout(r, 200));
+  
+  try {
+    const sources = await desktopCapturer.getSources({
+      types: ['window'],
+      thumbnailSize: { width: 3840, height: 2160 },
+      fetchWindowIcons: false,
+    });
+    
+    // Get the first non-pico window
+    const source = sources.find(s => !s.name.includes('pico')) || sources[0];
+    if (!source) {
+      if (mainWindow) mainWindow.show();
+      return { success: false, error: 'No window found' };
+    }
+    
+    const dataUrl = source.thumbnail.toDataURL();
+    if (mainWindow) {
+      mainWindow.show();
+      mainWindow.webContents.send('load-capture', dataUrl);
+    }
+    return { success: true };
+  } catch (err) {
+    if (mainWindow) mainWindow.show();
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('start-capture-fullscreen', async () => {
+  if (mainWindow) mainWindow.hide();
+  await new Promise(r => setTimeout(r, 200));
+  
+  try {
+    const displays = screen.getAllDisplays();
+    const maxScale = Math.max(...displays.map(d => d.scaleFactor || 1));
+    
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    displays.forEach(d => {
+      minX = Math.min(minX, d.bounds.x);
+      minY = Math.min(minY, d.bounds.y);
+      maxX = Math.max(maxX, d.bounds.x + d.bounds.width);
+      maxY = Math.max(maxY, d.bounds.y + d.bounds.height);
+    });
+    const totalWidth = maxX - minX;
+    const totalHeight = maxY - minY;
+    
+    const sources = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: {
+        width: Math.round(totalWidth * maxScale),
+        height: Math.round(totalHeight * maxScale),
+      },
+    });
+    
+    const sourceByDisplayId = new Map();
+    for (const source of sources) {
+      if (source.display_id) sourceByDisplayId.set(String(source.display_id), source);
+    }
+    
+    // Capture the primary display at native resolution
+    const primary = screen.getPrimaryDisplay();
+    const source = sourceByDisplayId.get(String(primary.id)) || sources[0];
+    const nativeWidth = Math.round(primary.bounds.width * (primary.scaleFactor || 1));
+    const nativeHeight = Math.round(primary.bounds.height * (primary.scaleFactor || 1));
+    const thumbnail = source.thumbnail.resize({ width: nativeWidth, height: nativeHeight, quality: 'best' });
+    const dataUrl = thumbnail.toDataURL();
+    
+    if (mainWindow) {
+      mainWindow.show();
+      mainWindow.webContents.send('load-capture', dataUrl);
+    }
+    return { success: true };
+  } catch (err) {
+    if (mainWindow) mainWindow.show();
+    return { success: false, error: err.message };
+  }
+});
+
 ipcMain.on('capture-complete', (event, imageDataUrl) => {
   captureWindows.forEach(w => { if (!w.isDestroyed()) w.close(); });
   captureWindows = [];

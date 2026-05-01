@@ -8,6 +8,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('pico', {
   // Screen capture
   startCapture: () => ipcRenderer.invoke('start-capture'),
+  startCaptureWindow: () => ipcRenderer.invoke('start-capture-window'),
+  startCaptureFullscreen: () => ipcRenderer.invoke('start-capture-fullscreen'),
   onLoadCapture: (callback) => ipcRenderer.on('load-capture', (_, data) => callback(data)),
   onTriggerCapture: (callback) => ipcRenderer.on('trigger-capture', () => callback()),
   
