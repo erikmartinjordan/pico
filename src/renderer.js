@@ -209,18 +209,15 @@ async function loadCaptureData(captureData) {
     loadImage(captureData.dataUrl);
     return;
   }
-  const scale = captureData.maxScale || 1;
   const canvas = document.createElement('canvas');
-  canvas.width = Math.round(captureData.virtualBounds.width * scale);
-  canvas.height = Math.round(captureData.virtualBounds.height * scale);
+  canvas.width = captureData.virtualBounds.width;
+  canvas.height = captureData.virtualBounds.height;
   const ctx = canvas.getContext('2d');
   for (const screen of captureData.screens) {
     const img = await new Promise((resolve) => { const i = new Image(); i.onload = () => resolve(i); i.src = screen.dataUrl; });
-    const dx = Math.round((screen.bounds.x - captureData.virtualBounds.x) * scale);
-    const dy = Math.round((screen.bounds.y - captureData.virtualBounds.y) * scale);
-    const dw = Math.round(screen.bounds.width * scale);
-    const dh = Math.round(screen.bounds.height * scale);
-    ctx.drawImage(img, dx, dy, dw, dh);
+    const dx = screen.bounds.x - captureData.virtualBounds.x;
+    const dy = screen.bounds.y - captureData.virtualBounds.y;
+    ctx.drawImage(img, dx, dy, screen.bounds.width, screen.bounds.height);
   }
   loadImage(canvas.toDataURL('image/png'));
 }
@@ -397,6 +394,7 @@ function onCanvasMouseDown(e) {
       return;
     }
     openInlineText(coords);
+    e.stopPropagation();
     return;
   }
   
