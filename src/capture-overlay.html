@@ -113,6 +113,8 @@
     
     let captureData = null;
     let captureMode = 'region';
+    let currentBounds = null;
+    let activeHoverBounds = null;
     let isSelecting = false;
     let startX = 0, startY = 0;
     let currentX = 0, currentY = 0;
@@ -121,6 +123,7 @@
     window.pico.onCaptureData(async (data) => {
       captureData = data;
       captureMode = data.mode || 'region';
+      currentBounds = data.bounds || null;
       if (captureMode === 'window') document.getElementById('instructions').innerHTML = 'Click to capture this screen · Press <kbd>Esc</kbd> to cancel';
       
       // Always size canvas to actual viewport (handles DPI mismatches)
@@ -174,7 +177,7 @@
     // Mouse events
     document.addEventListener('mousedown', (e) => {
       if (captureMode === 'window') {
-        selection.classList.add('window-hover');
+        if (activeHoverBounds && !isCurrentBounds(activeHoverBounds)) return;
         captureRegion(0, 0, window.innerWidth, window.innerHeight);
         return;
       }
@@ -191,7 +194,7 @@
     
     document.addEventListener('mousemove', (e) => {
       if (captureMode === 'window') {
-        selection.classList.add('window-hover');
+        if (currentBounds) window.pico.captureWindowHover(currentBounds);
         return;
       }
       if (!isSelecting) return;
@@ -223,6 +226,21 @@
         window.pico.captureCancel();
       }
     });
+
+    window.pico.onCaptureWindowHover((bounds) => {
+      activeHoverBounds = bounds || null;
+      if (captureMode !== 'window' || !currentBounds) return;
+      const shouldHighlight = !!bounds && isCurrentBounds(bounds);
+      selection.classList.toggle('window-hover', shouldHighlight);
+    });
+
+    function isCurrentBounds(bounds) {
+      return currentBounds &&
+        currentBounds.x === bounds.x &&
+        currentBounds.y === bounds.y &&
+        currentBounds.width === bounds.width &&
+        currentBounds.height === bounds.height;
+    }
     
     function updateSelection() {
       const x = Math.min(startX, currentX);
