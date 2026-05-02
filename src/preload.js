@@ -13,6 +13,12 @@ contextBridge.exposeInMainWorld('pico', {
   onLoadCapture: (callback) => ipcRenderer.on('load-capture', (_, data) => callback(data)),
   onTriggerCapture: (callback) => ipcRenderer.on('trigger-capture', () => callback()),
   
+
+  // Window picker
+  onWindowSources: (callback) => ipcRenderer.on('window-sources', (_, data) => callback(data)),
+  selectWindowSource: (sourceId) => ipcRenderer.send('window-picker-select', sourceId),
+  cancelWindowSource: () => ipcRenderer.send('window-picker-cancel'),
+
   // Capture overlay communication
   onCaptureData: (callback) => ipcRenderer.on('capture-data', (_, data) => callback(data)),
   captureComplete: (imageDataUrl) => ipcRenderer.send('capture-complete', imageDataUrl),

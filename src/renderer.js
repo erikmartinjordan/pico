@@ -324,7 +324,8 @@ function onCanvasMouseDown(e) {
       elements.canvas.style.cursor = 'grabbing';
       return;
     }
-    openInlineText(coords);
+    const inserted = insertTextAt(coords);
+    if (!inserted) render();
     return;
   }
   
@@ -381,6 +382,20 @@ function onCanvasMouseUp(e) {
 // ══════════════════════════════════════════════════════════════════════════════
 // Inline Text Editing
 // ══════════════════════════════════════════════════════════════════════════════
+
+function insertTextAt(coords) {
+  const text = window.prompt('Enter text');
+  if (!text || !text.trim()) return false;
+  addAnnotation({
+    type: 'text',
+    x: coords.x,
+    y: coords.y,
+    text: text.trim(),
+    color: state.currentColor,
+    fontSize: 24,
+  });
+  return true;
+}
 
 function openInlineText(coords) {
   state.isEditingText = true;
