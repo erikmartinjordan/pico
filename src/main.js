@@ -107,6 +107,7 @@ async function captureAllScreens() {
         type: 'multi',
         screens: screensData,
         virtualBounds: { x: minX, y: minY, width: totalWidth, height: totalHeight },
+        maxScale,
       };
     } else {
       const display = displays[0];

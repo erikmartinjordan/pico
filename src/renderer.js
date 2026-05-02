@@ -209,13 +209,18 @@ async function loadCaptureData(captureData) {
     loadImage(captureData.dataUrl);
     return;
   }
+  const scale = captureData.maxScale || 1;
   const canvas = document.createElement('canvas');
-  canvas.width = captureData.virtualBounds.width;
-  canvas.height = captureData.virtualBounds.height;
+  canvas.width = Math.round(captureData.virtualBounds.width * scale);
+  canvas.height = Math.round(captureData.virtualBounds.height * scale);
   const ctx = canvas.getContext('2d');
   for (const screen of captureData.screens) {
     const img = await new Promise((resolve) => { const i = new Image(); i.onload = () => resolve(i); i.src = screen.dataUrl; });
-    ctx.drawImage(img, screen.bounds.x - captureData.virtualBounds.x, screen.bounds.y - captureData.virtualBounds.y, screen.bounds.width, screen.bounds.height);
+    const dx = Math.round((screen.bounds.x - captureData.virtualBounds.x) * scale);
+    const dy = Math.round((screen.bounds.y - captureData.virtualBounds.y) * scale);
+    const dw = Math.round(screen.bounds.width * scale);
+    const dh = Math.round(screen.bounds.height * scale);
+    ctx.drawImage(img, dx, dy, dw, dh);
   }
   loadImage(canvas.toDataURL('image/png'));
 }
