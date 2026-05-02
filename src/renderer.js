@@ -107,8 +107,8 @@ function bindToolbar() {
 
 function bindCanvas() {
   elements.canvas.addEventListener('mousedown', onCanvasMouseDown);
-  elements.canvas.addEventListener('mousemove', onCanvasMouseMove);
-  elements.canvas.addEventListener('mouseup', onCanvasMouseUp);
+  document.addEventListener('mousemove', onCanvasMouseMove);
+  document.addEventListener('mouseup', onCanvasMouseUp);
   elements.canvas.addEventListener('mouseleave', onCanvasMouseUp);
   elements.container.addEventListener('wheel', onWheel, { passive: false });
 }
@@ -151,6 +151,13 @@ function bindInlineText() {
     if (e.key === 'Escape') { cancelInlineText(); }
   });
   elements.textInput.addEventListener('input', autoResizeTextInput);
+
+  document.addEventListener('mousedown', (e) => {
+    if (!state.isEditingText) return;
+    if (elements.textWrapper.contains(e.target)) return;
+    commitInlineText();
+  });
+
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -366,6 +373,7 @@ function onCanvasMouseDown(e) {
       state.dragAnnotationIndex = idx;
       state.dragStartX = coords.x;
       state.dragStartY = coords.y;
+      elements.canvas.style.cursor = 'grabbing';
     }
     return;
   }
@@ -403,16 +411,6 @@ function onCanvasMouseMove(e) {
     render();
     return;
   }
-
-  if (state.isDraggingAnnotation) {
-    state.isDraggingAnnotation = false;
-    state.history = state.history.slice(0, state.historyIndex + 1);
-    state.history.push([...state.annotations.map(a => ({...a}))]);
-    state.historyIndex = state.history.length - 1;
-    updateToolbarState();
-    return;
-  }
-
   if (state.isDraggingText) {
     const coords = getCanvasCoords(e);
     state.annotations[state.dragTextIndex].x = coords.x - state.dragOffsetX;
@@ -421,6 +419,11 @@ function onCanvasMouseMove(e) {
     return;
   }
   
+  if (state.currentTool === 'select' && !state.isDrawing && !state.isDraggingAnnotation) {
+    const coords = getCanvasCoords(e);
+    elements.canvas.style.cursor = findAnnotationAt(coords) >= 0 ? 'grab' : 'default';
+  }
+
   if (state.currentTool === 'text' && !state.isDrawing) {
     const coords = getCanvasCoords(e);
     elements.canvas.style.cursor = findTextAnnotationAt(coords) >= 0 ? 'grab' : 'text';
@@ -443,16 +446,6 @@ function onCanvasMouseUp(e) {
     render();
     return;
   }
-
-  if (state.isDraggingAnnotation) {
-    state.isDraggingAnnotation = false;
-    state.history = state.history.slice(0, state.historyIndex + 1);
-    state.history.push([...state.annotations.map(a => ({...a}))]);
-    state.historyIndex = state.history.length - 1;
-    updateToolbarState();
-    return;
-  }
-
   if (state.isDraggingText) {
     state.isDraggingText = false;
     elements.canvas.style.cursor = 'text';
@@ -460,6 +453,7 @@ function onCanvasMouseUp(e) {
     state.history.push([...state.annotations.map(a => ({...a}))]);
     state.historyIndex = state.history.length - 1;
     updateToolbarState();
+    elements.canvas.style.cursor = state.currentTool === 'select' ? 'default' : elements.canvas.style.cursor;
     return;
   }
   
