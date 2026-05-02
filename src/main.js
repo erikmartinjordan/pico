@@ -249,6 +249,27 @@ ipcMain.handle('start-capture-fullscreen', async () => {
   }
 });
 
+
+ipcMain.on('window-picker-select', (event, sourceId) => {
+  const source = pendingWindowSources.find(s => s.id === sourceId);
+  if (windowPicker && !windowPicker.isDestroyed()) windowPicker.close();
+  pendingWindowSources = [];
+  if (!source) {
+    if (mainWindow) mainWindow.show();
+    return;
+  }
+  if (mainWindow) {
+    mainWindow.show();
+    mainWindow.webContents.send('load-capture', source.thumbnail.toDataURL());
+  }
+});
+
+ipcMain.on('window-picker-cancel', () => {
+  if (windowPicker && !windowPicker.isDestroyed()) windowPicker.close();
+  pendingWindowSources = [];
+  if (mainWindow) mainWindow.show();
+});
+
 ipcMain.on('capture-complete', (event, imageDataUrl) => {
   captureWindows.forEach(w => { if (!w.isDestroyed()) w.close(); });
   captureWindows = [];
