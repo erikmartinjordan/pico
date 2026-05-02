@@ -9,6 +9,8 @@ const fs = require('fs');
 
 let mainWindow = null;
 let captureWindows = [];
+let windowPicker = null;
+let pendingWindowSources = [];
 
 // ── Window Creation ─────────────────────────────────────────────────────────
 
@@ -217,26 +219,62 @@ ipcMain.handle('start-capture', async () => {
 ipcMain.handle('start-capture-window', async () => {
   if (mainWindow) mainWindow.hide();
   await new Promise(r => setTimeout(r, 200));
-  
+
   try {
     const sources = await desktopCapturer.getSources({
       types: ['window'],
-      thumbnailSize: { width: 3840, height: 2160 },
+      thumbnailSize: { width: 1920, height: 1080 },
       fetchWindowIcons: false,
     });
-    
-    // Get the first non-pico window
-    const source = sources.find(s => !s.name.includes('pico')) || sources[0];
-    if (!source) {
+
+    pendingWindowSources = sources.filter(source => {
+      const name = (source.name || '').toLowerCase();
+      return name && !name.includes('pico');
+    });
+
+    if (!pendingWindowSources.length) {
       if (mainWindow) mainWindow.show();
-      return { success: false, error: 'No window found' };
+      return { success: false, error: 'No capturable windows found' };
     }
-    
-    const dataUrl = source.thumbnail.toDataURL();
-    if (mainWindow) {
-      mainWindow.show();
-      mainWindow.webContents.send('load-capture', dataUrl);
+
+    if (windowPicker && !windowPicker.isDestroyed()) {
+      windowPicker.close();
     }
+
+    const display = screen.getPrimaryDisplay();
+    windowPicker = new BrowserWindow({
+      x: display.bounds.x,
+      y: display.bounds.y,
+      width: display.bounds.width,
+      height: display.bounds.height,
+      frame: false,
+      transparent: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      resizable: false,
+      movable: false,
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    });
+
+    windowPicker.loadFile(path.join(__dirname, 'window-picker.html'));
+    windowPicker.webContents.once('did-finish-load', () => {
+      windowPicker.webContents.send('window-sources', pendingWindowSources.map(source => ({
+        id: source.id,
+        name: source.name,
+        thumbnail: source.thumbnail.toDataURL(),
+      })));
+    });
+
+    windowPicker.on('closed', () => {
+      windowPicker = null;
+    });
+
+    windowPicker.show();
     return { success: true };
   } catch (err) {
     if (mainWindow) mainWindow.show();
@@ -292,6 +330,27 @@ ipcMain.handle('start-capture-fullscreen', async () => {
     if (mainWindow) mainWindow.show();
     return { success: false, error: err.message };
   }
+});
+
+
+ipcMain.on('window-picker-select', (event, sourceId) => {
+  const source = pendingWindowSources.find(s => s.id === sourceId);
+  if (windowPicker && !windowPicker.isDestroyed()) windowPicker.close();
+  pendingWindowSources = [];
+  if (!source) {
+    if (mainWindow) mainWindow.show();
+    return;
+  }
+  if (mainWindow) {
+    mainWindow.show();
+    mainWindow.webContents.send('load-capture', source.thumbnail.toDataURL());
+  }
+});
+
+ipcMain.on('window-picker-cancel', () => {
+  if (windowPicker && !windowPicker.isDestroyed()) windowPicker.close();
+  pendingWindowSources = [];
+  if (mainWindow) mainWindow.show();
 });
 
 ipcMain.on('capture-complete', (event, imageDataUrl) => {
