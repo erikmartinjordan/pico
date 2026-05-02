@@ -328,11 +328,14 @@ function findTextAnnotationAt(coords) {
   for (let i = state.annotations.length - 1; i >= 0; i--) {
     const ann = state.annotations[i];
     if (ann.type !== 'text') continue;
-    ctx.font = `bold ${ann.fontSize || 24}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
-    const metrics = ctx.measureText(ann.text);
-    const textHeight = (ann.fontSize || 24) * 1.2;
-    if (coords.x >= ann.x - 5 && coords.x <= ann.x + metrics.width + 5 &&
-        coords.y >= ann.y - textHeight && coords.y <= ann.y + 5) {
+    const fontSize = ann.fontSize || 24;
+    ctx.font = `bold ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+    const lines = ann.text.split('\n');
+    const lineHeight = fontSize * 1.2;
+    const maxWidth = Math.max(...lines.map((line) => ctx.measureText(line).width), 0);
+    const boxHeight = lineHeight * Math.max(lines.length, 1);
+    if (coords.x >= ann.x - 5 && coords.x <= ann.x + maxWidth + 5 &&
+        coords.y >= ann.y - lineHeight && coords.y <= ann.y + boxHeight) {
       return i;
     }
   }
@@ -393,8 +396,7 @@ function onCanvasMouseDown(e) {
       elements.canvas.style.cursor = 'grabbing';
       return;
     }
-    const inserted = insertTextAt(coords);
-    if (!inserted) render();
+    openInlineText(coords);
     return;
   }
   
@@ -442,12 +444,13 @@ function onCanvasMouseMove(e) {
 
 function onCanvasMouseUp(e) {
   if (state.isDraggingAnnotation) {
-    const coords = getCanvasCoords(e);
-    const dx = coords.x - state.dragStartX;
-    const dy = coords.y - state.dragStartY;
-    state.dragStartX = coords.x;
-    state.dragStartY = coords.y;
-    moveAnnotation(state.annotations[state.dragAnnotationIndex], dx, dy);
+    state.isDraggingAnnotation = false;
+    state.dragAnnotationIndex = -1;
+    elements.canvas.style.cursor = state.currentTool === 'select' ? 'default' : elements.canvas.style.cursor;
+    state.history = state.history.slice(0, state.historyIndex + 1);
+    state.history.push([...state.annotations.map(a => ({...a}))]);
+    state.historyIndex = state.history.length - 1;
+    updateToolbarState();
     render();
     return;
   }
@@ -477,20 +480,6 @@ function onCanvasMouseUp(e) {
 // ══════════════════════════════════════════════════════════════════════════════
 // Inline Text Editing
 // ══════════════════════════════════════════════════════════════════════════════
-
-function insertTextAt(coords) {
-  const text = window.prompt('Enter text');
-  if (!text || !text.trim()) return false;
-  addAnnotation({
-    type: 'text',
-    x: coords.x,
-    y: coords.y,
-    text: text.trim(),
-    color: state.currentColor,
-    fontSize: 24,
-  });
-  return true;
-}
 
 function openInlineText(coords) {
   state.isEditingText = true;
@@ -634,7 +623,9 @@ function drawAnnotation(ann) {
     case 'line': ctx.beginPath(); ctx.moveTo(ann.x1, ann.y1); ctx.lineTo(ann.x2, ann.y2); ctx.stroke(); break;
     case 'text':
       ctx.font = `bold ${ann.fontSize || 24}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
-      ctx.fillText(ann.text, ann.x, ann.y);
+      ann.text.split('\n').forEach((line, i) => {
+        ctx.fillText(line, ann.x, ann.y + i * ((ann.fontSize || 24) * 1.2));
+      });
       break;
     case 'highlight': ctx.fillStyle = ann.color + '40'; ctx.fillRect(ann.x, ann.y, ann.width, ann.height); break;
     case 'blur': applyBlur(ctx, ann.x, ann.y, ann.width, ann.height); break;

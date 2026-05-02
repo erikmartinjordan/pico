@@ -287,6 +287,13 @@ ipcMain.on('capture-cancel', () => {
   }
 });
 
+ipcMain.on('capture-window-hover', (event, hoveredBounds) => {
+  captureWindows.forEach((win) => {
+    if (win.isDestroyed()) return;
+    win.webContents.send('capture-window-hover', hoveredBounds);
+  });
+});
+
 ipcMain.handle('open-file', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ['openFile'],

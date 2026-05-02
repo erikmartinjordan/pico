@@ -18,6 +18,8 @@ contextBridge.exposeInMainWorld('pico', {
   onCaptureData: (callback) => ipcRenderer.on('capture-data', (_, data) => callback(data)),
   captureComplete: (imageDataUrl) => ipcRenderer.send('capture-complete', imageDataUrl),
   captureCancel: () => ipcRenderer.send('capture-cancel'),
+  captureWindowHover: (bounds) => ipcRenderer.send('capture-window-hover', bounds),
+  onCaptureWindowHover: (callback) => ipcRenderer.on('capture-window-hover', (_, bounds) => callback(bounds)),
   
   // File operations
   openFile: () => ipcRenderer.invoke('open-file'),
