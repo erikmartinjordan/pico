@@ -18,3 +18,11 @@
 .text-input-wrapper.visible{display:block;pointer-events:auto}
 .text-input-wrapper textarea{background:transparent;border:1.5px dashed rgba(255,255,255,.5);border-radius:4px;color:inherit;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:16px;font-weight:bold;padding:4px 6px;resize:none;outline:none;min-width:120px;min-height:28px;overflow:hidden;white-space:pre;line-height:1.3}
 .toast-container{position:fixed;right:12px;bottom:44px;z-index:1100}.toast{padding:9px 12px;background:#1c1c20;border:.5px solid var(--border);border-radius:8px;margin-top:8px;font-size:12px}
+@media (max-width: 900px){
+  .toolbar{left:10px;right:10px;transform:none;max-width:calc(100vw - 20px);overflow-x:auto;justify-content:flex-start;padding:6px 8px}
+  .toolbar::-webkit-scrollbar{height:0}
+  .toolbar-btn{width:30px;height:30px}
+  .toolbar-btn svg{width:16px;height:16px}
+  .color-swatch{width:13px;height:13px;margin:0 3px}
+  .toolbar-separator{margin:0 4px}
+}
