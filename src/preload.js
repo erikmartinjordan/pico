@@ -12,7 +12,8 @@ contextBridge.exposeInMainWorld('pico', {
   startCaptureFullscreen: () => ipcRenderer.invoke('start-capture-fullscreen'),
   onLoadCapture: (callback) => ipcRenderer.on('load-capture', (_, data) => callback(data)),
   onTriggerCapture: (callback) => ipcRenderer.on('trigger-capture', () => callback()),
-  
+  onLoadCaptureData: (callback) => ipcRenderer.on('load-capture-data', (_, data) => callback(data)),
+
   // Capture overlay communication
   onCaptureData: (callback) => ipcRenderer.on('capture-data', (_, data) => callback(data)),
   captureComplete: (imageDataUrl) => ipcRenderer.send('capture-complete', imageDataUrl),

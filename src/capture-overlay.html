@@ -61,6 +61,16 @@
     #dimensions.visible {
       display: block;
     }
+
+    #selection.window-hover {
+      display: block;
+      left: 0;
+      top: 0;
+      width: 100vw;
+      height: 100vh;
+      border-color: #60a5fa;
+    }
+
     
     #instructions {
       position: fixed;
@@ -102,6 +112,7 @@
     const dimensions = document.getElementById('dimensions');
     
     let captureData = null;
+    let captureMode = 'region';
     let isSelecting = false;
     let startX = 0, startY = 0;
     let currentX = 0, currentY = 0;
@@ -109,6 +120,8 @@
     // Listen for capture data from main process
     window.pico.onCaptureData(async (data) => {
       captureData = data;
+      captureMode = data.mode || 'region';
+      if (captureMode === 'window') document.getElementById('instructions').innerHTML = 'Click to capture this screen · Press <kbd>Esc</kbd> to cancel';
       
       // Always size canvas to actual viewport (handles DPI mismatches)
       canvas.width = window.innerWidth;
@@ -160,6 +173,11 @@
     
     // Mouse events
     document.addEventListener('mousedown', (e) => {
+      if (captureMode === 'window') {
+        selection.classList.add('window-hover');
+        captureRegion(0, 0, window.innerWidth, window.innerHeight);
+        return;
+      }
       isSelecting = true;
       startX = e.clientX;
       startY = e.clientY;
@@ -172,6 +190,10 @@
     });
     
     document.addEventListener('mousemove', (e) => {
+      if (captureMode === 'window') {
+        selection.classList.add('window-hover');
+        return;
+      }
       if (!isSelecting) return;
       
       currentX = e.clientX;
