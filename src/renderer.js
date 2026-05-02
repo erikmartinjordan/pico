@@ -12,7 +12,7 @@ const state = {
   imageWidth: 0,
   imageHeight: 0,
   zoom: 1,
-  currentTool: 'rect',
+  currentTool: 'select',
   currentColor: '#ef4444',
   strokeWidth: 4,
   isDrawing: false,
@@ -27,6 +27,10 @@ const state = {
   dragTextIndex: -1,
   dragOffsetX: 0,
   dragOffsetY: 0,
+  isDraggingAnnotation: false,
+  dragAnnotationIndex: -1,
+  dragStartX: 0,
+  dragStartY: 0,
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -272,6 +276,7 @@ function selectTool(tool) {
   state.currentTool = tool;
   elements.toolBtns.forEach(btn => btn.classList.toggle('active', btn.dataset.tool === tool));
   elements.container.className = 'canvas-container tool-' + tool;
+  elements.canvas.style.cursor = tool === 'text' ? 'text' : (tool === 'select' ? 'default' : 'crosshair');
   updateStatus();
 }
 
@@ -322,11 +327,48 @@ function findTextAnnotationAt(coords) {
   return -1;
 }
 
+
+function findAnnotationAt(coords) {
+  for (let i = state.annotations.length - 1; i >= 0; i--) {
+    const a = state.annotations[i];
+    if (a.type === 'text' && findTextAnnotationAt(coords) === i) return i;
+    if (a.type === 'rect' || a.type === 'highlight' || a.type === 'blur' || a.type === 'ellipse') {
+      if (coords.x >= a.x && coords.x <= a.x + a.width && coords.y >= a.y && coords.y <= a.y + a.height) return i;
+    }
+    if (a.type === 'line' || a.type === 'arrow') {
+      const dx = a.x2 - a.x1, dy = a.y2 - a.y1;
+      const len2 = dx*dx + dy*dy || 1;
+      const t = Math.max(0, Math.min(1, ((coords.x-a.x1)*dx + (coords.y-a.y1)*dy)/len2));
+      const px = a.x1 + t*dx, py = a.y1 + t*dy;
+      if (Math.hypot(coords.x-px, coords.y-py) <= 8) return i;
+    }
+  }
+  return -1;
+}
+
+function moveAnnotation(annotation, dx, dy) {
+  if ('x' in annotation) annotation.x += dx;
+  if ('y' in annotation) annotation.y += dy;
+  if ('x1' in annotation) { annotation.x1 += dx; annotation.x2 += dx; }
+  if ('y1' in annotation) { annotation.y1 += dy; annotation.y2 += dy; }
+}
+
 function onCanvasMouseDown(e) {
   if (!state.image) return;
   if (state.isEditingText) { commitInlineText(); return; }
   
   const coords = getCanvasCoords(e);
+
+  if (state.currentTool === 'select') {
+    const idx = findAnnotationAt(coords);
+    if (idx >= 0) {
+      state.isDraggingAnnotation = true;
+      state.dragAnnotationIndex = idx;
+      state.dragStartX = coords.x;
+      state.dragStartY = coords.y;
+    }
+    return;
+  }
   
   if (state.currentTool === 'text') {
     const textIdx = findTextAnnotationAt(coords);
@@ -351,6 +393,26 @@ function onCanvasMouseDown(e) {
 function onCanvasMouseMove(e) {
   if (!state.image) return;
   
+  if (state.isDraggingAnnotation) {
+    const coords = getCanvasCoords(e);
+    const dx = coords.x - state.dragStartX;
+    const dy = coords.y - state.dragStartY;
+    state.dragStartX = coords.x;
+    state.dragStartY = coords.y;
+    moveAnnotation(state.annotations[state.dragAnnotationIndex], dx, dy);
+    render();
+    return;
+  }
+
+  if (state.isDraggingAnnotation) {
+    state.isDraggingAnnotation = false;
+    state.history = state.history.slice(0, state.historyIndex + 1);
+    state.history.push([...state.annotations.map(a => ({...a}))]);
+    state.historyIndex = state.history.length - 1;
+    updateToolbarState();
+    return;
+  }
+
   if (state.isDraggingText) {
     const coords = getCanvasCoords(e);
     state.annotations[state.dragTextIndex].x = coords.x - state.dragOffsetX;
@@ -371,6 +433,26 @@ function onCanvasMouseMove(e) {
 }
 
 function onCanvasMouseUp(e) {
+  if (state.isDraggingAnnotation) {
+    const coords = getCanvasCoords(e);
+    const dx = coords.x - state.dragStartX;
+    const dy = coords.y - state.dragStartY;
+    state.dragStartX = coords.x;
+    state.dragStartY = coords.y;
+    moveAnnotation(state.annotations[state.dragAnnotationIndex], dx, dy);
+    render();
+    return;
+  }
+
+  if (state.isDraggingAnnotation) {
+    state.isDraggingAnnotation = false;
+    state.history = state.history.slice(0, state.historyIndex + 1);
+    state.history.push([...state.annotations.map(a => ({...a}))]);
+    state.historyIndex = state.history.length - 1;
+    updateToolbarState();
+    return;
+  }
+
   if (state.isDraggingText) {
     state.isDraggingText = false;
     elements.canvas.style.cursor = 'text';
@@ -627,7 +709,7 @@ function getCompositeImage() {
 }
 
 function updateStatus() {
-  const names = { rect: 'Rectangle', ellipse: 'Ellipse', arrow: 'Arrow', line: 'Line', text: 'Text', highlight: 'Highlight', blur: 'Blur' };
+  const names = { select: 'Select', rect: 'Rectangle', ellipse: 'Ellipse', arrow: 'Arrow', line: 'Line', text: 'Text', highlight: 'Highlight', blur: 'Blur' };
   elements.statusTool.textContent = names[state.currentTool] || state.currentTool;
   elements.statusZoom.textContent = `${Math.round(state.zoom * 100)}%`;
 }
