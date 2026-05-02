@@ -138,15 +138,13 @@ function bindKeyboard() {
 function bindIPC() {
   window.pico.onTriggerCapture(() => startCapture());
   window.pico.onLoadCapture((dataUrl) => loadImage(dataUrl));
+  window.pico.onLoadCaptureData((captureData) => loadCaptureData(captureData));
 }
 
 function bindInlineText() {
   elements.textInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commitInlineText(); }
     if (e.key === 'Escape') { cancelInlineText(); }
-  });
-  elements.textInput.addEventListener('blur', () => {
-    if (state.isEditingText) commitInlineText();
   });
   elements.textInput.addEventListener('input', autoResizeTextInput);
 }
@@ -194,6 +192,22 @@ async function copyToClipboard() {
 // ══════════════════════════════════════════════════════════════════════════════
 // Image Loading
 // ══════════════════════════════════════════════════════════════════════════════
+
+async function loadCaptureData(captureData) {
+  if (captureData.type === 'single') {
+    loadImage(captureData.dataUrl);
+    return;
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = captureData.virtualBounds.width;
+  canvas.height = captureData.virtualBounds.height;
+  const ctx = canvas.getContext('2d');
+  for (const screen of captureData.screens) {
+    const img = await new Promise((resolve) => { const i = new Image(); i.onload = () => resolve(i); i.src = screen.dataUrl; });
+    ctx.drawImage(img, screen.bounds.x - captureData.virtualBounds.x, screen.bounds.y - captureData.virtualBounds.y, screen.bounds.width, screen.bounds.height);
+  }
+  loadImage(canvas.toDataURL('image/png'));
+}
 
 function loadImage(dataUrl) {
   const img = new Image();
@@ -404,7 +418,7 @@ function openInlineText(coords) {
   input.value = '';
   input.style.color = state.currentColor;
   input.style.fontSize = Math.round(24 * state.zoom) + 'px';
-  input.focus();
+  setTimeout(() => input.focus(), 0);
   autoResizeTextInput();
 }
 
