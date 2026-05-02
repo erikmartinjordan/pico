@@ -61,6 +61,16 @@
     #dimensions.visible {
       display: block;
     }
+
+    #selection.window-hover {
+      display: block;
+      left: 0;
+      top: 0;
+      width: 100vw;
+      height: 100vh;
+      border-color: #60a5fa;
+    }
+
     
     #instructions {
       position: fixed;
@@ -164,6 +174,7 @@
     // Mouse events
     document.addEventListener('mousedown', (e) => {
       if (captureMode === 'window') {
+        selection.classList.add('window-hover');
         captureRegion(0, 0, window.innerWidth, window.innerHeight);
         return;
       }
@@ -179,6 +190,10 @@
     });
     
     document.addEventListener('mousemove', (e) => {
+      if (captureMode === 'window') {
+        selection.classList.add('window-hover');
+        return;
+      }
       if (!isSelecting) return;
       
       currentX = e.clientX;

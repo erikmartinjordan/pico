@@ -146,9 +146,6 @@ function bindInlineText() {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commitInlineText(); }
     if (e.key === 'Escape') { cancelInlineText(); }
   });
-  elements.textInput.addEventListener('blur', () => {
-    if (state.isEditingText) commitInlineText();
-  });
   elements.textInput.addEventListener('input', autoResizeTextInput);
 }
 
@@ -436,7 +433,7 @@ function openInlineText(coords) {
   input.value = '';
   input.style.color = state.currentColor;
   input.style.fontSize = Math.round(24 * state.zoom) + 'px';
-  input.focus();
+  setTimeout(() => input.focus(), 0);
   autoResizeTextInput();
 }
 

@@ -89,8 +89,8 @@ async function captureAllScreens() {
         const nativeWidth = Math.round(display.bounds.width * (display.scaleFactor || 1));
         const nativeHeight = Math.round(display.bounds.height * (display.scaleFactor || 1));
         const thumbnail = source.thumbnail.resize({
-          width: nativeWidth,
-          height: nativeHeight,
+          width: display.bounds.width,
+          height: display.bounds.height,
           quality: 'best',
         });
 
@@ -114,8 +114,8 @@ async function captureAllScreens() {
       const nativeWidth = Math.round(display.bounds.width * (display.scaleFactor || 1));
       const nativeHeight = Math.round(display.bounds.height * (display.scaleFactor || 1));
       const thumbnail = source.thumbnail.resize({
-        width: nativeWidth,
-        height: nativeHeight,
+        width: display.bounds.width,
+        height: display.bounds.height,
         quality: 'best',
       });
 
