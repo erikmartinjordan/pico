@@ -171,15 +171,15 @@
     .iso-wrap {
       transform: rotateX(54deg) rotateZ(-45deg);
       transform-style: preserve-3d;
-      width: 520px;
+      width: 560px;
       position: relative;
     }
     .window-group {
       animation: rise-in 0.9s cubic-bezier(0.34,1.4,0.64,1) both, float-loop 5s ease-in-out 1.2s infinite;
       transform-style: preserve-3d;
       position: relative;
-      width: 520px;
-      height: 340px;
+      width: 560px;
+      height: 360px;
     }
     @keyframes rise-in {
       from { transform: translateZ(-80px); opacity: 0; }
@@ -189,14 +189,14 @@
       0%,100% { transform: translateZ(0px); }
       50% { transform: translateZ(10px); }
     }
-    .win-left { position: absolute; width: 30px; height: 340px; background: #111113; top: 0; left: -30px; transform: rotateY(90deg); transform-origin: right center; }
-    .win-bottom { position: absolute; width: 520px; height: 30px; background: #0e0e10; top: 340px; left: 0; transform: rotateX(-90deg); transform-origin: top center; }
-    .win-top { position: absolute; top: 0; left: 0; width: 520px; height: 340px; background: #1c1c1e; border: 1px solid rgba(255,255,255,0.1); }
-    .titlebar { position: absolute; top: 0; left: 0; right: 0; height: 36px; background: #28282c; border-bottom: 1px solid rgba(255,255,255,0.07); display: flex; align-items: center; padding: 0 12px; gap: 7px; }
+    .win-left { position: absolute; width: 30px; height: 360px; background: #0f1013; top: 0; left: -30px; transform: rotateY(90deg); transform-origin: right center; }
+    .win-bottom { position: absolute; width: 560px; height: 30px; background: #0b0b0d; top: 360px; left: 0; transform: rotateX(-90deg); transform-origin: top center; }
+    .win-top { position: absolute; top: 0; left: 0; width: 560px; height: 360px; background: #17181c; border: 1px solid rgba(255,255,255,0.12); border-radius: 8px 8px 0 0; overflow: hidden; }
+    .titlebar { position: absolute; top: 0; left: 0; right: 0; height: 40px; background: #202228; border-bottom: 1px solid rgba(255,255,255,0.07); display: flex; align-items: center; padding: 0 12px; gap: 7px; }
     .tl { width: 11px; height: 11px; border-radius: 50%; }
     .tl.c { background: #ff5f56; } .tl.m { background: #ffbd2e; } .tl.x { background: #27c93f; }
     .app-name { position: absolute; left: 50%; transform: translateX(-50%); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; color: rgba(255,255,255,0.4); letter-spacing: 0.06em; }
-    .toolbar { position: absolute; top: 36px; left: 0; right: 0; height: 42px; background: #222226; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; padding: 0 10px; gap: 3px; }
+    .toolbar { position: absolute; top: 36px; left: 0; right: 0; height: 44px; background: #1a1c21; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; padding: 0 10px; gap: 3px; }
     .tbtn { width: 28px; height: 28px; border-radius: 5px; display: flex; align-items: center; justify-content: center; background: transparent; cursor: pointer; transition: background 0.12s; }
     .tbtn:hover { background: rgba(255,255,255,0.08); }
     .tbtn.act { background: rgba(74,144,226,0.2); box-shadow: 0 0 0 1px #4a90e2; }
@@ -206,7 +206,7 @@
     .sw { width: 15px; height: 15px; border-radius: 50%; flex-shrink: 0; cursor: pointer; transition: transform 0.12s; }
     .sw:hover { transform: scale(1.2); }
     .sw.sel { box-shadow: 0 0 0 2px rgba(255,255,255,0.6); }
-    .canvas-area { position: absolute; top: 78px; left: 0; right: 0; bottom: 26px; background-color: #0f0f0f; background-image: linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px); background-size: 13px 13px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
+    .canvas-area { position: absolute; top: 84px; left: 0; right: 0; bottom: 30px; background-color: #0d0f14; background-image: linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px); background-size: 13px 13px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
     .empty-ring { width: 32px; height: 32px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; animation: ring-pulse 3s ease-in-out infinite; }
     @keyframes ring-pulse { 0%,100% { border-color: rgba(255,255,255,0.1); } 50% { border-color: rgba(255,255,255,0.35); } }
     .empty-ring svg { width: 13px; height: 13px; stroke: rgba(255,255,255,0.25); fill: none; stroke-width: 1.5; }
@@ -222,7 +222,7 @@
     .bopen svg { width: 12px; height: 12px; stroke: rgba(255,255,255,0.55); fill: none; stroke-width: 1.8; flex-shrink: 0; }
     .draw-anim { position: absolute; border: 1.5px solid #4a90e2; border-radius: 2px; opacity: 0; pointer-events: none; animation: draw-box 4s ease-in-out 2s infinite; }
     @keyframes draw-box { 0% { left:38%; top:40%; width:0; height:0; opacity:0; } 8% { opacity:1; } 55% { left:30%; top:28%; width:38%; height:40%; opacity:1; } 85% { left:30%; top:28%; width:38%; height:40%; opacity:0.5; } 100% { left:30%; top:28%; width:38%; height:40%; opacity:0; } }
-    .statusbar { position: absolute; bottom: 0; left: 0; right: 0; height: 26px; background: #1a1a1d; border-top: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: space-between; padding: 0 12px; }
+    .statusbar { position: absolute; bottom: 0; left: 0; right: 0; height: 30px; background: #14161b; border-top: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: space-between; padding: 0 12px; }
     .statusbar span { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; color: rgba(255,255,255,0.28); letter-spacing: 0.05em; }
 
     /* Features */
@@ -492,7 +492,7 @@
 
   <footer>
     <div class="container">
-      pico · Built with Electron · <a href="https://github.com" id="footer-github">Source on GitHub</a>
+      Built with love <span aria-hidden="true">❤</span> by <a href="https://erikmartinjordan.com" target="_blank" rel="noopener noreferrer">Erik Martín</a>
     </div>
   </footer>
 
@@ -530,7 +530,7 @@
       const repoUrl = `https://github.com/${owner}/${repo}`;
       const releaseUrl = `https://github.com/${owner}/${repo}/releases/latest`;
       
-      document.querySelectorAll('#github-link, #github-btn, #footer-github').forEach(el => {
+      document.querySelectorAll('#github-link, #github-btn').forEach(el => {
         el.href = repoUrl;
       });
       
