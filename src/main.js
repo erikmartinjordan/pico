@@ -260,7 +260,11 @@ ipcMain.on('window-picker-select', (event, sourceId) => {
   }
   if (mainWindow) {
     mainWindow.show();
-    mainWindow.webContents.send('load-capture', source.thumbnail.toDataURL());
+    mainWindow.webContents.send('load-capture', {
+      dataUrl: source.thumbnail.toDataURL(),
+      source: 'capture',
+      captureMode: 'window',
+    });
   }
 });
 
@@ -275,7 +279,11 @@ ipcMain.on('capture-complete', (event, imageDataUrl) => {
   captureWindows = [];
   if (mainWindow) {
     mainWindow.show();
-    mainWindow.webContents.send('load-capture', imageDataUrl);
+    mainWindow.webContents.send('load-capture', {
+      dataUrl: imageDataUrl,
+      source: 'capture',
+      captureMode: 'region',
+    });
   }
 });
 
