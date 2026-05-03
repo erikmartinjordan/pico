@@ -40,6 +40,23 @@
         <button class="toolbar-btn stroke-btn" data-width="8"><span class="stroke-preview" style="height:5px"></span></button>
       </div>
       <div class="toolbar-separator"></div>
+      <div class="toolbar-group text-style-group" id="text-style-group">
+        <select id="text-font-family" class="toolbar-select" title="Text font">
+          <option value="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">System</option>
+          <option value="Arial, sans-serif">Arial</option>
+          <option value="'Times New Roman', serif">Times</option>
+          <option value="'Courier New', monospace">Courier</option>
+          <option value="Georgia, serif">Georgia</option>
+        </select>
+        <select id="text-font-size" class="toolbar-select" title="Text size">
+          <option value="16">16</option>
+          <option value="20">20</option>
+          <option value="24" selected>24</option>
+          <option value="32">32</option>
+          <option value="40">40</option>
+        </select>
+      </div>
+      <div class="toolbar-separator text-style-separator" id="text-style-separator"></div>
       <div class="toolbar-group">
         <button class="toolbar-btn" id="btn-copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="8" y="8" width="11" height="11" rx="2"/><rect x="5" y="5" width="11" height="11" rx="2"/></svg></button>
       </div>
