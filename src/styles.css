@@ -9,8 +9,9 @@
 .toolbar-btn:disabled{opacity:.3;cursor:default}
 .color-swatch{width:15px;height:15px;border:none;border-radius:4px;background:var(--swatch-color);cursor:pointer;margin:0 4px}.color-swatch.black{border:.5px solid rgba(255,255,255,.2)}.color-swatch.active{box-shadow:0 0 0 2px var(--accent-soft)}
 .stroke-btn .stroke-preview{width:16px;background:currentColor;border-radius:999px}
-.toolbar-select{height:30px;border:none;border-radius:8px;background:rgba(255,255,255,.08);color:rgba(255,255,255,.85);padding:0 8px;font-size:12px;outline:none}
+.toolbar-select{height:30px;border:none;border-radius:8px;background:rgba(255,255,255,.08);color:rgba(255,255,255,.85);padding:0 8px;font-size:12px;outline:none;color-scheme:dark}
 .toolbar-select:hover{background:rgba(255,255,255,.12)}
+.toolbar-select option{background:#20232d;color:#f3f4f6}
 .text-style-group{gap:6px}
 .text-style-hidden{display:none}
 #canvas{display:none;image-rendering:crisp-edges}#canvas.visible{display:block}

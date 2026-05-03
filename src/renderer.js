@@ -340,7 +340,19 @@ function selectStrokeWidth(width) {
 }
 
 function selectTextFontSize(size) {
+  if (!Number.isFinite(size) || size <= 0) return;
   state.textFontSize = size;
+  if (state.currentTool === 'select' && state.selectedAnnotationIndex >= 0) {
+    const selected = state.annotations[state.selectedAnnotationIndex];
+    if (selected?.type === 'text') {
+      selected.fontSize = size;
+      state.history = state.history.slice(0, state.historyIndex + 1);
+      state.history.push([...state.annotations.map(a => ({ ...a }))]);
+      state.historyIndex = state.history.length - 1;
+      render();
+      updateToolbarState();
+    }
+  }
   if (state.isEditingText) {
     elements.textInput.style.fontSize = Math.round(size * state.zoom) + 'px';
     autoResizeTextInput();
@@ -349,7 +361,37 @@ function selectTextFontSize(size) {
 
 function selectTextFontFamily(family) {
   state.textFontFamily = family;
+  if (state.currentTool === 'select' && state.selectedAnnotationIndex >= 0) {
+    const selected = state.annotations[state.selectedAnnotationIndex];
+    if (selected?.type === 'text') {
+      selected.fontFamily = family;
+      state.history = state.history.slice(0, state.historyIndex + 1);
+      state.history.push([...state.annotations.map(a => ({ ...a }))]);
+      state.historyIndex = state.history.length - 1;
+      render();
+      updateToolbarState();
+    }
+  }
   if (state.isEditingText) elements.textInput.style.fontFamily = family;
+}
+
+function getTextBounds(annotation) {
+  const ctx = elements.ctx;
+  const fontSize = annotation.fontSize || 24;
+  const fontFamily = annotation.fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  const lines = annotation.text.split('\n');
+  const lineHeight = fontSize * 1.2;
+  ctx.save();
+  ctx.font = `bold ${fontSize}px ${fontFamily}`;
+  const maxWidth = Math.max(...lines.map((line) => ctx.measureText(line).width), 0);
+  ctx.restore();
+  return {
+    x: annotation.x,
+    y: annotation.y - lineHeight,
+    width: Math.max(1, maxWidth),
+    height: Math.max(1, lineHeight * Math.max(lines.length, 1)),
+    lineHeight,
+  };
 }
 
 function toggleTextStyleControls() {
@@ -383,15 +425,9 @@ function findTextAnnotationAt(coords) {
   for (let i = state.annotations.length - 1; i >= 0; i--) {
     const ann = state.annotations[i];
     if (ann.type !== 'text') continue;
-    const fontSize = ann.fontSize || 24;
-    const fontFamily = ann.fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-    ctx.font = `bold ${fontSize}px ${fontFamily}`;
-    const lines = ann.text.split('\n');
-    const lineHeight = fontSize * 1.2;
-    const maxWidth = Math.max(...lines.map((line) => ctx.measureText(line).width), 0);
-    const boxHeight = lineHeight * Math.max(lines.length, 1);
-    if (coords.x >= ann.x - 5 && coords.x <= ann.x + maxWidth + 5 &&
-        coords.y >= ann.y - lineHeight && coords.y <= ann.y + boxHeight) {
+    const bounds = getTextBounds(ann);
+    if (coords.x >= bounds.x - 5 && coords.x <= bounds.x + bounds.width + 5 &&
+        coords.y >= bounds.y && coords.y <= bounds.y + bounds.height) {
       return i;
     }
   }
@@ -801,6 +837,10 @@ function getAnnotationBounds(annotation) {
       x1: annotation.x1, y1: annotation.y1, x2: annotation.x2, y2: annotation.y2,
     };
   }
+  if (annotation.type === 'text') {
+    const bounds = getTextBounds(annotation);
+    return { ...bounds, type: 'box' };
+  }
   return null;
 }
 
@@ -834,10 +874,11 @@ function resizeSelectedAnnotation(coords) {
     if (state.resizeHandle.kind === 'line-end') { ann.x2 = coords.x; ann.y2 = coords.y; }
     return;
   }
-  const x1 = ann.x;
-  const y1 = ann.y;
-  const x2 = ann.x + ann.width;
-  const y2 = ann.y + ann.height;
+  const bounds = ann.type === 'text' ? getTextBounds(ann) : { x: ann.x, y: ann.y, width: ann.width, height: ann.height };
+  const x1 = bounds.x;
+  const y1 = bounds.y;
+  const x2 = bounds.x + bounds.width;
+  const y2 = bounds.y + bounds.height;
   let nx1 = x1, ny1 = y1, nx2 = x2, ny2 = y2;
   if (state.resizeHandle.kind.includes('n')) ny1 = coords.y;
   if (state.resizeHandle.kind.includes('s')) ny2 = coords.y;
@@ -847,6 +888,16 @@ function resizeSelectedAnnotation(coords) {
   ann.y = Math.min(ny1, ny2);
   ann.width = Math.max(1, Math.abs(nx2 - nx1));
   ann.height = Math.max(1, Math.abs(ny2 - ny1));
+
+  if (ann.type === 'text') {
+    const currentBounds = getTextBounds(ann);
+    const scaleY = ann.height / Math.max(1, currentBounds.height);
+    ann.fontSize = Math.max(8, Math.round((ann.fontSize || 24) * scaleY));
+    ann.x = Math.min(nx1, nx2);
+    ann.y = Math.min(ny1, ny2) + (ann.fontSize * 1.2);
+    delete ann.width;
+    delete ann.height;
+  }
 }
 
 function drawSelectionHandles() {
