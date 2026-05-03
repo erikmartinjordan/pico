@@ -15,6 +15,8 @@ const state = {
   currentTool: 'select',
   currentColor: '#ef4444',
   strokeWidth: 4,
+  textFontSize: 24,
+  textFontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
   isDrawing: false,
   startX: 0,
   startY: 0,
@@ -62,6 +64,10 @@ const elements = {
   textWrapper: $('#text-input-wrapper'),
   textInput: $('#inline-text-input'),
   toastContainer: $('#toast-container'),
+  textFontFamily: $('#text-font-family'),
+  textFontSize: $('#text-font-size'),
+  textStyleGroup: $('#text-style-group'),
+  textStyleSeparator: $('#text-style-separator'),
 };
 
 function on(el, event, handler) { if (el) el.addEventListener(event, handler); }
@@ -78,6 +84,9 @@ function init() {
   bindKeyboard();
   bindIPC();
   bindInlineText();
+  if (elements.textFontFamily) elements.textFontFamily.value = state.textFontFamily;
+  if (elements.textFontSize) elements.textFontSize.value = String(state.textFontSize);
+  toggleTextStyleControls();
   updateStatus();
 }
 
@@ -107,6 +116,8 @@ function bindToolbar() {
   elements.strokeBtns.forEach(btn => {
     btn.addEventListener('click', () => selectStrokeWidth(parseInt(btn.dataset.width)));
   });
+  on(elements.textFontFamily, 'change', () => selectTextFontFamily(elements.textFontFamily.value));
+  on(elements.textFontSize, 'change', () => selectTextFontSize(parseInt(elements.textFontSize.value)));
 }
 
 function bindCanvas() {
@@ -313,6 +324,7 @@ function selectTool(tool) {
   elements.toolBtns.forEach(btn => btn.classList.toggle('active', btn.dataset.tool === tool));
   elements.container.className = 'canvas-container tool-' + tool;
   elements.canvas.style.cursor = tool === 'text' ? 'text' : (tool === 'select' ? 'default' : 'crosshair');
+  toggleTextStyleControls();
   updateStatus();
 }
 
@@ -325,6 +337,25 @@ function selectColor(color) {
 function selectStrokeWidth(width) {
   state.strokeWidth = width;
   elements.strokeBtns.forEach(btn => btn.classList.toggle('active', parseInt(btn.dataset.width) === width));
+}
+
+function selectTextFontSize(size) {
+  state.textFontSize = size;
+  if (state.isEditingText) {
+    elements.textInput.style.fontSize = Math.round(size * state.zoom) + 'px';
+    autoResizeTextInput();
+  }
+}
+
+function selectTextFontFamily(family) {
+  state.textFontFamily = family;
+  if (state.isEditingText) elements.textInput.style.fontFamily = family;
+}
+
+function toggleTextStyleControls() {
+  const visible = state.currentTool === 'text';
+  elements.textStyleGroup?.classList.toggle('text-style-hidden', !visible);
+  elements.textStyleSeparator?.classList.toggle('text-style-hidden', !visible);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -353,7 +384,8 @@ function findTextAnnotationAt(coords) {
     const ann = state.annotations[i];
     if (ann.type !== 'text') continue;
     const fontSize = ann.fontSize || 24;
-    ctx.font = `bold ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+    const fontFamily = ann.fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+    ctx.font = `bold ${fontSize}px ${fontFamily}`;
     const lines = ann.text.split('\n');
     const lineHeight = fontSize * 1.2;
     const maxWidth = Math.max(...lines.map((line) => ctx.measureText(line).width), 0);
@@ -558,7 +590,8 @@ function openInlineText(coords) {
   const input = elements.textInput;
   input.value = '';
   input.style.color = state.currentColor;
-  input.style.fontSize = Math.round(24 * state.zoom) + 'px';
+  input.style.fontSize = Math.round(state.textFontSize * state.zoom) + 'px';
+  input.style.fontFamily = state.textFontFamily;
   setTimeout(() => input.focus(), 0);
   autoResizeTextInput();
 }
@@ -575,7 +608,8 @@ function commitInlineText() {
       y: state.pendingTextPos.y,
       text,
       color: state.currentColor,
-      fontSize: 24,
+      fontSize: state.textFontSize,
+      fontFamily: state.textFontFamily,
     });
   }
   state.pendingTextPos = null;
@@ -682,7 +716,7 @@ function drawAnnotation(ann) {
     case 'arrow': drawArrow(ctx, ann.x1, ann.y1, ann.x2, ann.y2, true); break;
     case 'line': ctx.beginPath(); ctx.moveTo(ann.x1, ann.y1); ctx.lineTo(ann.x2, ann.y2); ctx.stroke(); break;
     case 'text':
-      ctx.font = `bold ${ann.fontSize || 24}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+      ctx.font = `bold ${ann.fontSize || 24}px ${ann.fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'}`;
       ann.text.split('\n').forEach((line, i) => {
         ctx.fillText(line, ann.x, ann.y + i * ((ann.fontSize || 24) * 1.2));
       });
