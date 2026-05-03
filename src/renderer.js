@@ -157,9 +157,10 @@ function bindIPC() {
     loadImage(capturePayload?.dataUrl, {
       showPreview: capturePayload?.source === 'capture',
       captureMode: capturePayload?.captureMode || 'region',
+      autoSelectRect: capturePayload?.source === 'capture',
     });
   });
-  window.pico.onLoadCaptureData((captureData) => loadCaptureData(captureData));
+  window.pico.onLoadCaptureData((captureData) => loadCaptureData(captureData, { autoSelectRect: true }));
 }
 
 function bindInlineText() {
@@ -225,9 +226,9 @@ async function copyToClipboard() {
 // Image Loading
 // ══════════════════════════════════════════════════════════════════════════════
 
-async function loadCaptureData(captureData) {
+async function loadCaptureData(captureData, options = {}) {
   if (captureData.type === 'single') {
-    loadImage(captureData.dataUrl);
+    loadImage(captureData.dataUrl, options);
     return;
   }
   const canvas = document.createElement('canvas');
@@ -240,7 +241,7 @@ async function loadCaptureData(captureData) {
     const dy = screen.bounds.y - captureData.virtualBounds.y;
     ctx.drawImage(img, dx, dy, screen.bounds.width, screen.bounds.height);
   }
-  loadImage(canvas.toDataURL('image/png'));
+  loadImage(canvas.toDataURL('image/png'), options);
 }
 
 function loadImage(dataUrl, options = {}) {
@@ -261,6 +262,7 @@ function loadImage(dataUrl, options = {}) {
     render();
     updateStatus();
     updateToolbarState();
+    if (options.autoSelectRect) selectTool('rect');
     if (options.showPreview || state.pendingFullscreenPreview) {
       showCapturePreview(dataUrl, options.captureMode || 'fullscreen');
       state.pendingFullscreenPreview = false;
