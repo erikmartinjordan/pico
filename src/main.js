@@ -30,7 +30,7 @@ function createMainWindow() {
       nodeIntegration: false,
       sandbox: true,
     },
-    icon: path.join(__dirname, 'assets', 'icons', 'icon.png'),
+    icon: path.join(__dirname, 'assets', 'icons', 'icon.svg'),
     show: false,
   });
 
