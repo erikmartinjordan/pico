@@ -32,24 +32,31 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["universal"]
+          "arch": [
+            "universal"
+          ]
         },
         {
           "target": "zip",
-          "arch": ["arm64", "x64"]
+          "arch": [
+            "arm64",
+            "x64"
+          ]
         }
-      ],
-      "icon": "src/assets/icons/icon.svg"
+      ]
     },
     "win": {
-      "publisherName": ["Erik Martín Jordán"],
+      "publisherName": [
+        "Erik Martín Jordán"
+      ],
       "target": [
         {
           "target": "portable",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
-      "icon": "src/assets/icons/icon.svg",
       "requestedExecutionLevel": "asInvoker",
       "artifactName": "${productName}-portable.${ext}"
     }
