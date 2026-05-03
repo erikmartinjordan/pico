@@ -43,7 +43,8 @@
             "x64"
           ]
         }
-      ]
+      ],
+      "icon": "src/assets/icons/icon_512x512.png"
     },
     "win": {
       "publisherName": [
@@ -58,7 +59,9 @@
         }
       ],
       "requestedExecutionLevel": "asInvoker",
-      "artifactName": "${productName}-portable.${ext}"
-    }
+      "artifactName": "${productName}-portable.${ext}",
+      "icon": "src/assets/icons/icon_512x512.png"
+    },
+    "icon": "src/assets/icons/icon_512x512.png"
   }
 }
