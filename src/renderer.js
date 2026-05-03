@@ -34,6 +34,7 @@ const state = {
   selectedAnnotationIndex: -1,
   isResizingAnnotation: false,
   resizeHandle: null,
+  pendingFullscreenPreview: false,
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -151,7 +152,13 @@ function bindKeyboard() {
 
 function bindIPC() {
   window.pico.onTriggerCapture(() => startCapture());
-  window.pico.onLoadCapture((dataUrl) => loadImage(dataUrl));
+  window.pico.onLoadCapture((payload) => {
+    const capturePayload = typeof payload === 'string' ? { dataUrl: payload } : payload;
+    loadImage(capturePayload?.dataUrl, {
+      showPreview: capturePayload?.source === 'capture',
+      captureMode: capturePayload?.captureMode || 'region',
+    });
+  });
   window.pico.onLoadCaptureData((captureData) => loadCaptureData(captureData));
 }
 
@@ -185,8 +192,12 @@ async function startCaptureWindow() {
 }
 
 async function startCaptureFullscreen() {
+  state.pendingFullscreenPreview = true;
   const result = await window.pico.startCaptureFullscreen();
-  if (!result.success) showToast('Failed to capture screen', 'error');
+  if (!result.success) {
+    state.pendingFullscreenPreview = false;
+    showToast('Failed to capture screen', 'error');
+  }
 }
 
 async function openFile() {
@@ -232,7 +243,7 @@ async function loadCaptureData(captureData) {
   loadImage(canvas.toDataURL('image/png'));
 }
 
-function loadImage(dataUrl) {
+function loadImage(dataUrl, options = {}) {
   const img = new Image();
   img.onload = () => {
     state.image = img;
@@ -250,6 +261,10 @@ function loadImage(dataUrl) {
     render();
     updateStatus();
     updateToolbarState();
+    if (options.showPreview || state.pendingFullscreenPreview) {
+      showCapturePreview(dataUrl, options.captureMode || 'fullscreen');
+      state.pendingFullscreenPreview = false;
+    }
   };
   img.src = dataUrl;
 }
@@ -860,6 +875,46 @@ function updateToolbarState() {
   elements.btnCopy.disabled = !state.image;
   elements.btnUndo.disabled = state.historyIndex < 0;
   elements.btnRedo.disabled = state.historyIndex >= state.history.length - 1;
+}
+
+
+function playCaptureChime() {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return;
+  const ctx = new AudioContextClass();
+  const now = ctx.currentTime;
+  const notes = [659.25, 783.99, 1046.5];
+  notes.forEach((frequency, index) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(frequency, now);
+    gain.gain.setValueAtTime(0.0001, now);
+    const start = now + index * 0.08;
+    const end = start + 0.23;
+    gain.gain.exponentialRampToValueAtTime(0.08, start + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.0001, end);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(start);
+    osc.stop(end);
+  });
+  setTimeout(() => ctx.close().catch(() => {}), 700);
+}
+
+function showCapturePreview(dataUrl, captureMode = 'region') {
+  const preview = document.getElementById('capture-preview');
+  const image = document.getElementById('capture-preview-image');
+  const mode = document.getElementById('capture-preview-mode');
+  if (!preview || !image || !mode) return;
+  image.src = dataUrl;
+  mode.textContent = `${captureMode.charAt(0).toUpperCase()}${captureMode.slice(1)} capture ready`;
+  preview.classList.add('visible');
+  playCaptureChime();
+  window.clearTimeout(showCapturePreview.timeoutId);
+  showCapturePreview.timeoutId = window.setTimeout(() => {
+    preview.classList.remove('visible');
+  }, 2300);
 }
 
 function showToast(message, type = 'info') {
