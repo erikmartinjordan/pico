@@ -529,15 +529,19 @@ async function loadCaptureData(captureData, options = {}) {
     loadImage(captureData.dataUrl, options);
     return;
   }
+  // Sort screens left-to-right and align at top edge (y=0)
+  const sorted = [...captureData.screens].sort((a, b) => a.bounds.x - b.bounds.x);
+  const totalWidth = sorted.reduce((sum, s) => sum + s.bounds.width, 0);
+  const maxHeight = Math.max(...sorted.map(s => s.bounds.height));
   const canvas = document.createElement('canvas');
-  canvas.width = captureData.virtualBounds.width;
-  canvas.height = captureData.virtualBounds.height;
+  canvas.width = totalWidth;
+  canvas.height = maxHeight;
   const ctx = canvas.getContext('2d');
-  for (const screen of captureData.screens) {
+  let offsetX = 0;
+  for (const screen of sorted) {
     const img = await new Promise((resolve) => { const i = new Image(); i.onload = () => resolve(i); i.src = screen.dataUrl; });
-    const dx = screen.bounds.x - captureData.virtualBounds.x;
-    const dy = screen.bounds.y - captureData.virtualBounds.y;
-    ctx.drawImage(img, dx, dy, screen.bounds.width, screen.bounds.height);
+    ctx.drawImage(img, offsetX, 0, screen.bounds.width, screen.bounds.height);
+    offsetX += screen.bounds.width;
   }
   loadImage(canvas.toDataURL('image/png'), options);
 }
@@ -582,16 +586,23 @@ function setZoom(newZoom) {
 }
 
 function applyZoom() {
-  elements.canvas.style.transform = `scale(${state.zoom})`;
-  elements.canvas.style.transformOrigin = 'center center';
+  elements.canvas.style.width = (state.imageWidth * state.zoom) + 'px';
+  elements.canvas.style.height = (state.imageHeight * state.zoom) + 'px';
 }
 
 function fitToWindow() {
   if (!state.image) return;
   const container = elements.container;
   const padding = 40;
-  const scaleX = (container.clientWidth - padding * 2) / state.imageWidth;
-  const scaleY = (container.clientHeight - padding * 2) / state.imageHeight;
+  const availW = container.clientWidth - padding * 2;
+  const availH = container.clientHeight - padding * 2;
+  // If container hasn't laid out yet, retry on next frame
+  if (availW <= 0 || availH <= 0) {
+    requestAnimationFrame(() => fitToWindow());
+    return;
+  }
+  const scaleX = availW / state.imageWidth;
+  const scaleY = availH / state.imageHeight;
   state.zoom = Math.min(scaleX, scaleY, 1);
   applyZoom();
   updateStatus();
