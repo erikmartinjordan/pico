@@ -347,11 +347,22 @@ function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) 
 // ── IPC Handlers ────────────────────────────────────────────────────────────
 
 ipcMain.handle('start-capture', async () => {
+  // Enumerate windows BEFORE hiding (so we see what's on screen)
+  const windowBounds = getVisibleWindowBounds();
+  console.log(`Window capture: found ${windowBounds.length} windows`);
+
   if (mainWindow) mainWindow.hide();
   await new Promise(r => setTimeout(r, 200));
+
   try {
     const captureData = await captureAllScreens();
-    createCaptureOverlays(captureData);
+    // Filter out pico itself
+    const filtered = windowBounds.filter(wb =>
+      !wb.name.toLowerCase().includes('pico') &&
+      wb.name !== 'Select Window'
+    );
+    console.log(`Window capture: ${filtered.length} windows after filtering`);
+    createCaptureOverlays(captureData, 'window', filtered);
     return { success: true };
   } catch (err) {
     if (mainWindow) mainWindow.show();
