@@ -11,16 +11,18 @@ const fs = require('fs');
 let mainWindow = null;
 let captureWindows = [];
 let windowPickerWindow = null;
+let windowPickerSources = [];
 
 async function getWindowSourcesForPicker() {
   const sources = await desktopCapturer.getSources({
     types: ['window'],
-    thumbnailSize: { width: 640, height: 400 },
+    thumbnailSize: { width: 1920, height: 1200 },
     fetchWindowIcons: false,
   });
-  return sources
-    .filter((source) => source && source.name && !source.name.toLowerCase().includes('pico'))
-    .map((source) => ({ id: source.id, name: source.name, thumbnail: source.thumbnail.toDataURL() }));
+  const filtered = sources.filter((source) => source && source.name && !source.name.toLowerCase().includes('pico'));
+  // Store full NativeImage references for later use on selection
+  windowPickerSources = filtered;
+  return filtered.map((source) => ({ id: source.id, name: source.name, thumbnail: source.thumbnail.toDataURL() }));
 }
 
 async function openWindowPickerFallback() {
@@ -462,8 +464,12 @@ ipcMain.on('capture-cancel', () => {
 
 ipcMain.on('window-source-select', async (event, sourceId) => {
   try {
-    const sources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 0, height: 0 } });
-    const selected = sources.find((s) => s.id === sourceId);
+    // Use cached sources first (reliable), fall back to re-fetch
+    let selected = windowPickerSources.find((s) => s.id === sourceId);
+    if (!selected || selected.thumbnail.isEmpty()) {
+      const freshSources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 1920, height: 1200 } });
+      selected = freshSources.find((s) => s.id === sourceId);
+    }
     if (!selected || selected.thumbnail.isEmpty()) {
       if (windowPickerWindow && !windowPickerWindow.isDestroyed()) windowPickerWindow.close();
       if (mainWindow) mainWindow.show();
@@ -471,6 +477,7 @@ ipcMain.on('window-source-select', async (event, sourceId) => {
     }
     const dataUrl = selected.thumbnail.toDataURL();
     if (windowPickerWindow && !windowPickerWindow.isDestroyed()) windowPickerWindow.close();
+    windowPickerSources = [];
     copyDataUrlToClipboard(dataUrl);
     if (mainWindow) {
       mainWindow.show();
@@ -478,12 +485,14 @@ ipcMain.on('window-source-select', async (event, sourceId) => {
     }
   } catch (err) {
     if (windowPickerWindow && !windowPickerWindow.isDestroyed()) windowPickerWindow.close();
+    windowPickerSources = [];
     if (mainWindow) mainWindow.show();
   }
 });
 
 ipcMain.on('window-source-cancel', () => {
   if (windowPickerWindow && !windowPickerWindow.isDestroyed()) windowPickerWindow.close();
+  windowPickerSources = [];
   if (mainWindow) mainWindow.show();
 });
 ipcMain.handle('open-file', async () => {
