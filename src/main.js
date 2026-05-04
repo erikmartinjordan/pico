@@ -419,31 +419,9 @@ ipcMain.handle('start-capture', async () => {
 });
 
 ipcMain.handle('start-capture-window', async () => {
-  // Enumerate windows BEFORE hiding (so we see what's on screen)
-  const windowBounds = getVisibleWindowBounds();
-  console.log(`Window capture: found ${windowBounds.length} windows`);
-
-  if (mainWindow) mainWindow.hide();
-  await new Promise(r => setTimeout(r, 200));
-
-  try {
-    const captureData = await captureAllScreens();
-    // Filter out pico itself
-    const filtered = windowBounds.filter(wb =>
-      !wb.name.toLowerCase().includes('pico') &&
-      wb.name !== 'Select Window'
-    );
-    console.log(`Window capture: ${filtered.length} windows after filtering`);
-    if (filtered.length === 0) {
-      if (mainWindow) mainWindow.show();
-      return await openWindowPickerFallback();
-    }
-    createCaptureOverlays(captureData, 'window', filtered);
-    return { success: true };
-  } catch (err) {
-    if (mainWindow) mainWindow.show();
-    return { success: false, error: err.message };
-  }
+  // Reliable fallback: use Chromium window sources picker directly.
+  // Overlay-based window cropping can fail on some display/DPI setups.
+  return await openWindowPickerFallback();
 });
 
 ipcMain.handle('start-capture-fullscreen', async () => {
