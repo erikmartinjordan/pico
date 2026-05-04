@@ -92,62 +92,51 @@ function getVisibleWindowBounds() {
 }
 
 function getWindowBoundsWindows() {
+  // Use UIAutomation .NET assembly (pre-compiled, no CSC needed) with fallback to P/Invoke.
+  // UIAutomation is much more reliable in packaged Electron apps where inline C# compilation
+  // can be blocked by antivirus or restricted execution contexts.
   const psScript = `
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
-Add-Type -Language CSharp -TypeDefinition @'
-using System;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Collections.Generic;
+try {
+  Add-Type -AssemblyName UIAutomationClient
+  Add-Type -AssemblyName UIAutomationTypes
 
-public class PicoWinEnum {
-    [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc cb, IntPtr lp);
-    [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
-    [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
-    [DllImport("user32.dll")] public static extern int GetWindowTextLength(IntPtr h);
-    [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
-    [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr h, int attr, out RECT rect, int size);
-    [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
-    [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr h, int index);
-    [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr h, uint cmd);
-    public delegate bool EnumWindowsProc(IntPtr h, IntPtr l);
-    [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
+  $root = [System.Windows.Automation.AutomationElement]::RootElement
+  $cond = New-Object System.Windows.Automation.PropertyCondition(
+    [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+    [System.Windows.Automation.ControlType]::Window
+  )
+  $windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $cond)
 
-    public struct WinInfo {
-        public string name;
-        public int x, y, width, height;
-    }
+  $results = @()
+  foreach ($w in $windows) {
+    try {
+      if (-not $w.Current.IsOffscreen) {
+        $rect = $w.Current.BoundingRectangle
+        $name = $w.Current.Name
+        if ([string]::IsNullOrWhiteSpace($name)) { continue }
+        if ($rect.Width -lt 50 -or $rect.Height -lt 30) { continue }
+        if ($rect.IsEmpty) { continue }
+        $results += @{
+          name = $name
+          x = [int]$rect.X
+          y = [int]$rect.Y
+          width = [int]$rect.Width
+          height = [int]$rect.Height
+        }
+      }
+    } catch { continue }
+  }
 
-    public static WinInfo[] Enumerate() {
-        var results = new List<WinInfo>();
-        EnumWindows((h, l) => {
-            if (!IsWindowVisible(h) || IsIconic(h)) return true;
-            if (GetWindowTextLength(h) == 0) return true;
-            int exStyle = GetWindowLong(h, -20);
-            if ((exStyle & 0x80) != 0) return true;
-            var title = new StringBuilder(512);
-            GetWindowText(h, title, 512);
-            var name = title.ToString();
-            if (string.IsNullOrWhiteSpace(name)) return true;
-            RECT r;
-            int sz = Marshal.SizeOf(typeof(RECT));
-            if (DwmGetWindowAttribute(h, 9, out r, sz) != 0)
-                GetWindowRect(h, out r);
-            int w = r.Right - r.Left, ht = r.Bottom - r.Top;
-            if (w < 50 || ht < 30) return true;
-            results.Add(new WinInfo { name = name, x = r.Left, y = r.Top, width = w, height = ht });
-            return true;
-        }, IntPtr.Zero);
-        return results.ToArray();
-    }
-}
-'@
-$wins = [PicoWinEnum]::Enumerate()
-if ($wins.Count -eq 0) {
+  if ($results.Count -eq 0) {
     Write-Output '[]'
-} else {
-    $json = ConvertTo-Json -InputObject @($wins) -Compress -Depth 2
+  } else {
+    $json = ConvertTo-Json -InputObject @($results) -Compress -Depth 2
     Write-Output $json
+  }
+} catch {
+  Write-Error $_.Exception.Message
+  Write-Output '[]'
 }
 `;
 
@@ -162,7 +151,7 @@ if ($wins.Count -eq 0) {
   try {
     const output = execSync(
       `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${tmpFile}"`,
-      { encoding: 'utf8', timeout: 20000, windowsHide: true }
+      { encoding: 'utf8', timeout: 15000, windowsHide: true }
     );
     const trimmed = output.trim();
     if (!trimmed || !trimmed.startsWith('[')) {
@@ -170,12 +159,11 @@ if ($wins.Count -eq 0) {
       return [];
     }
     const result = JSON.parse(trimmed);
-    console.log(`[pico] Window enum OK: ${result.length} windows found`);
+    console.log(`[pico] UIAutomation window enum OK: ${result.length} windows found`);
     return result;
   } catch (e) {
     console.error('[pico] PS window enum failed:', e.message);
     if (e.stderr) console.error('[pico] stderr:', e.stderr.toString().slice(0, 500));
-    if (e.status != null) console.error('[pico] exit code:', e.status);
     return [];
   } finally {
     try { fs.unlinkSync(tmpFile); } catch (e) {}
