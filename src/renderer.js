@@ -38,6 +38,7 @@ const state = {
   resizeHandle: null,
   pendingFullscreenPreview: false,
   windowContainerApplied: false,
+  containerGradient: 'none',
   originalImageBeforeContainer: null,
 };
 
@@ -340,6 +341,19 @@ function selectColor(color) {
   state.currentColor = color;
   elements.colorSwatches.forEach(s => s.classList.toggle('active', s.dataset.color === color));
   if (state.isEditingText) elements.textInput.style.color = color;
+
+  // Update selected annotation color
+  if (state.currentTool === 'select' && state.selectedAnnotationIndex >= 0) {
+    const selected = state.annotations[state.selectedAnnotationIndex];
+    if (selected) {
+      selected.color = color;
+      state.history = state.history.slice(0, state.historyIndex + 1);
+      state.history.push([...state.annotations.map(a => ({ ...a }))]);
+      state.historyIndex = state.history.length - 1;
+      render();
+      updateToolbarState();
+    }
+  }
 }
 
 function selectStrokeWidth(width) {
@@ -1058,7 +1072,17 @@ function applyWindowContainer() {
   const shadowColor = 'rgba(0, 0, 0, 0.5)';
   const titleBarColor = '#2a2a2e';
   const windowBgColor = '#1c1c1e';
-  const bgColor = '#09090b';
+
+  // Gradient backgrounds
+  const gradients = {
+    none: null,
+    sunset: ['#f97316', '#ec4899'],
+    ocean: ['#06b6d4', '#3b82f6'],
+    forest: ['#22c55e', '#14b8a6'],
+    purple: ['#8b5cf6', '#ec4899'],
+    midnight: ['#1e1b4b', '#312e81'],
+    warm: ['#fbbf24', '#f97316'],
+  };
 
   // Traffic light colors
   const lights = [
@@ -1087,8 +1111,16 @@ function applyWindowContainer() {
     tempCanvas.height = canvasH;
     const ctx = tempCanvas.getContext('2d');
 
-    // Fill background
-    ctx.fillStyle = bgColor;
+    // Fill background (solid or gradient)
+    const gradientColors = gradients[state.containerGradient || 'none'];
+    if (gradientColors) {
+      const grad = ctx.createLinearGradient(0, 0, canvasW, canvasH);
+      grad.addColorStop(0, gradientColors[0]);
+      grad.addColorStop(1, gradientColors[1]);
+      ctx.fillStyle = grad;
+    } else {
+      ctx.fillStyle = '#09090b';
+    }
     ctx.fillRect(0, 0, canvasW, canvasH);
 
     // Draw window shadow
@@ -1168,6 +1200,8 @@ function bindContextMenu() {
   const menu = document.getElementById('context-menu');
   const ctxContainer = document.getElementById('ctx-window-container');
   const ctxSavePng = document.getElementById('ctx-save-png');
+  const ctxCopy = document.getElementById('ctx-copy');
+  const gradientSwatches = document.querySelectorAll('.gradient-swatch');
 
   // Show context menu on right-click over the canvas/image area
   elements.container.addEventListener('contextmenu', (e) => {
@@ -1181,6 +1215,11 @@ function bindContextMenu() {
 
     // Update active state for window container toggle
     ctxContainer.classList.toggle('active', state.windowContainerApplied);
+
+    // Update active gradient swatch
+    gradientSwatches.forEach(s => {
+      s.classList.toggle('active', s.dataset.gradient === (state.containerGradient || 'none'));
+    });
 
     // Ensure menu doesn't overflow viewport
     requestAnimationFrame(() => {
@@ -1212,10 +1251,46 @@ function bindContextMenu() {
     applyWindowContainer();
   });
 
+  // Copy to clipboard
+  ctxCopy.addEventListener('click', () => {
+    menu.classList.remove('visible');
+    copyToClipboard();
+  });
+
   // Save as PNG
   ctxSavePng.addEventListener('click', () => {
     menu.classList.remove('visible');
     saveFile();
+  });
+
+  // Gradient background selection
+  gradientSwatches.forEach(swatch => {
+    swatch.addEventListener('click', () => {
+      const gradient = swatch.dataset.gradient;
+      state.containerGradient = gradient;
+      gradientSwatches.forEach(s => s.classList.remove('active'));
+      swatch.classList.add('active');
+
+      // If window container is already applied, re-apply with new gradient
+      if (state.windowContainerApplied && state.originalImageBeforeContainer) {
+        state.windowContainerApplied = false;
+        const originalImg = state.originalImageBeforeContainer;
+        // Re-apply container with new gradient
+        const tempImg = new Image();
+        tempImg.onload = () => {
+          state.image = tempImg;
+          state.imageWidth = tempImg.width;
+          state.imageHeight = tempImg.height;
+          state.annotations = [];
+          state.history = [];
+          state.historyIndex = -1;
+          state.originalImageBeforeContainer = originalImg;
+          applyWindowContainer();
+        };
+        tempImg.src = originalImg;
+      }
+      menu.classList.remove('visible');
+    });
   });
 }
 

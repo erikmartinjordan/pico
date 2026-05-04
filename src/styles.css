@@ -404,3 +404,51 @@ body {
   content: " ✓";
   color: var(--accent-soft);
 }
+
+.context-menu-separator {
+  height: 1px;
+  background: rgba(255,255,255,0.08);
+  margin: 4px 8px;
+}
+
+.context-menu-label {
+  padding: 6px 12px 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.35);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.context-menu-gradients {
+  display: flex;
+  gap: 6px;
+  padding: 4px 12px 6px;
+}
+
+.gradient-swatch {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 0;
+  background: transparent;
+  transition: transform 0.1s;
+}
+
+.gradient-swatch span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.15);
+}
+
+.gradient-swatch:hover {
+  transform: scale(1.15);
+}
+
+.gradient-swatch.active span {
+  box-shadow: 0 0 0 2px #fff, 0 0 0 3px rgba(255,255,255,0.25);
+}

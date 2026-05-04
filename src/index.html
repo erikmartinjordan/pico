@@ -83,6 +83,23 @@
       <span>Window container</span>
       <span class="ctx-shortcut">W</span>
     </button>
+    <div class="context-menu-separator"></div>
+    <div class="context-menu-label">Background</div>
+    <div class="context-menu-gradients" id="ctx-gradients">
+      <button class="gradient-swatch" data-gradient="none" title="None (dark)"><span style="background:#09090b"></span></button>
+      <button class="gradient-swatch" data-gradient="sunset" title="Sunset"><span style="background:linear-gradient(135deg,#f97316,#ec4899)"></span></button>
+      <button class="gradient-swatch" data-gradient="ocean" title="Ocean"><span style="background:linear-gradient(135deg,#06b6d4,#3b82f6)"></span></button>
+      <button class="gradient-swatch" data-gradient="forest" title="Forest"><span style="background:linear-gradient(135deg,#22c55e,#14b8a6)"></span></button>
+      <button class="gradient-swatch" data-gradient="purple" title="Purple"><span style="background:linear-gradient(135deg,#8b5cf6,#ec4899)"></span></button>
+      <button class="gradient-swatch" data-gradient="midnight" title="Midnight"><span style="background:linear-gradient(135deg,#1e1b4b,#312e81)"></span></button>
+      <button class="gradient-swatch" data-gradient="warm" title="Warm"><span style="background:linear-gradient(135deg,#fbbf24,#f97316)"></span></button>
+    </div>
+    <div class="context-menu-separator"></div>
+    <button class="context-menu-item" id="ctx-copy">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M5 15V5h10"/></svg>
+      <span>Copy to clipboard</span>
+      <span class="ctx-shortcut">Ctrl+C</span>
+    </button>
     <button class="context-menu-item" id="ctx-save-png">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3v12M8 11l4 4 4-4"/><path d="M3 17v2a2 2 0 002 2h14a2 2 0 002-2v-2"/></svg>
       <span>Save as PNG</span>
