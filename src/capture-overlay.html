@@ -64,11 +64,12 @@
 
     #window-highlight {
       position: absolute;
-      border: 3px solid #ffaa55;
-      background: rgba(255, 170, 85, 0.08);
+      border: 3px solid #f07d20;
+      background: transparent;
       pointer-events: none;
       display: none;
       border-radius: 4px;
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3), 0 0 12px rgba(240, 125, 32, 0.4);
     }
 
     #window-highlight.visible {
@@ -77,9 +78,9 @@
 
     #window-label {
       position: absolute;
-      background: rgba(0, 0, 0, 0.8);
-      color: #ffaa55;
-      padding: 4px 10px;
+      background: rgba(0, 0, 0, 0.85);
+      color: #f07d20;
+      padding: 5px 12px;
       border-radius: 4px;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       font-size: 12px;
@@ -90,6 +91,7 @@
       max-width: 300px;
       overflow: hidden;
       text-overflow: ellipsis;
+      border: 1px solid rgba(240, 125, 32, 0.5);
     }
 
     #window-label.visible {
@@ -147,6 +149,9 @@
     let isSelecting = false;
     let startX = 0, startY = 0;
     let currentX = 0, currentY = 0;
+
+    // Store the original undimmed image for window mode
+    let originalImageCanvas = null;
     
     // Listen for capture data from main process
     window.pico.onCaptureData(async (data) => {
@@ -173,6 +178,13 @@
         const img = new Image();
         img.onload = () => {
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          // Store original undimmed image for window mode
+          if (captureMode === 'window') {
+            originalImageCanvas = document.createElement('canvas');
+            originalImageCanvas.width = canvas.width;
+            originalImageCanvas.height = canvas.height;
+            originalImageCanvas.getContext('2d').drawImage(canvas, 0, 0);
+          }
           applyDarkOverlay();
         };
         img.src = data.dataUrl;
@@ -193,6 +205,14 @@
         ctx.drawImage(img, x, y, w, h);
       }
       
+      // Store original undimmed image for window mode
+      if (captureMode === 'window') {
+        originalImageCanvas = document.createElement('canvas');
+        originalImageCanvas.width = canvas.width;
+        originalImageCanvas.height = canvas.height;
+        originalImageCanvas.getContext('2d').drawImage(canvas, 0, 0);
+      }
+      
       applyDarkOverlay();
     }
     
@@ -207,6 +227,26 @@
     function applyDarkOverlay() {
       ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // Redraw canvas with the hovered window shown at full brightness
+    function redrawWithWindowHighlight(win) {
+      if (!originalImageCanvas) return;
+      
+      // Draw the dimmed version (original + overlay)
+      ctx.drawImage(originalImageCanvas, 0, 0);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      if (win) {
+        // Draw the original (undimmed) image clipped to the window area
+        ctx.save();
+        ctx.beginPath();
+        ctx.roundRect(win.x, win.y, win.width, win.height, 4);
+        ctx.clip();
+        ctx.drawImage(originalImageCanvas, 0, 0);
+        ctx.restore();
+      }
     }
 
     // Find which window the cursor is over (topmost = first in list)
@@ -246,24 +286,30 @@
     document.addEventListener('mousemove', (e) => {
       if (captureMode === 'window') {
         const win = findWindowAt(e.clientX, e.clientY);
-        hoveredWindow = win;
-        if (win) {
-          windowHighlight.style.left = win.x + 'px';
-          windowHighlight.style.top = win.y + 'px';
-          windowHighlight.style.width = win.width + 'px';
-          windowHighlight.style.height = win.height + 'px';
-          windowHighlight.classList.add('visible');
+        
+        // Only redraw if hovered window changed
+        if (win !== hoveredWindow) {
+          hoveredWindow = win;
+          redrawWithWindowHighlight(win);
           
-          windowLabel.textContent = win.name;
-          windowLabel.style.left = (win.x + 5) + 'px';
-          windowLabel.style.top = (win.y > 30 ? win.y - 28 : win.y + win.height + 5) + 'px';
-          windowLabel.classList.add('visible');
-          
-          document.body.style.cursor = 'pointer';
-        } else {
-          windowHighlight.classList.remove('visible');
-          windowLabel.classList.remove('visible');
-          document.body.style.cursor = 'default';
+          if (win) {
+            windowHighlight.style.left = win.x + 'px';
+            windowHighlight.style.top = win.y + 'px';
+            windowHighlight.style.width = win.width + 'px';
+            windowHighlight.style.height = win.height + 'px';
+            windowHighlight.classList.add('visible');
+            
+            windowLabel.textContent = win.name;
+            windowLabel.style.left = (win.x + 5) + 'px';
+            windowLabel.style.top = (win.y > 30 ? win.y - 30 : win.y + win.height + 5) + 'px';
+            windowLabel.classList.add('visible');
+            
+            document.body.style.cursor = 'pointer';
+          } else {
+            windowHighlight.classList.remove('visible');
+            windowLabel.classList.remove('visible');
+            document.body.style.cursor = 'default';
+          }
         }
         return;
       }
