@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "description": "Lightweight screen-capture & annotation tool for macOS and Windows",
   "main": "src/main.js",
-  "author": "Erik Martín Jordán",
+  "author": "Erik Mart\u00edn Jord\u00e1n",
   "license": "MIT",
   "scripts": {
     "start": "electron .",
@@ -44,11 +44,11 @@
           ]
         }
       ],
-      "icon": "src/assets/icons/icon_512x512.png"
+      "icon": "src/assets/icons/macos/icon.icns"
     },
     "win": {
       "publisherName": [
-        "Erik Martín Jordán"
+        "Erik Mart\u00edn Jord\u00e1n"
       ],
       "target": [
         {
@@ -60,8 +60,19 @@
       ],
       "requestedExecutionLevel": "asInvoker",
       "artifactName": "${productName}-portable.${ext}",
-      "icon": "src/assets/icons/icon_512x512.png"
+      "icon": "src/assets/icons/windows/icon.ico"
     },
-    "icon": "src/assets/icons/icon_512x512.png"
+    "icon": "src/assets/icons/icon_512x512.png",
+    "linux": {
+      "icon": "src/assets/icons/linux/icons",
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    }
   }
 }

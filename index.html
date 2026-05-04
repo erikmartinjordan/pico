@@ -10,25 +10,25 @@
   <title>pico · Capture, annotate, share</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=DM+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet" />
   <style>
     :root {
       --bg: #09090b;
       --bg-soft: #111114;
       --surface: #18181b;
-      --border: #27272a;
-      --text: #fafafa;
-      --text-sec: #a1a1aa;
-      --text-mut: #71717a;
-      --accent: #3b82f6;
-      --accent-2: #60a5fa;
+      --border: #2a2a2e;
+      --text: #f5f0eb;
+      --text-sec: #a09890;
+      --text-mut: #6b6560;
+      --accent: #f07d20;
+      --accent-2: #ffaa55;
       --radius: 16px;
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      font-family: "Inter", system-ui, -apple-system, sans-serif;
+      font-family: "Sora", system-ui, -apple-system, sans-serif;
       color: var(--text);
       background: var(--bg);
       min-height: 100vh;
@@ -40,7 +40,7 @@
       position: fixed;
       inset: 0;
       background:
-        radial-gradient(ellipse 60% 50% at 50% 0%, rgba(59, 130, 246, 0.12), transparent 60%);
+        radial-gradient(ellipse 60% 50% at 50% 0%, rgba(240, 125, 32, 0.10), transparent 60%);
       pointer-events: none;
     }
 
@@ -72,12 +72,14 @@
       width: 32px;
       height: 32px;
       border-radius: 8px;
-      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      background: #1c1a16;
+      border: 1px solid rgba(240,125,32,0.2);
       display: grid;
       place-items: center;
+      overflow: hidden;
     }
 
-    .brand-icon svg { width: 18px; height: 18px; color: white; }
+    .brand-icon img { width: 26px; height: 26px; object-fit: contain; }
 
     nav a {
       color: var(--text-mut);
@@ -104,8 +106,8 @@
       font-size: 0.8rem;
       font-weight: 600;
       color: var(--accent-2);
-      background: rgba(59, 130, 246, 0.1);
-      border: 1px solid rgba(59, 130, 246, 0.2);
+      background: rgba(240, 125, 32, 0.1);
+      border: 1px solid rgba(240, 125, 32, 0.25);
       padding: 6px 14px;
       border-radius: 999px;
       margin-bottom: 24px;
@@ -147,14 +149,14 @@
 
     .btn-primary {
       background: var(--accent);
-      color: white;
-      box-shadow: 0 0 30px rgba(59, 130, 246, 0.3);
+      color: #0a0808;
+      box-shadow: 0 0 30px rgba(240, 125, 32, 0.3);
     }
 
     .btn-primary:hover {
-      background: #2563eb;
+      background: var(--accent-2);
       transform: translateY(-1px);
-      box-shadow: 0 0 40px rgba(59, 130, 246, 0.4);
+      box-shadow: 0 0 40px rgba(240, 125, 32, 0.45);
     }
 
     .btn-secondary {
@@ -168,7 +170,7 @@
       color: var(--text);
     }
 
-    /* ── Isometric hero ── */
+    /* Isometric hero */
     .iso-scene {
       perspective: 1200px;
       margin: 60px auto 0;
@@ -228,7 +230,7 @@
     .tl.min    { background: #febc2e; }
     .tl.max    { background: #28c840; }
 
-    /* Toolbar-wrap: centred, with horizontal padding so pill never touches the edges */
+    /* Toolbar-wrap */
     .toolbar-wrap {
       position: absolute; top: 44px; left: 0; right: 0;
       display: flex; justify-content: center;
@@ -255,12 +257,12 @@
       transition: background 0.12s;
     }
     .tbtn:hover { background: rgba(255,255,255,0.07); }
-    .tbtn.act   { background: rgba(59,130,246,0.25); box-shadow: 0 0 0 1px rgba(59,130,246,0.6); }
+    .tbtn.act   { background: rgba(240,125,32,0.22); box-shadow: 0 0 0 1px rgba(240,125,32,0.55); }
     .tbtn svg   { width: 11px; height: 11px; stroke: rgba(255,255,255,0.5); fill: none; stroke-width: 1.5; }
-    .tbtn.act svg { stroke: #93c5fd; }
+    .tbtn.act svg { stroke: #ffaa55; }
     .tsep { width: 1px; height: 14px; background: rgba(255,255,255,0.10); margin: 0 2px; flex-shrink: 0; }
 
-    /* Color swatches — rounded squares like the screenshot */
+    /* Color swatches */
     .sw { width: 14px; height: 14px; border-radius: 4px; flex-shrink: 0; cursor: pointer; transition: transform 0.12s; }
     .sw:hover { transform: scale(1.15); }
     .sw.sel   { box-shadow: 0 0 0 2px #fff, 0 0 0 3px rgba(255,255,255,0.25); }
@@ -273,7 +275,7 @@
       background: transparent; transition: background 0.12s;
     }
     .spill:hover { background: rgba(255,255,255,0.07); }
-    .spill.sel { background: rgba(59,130,246,0.25); box-shadow: 0 0 0 1px rgba(59,130,246,0.6); }
+    .spill.sel { background: rgba(240,125,32,0.22); box-shadow: 0 0 0 1px rgba(240,125,32,0.55); }
     .spill-line { background: rgba(255,255,255,0.5); border-radius: 2px; height: 1.5px; width: 16px; }
     .spill.med .spill-line { height: 3px; background: rgba(255,255,255,0.7); }
     .spill.thick .spill-line { height: 5px; background: rgba(255,255,255,0.7); }
@@ -284,7 +286,6 @@
       background: #09090b;
       display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
     }
-    /* Subtle grid */
     .canvas-area::before {
       content: ""; position: absolute; inset: 0;
       background-image: linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
@@ -310,19 +311,19 @@
     .cta-row { display: flex; gap: 8px; margin-top: 4px; position: relative; z-index: 1; }
 
     .bcap {
-      background: #3b82f6; color: #fff; border: none; border-radius: 6px;
+      background: var(--accent); color: #0a0808; border: none; border-radius: 6px;
       padding: 6px 14px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 10.5px; font-weight: 500; cursor: pointer;
+      font-size: 10.5px; font-weight: 600; cursor: pointer;
       display: flex; align-items: center; gap: 6px; white-space: nowrap;
       animation: cap-pulse 3s ease-in-out infinite;
       transition: background 0.15s, transform 0.1s;
     }
-    .bcap:hover { background: #2563eb; transform: scale(1.03); }
+    .bcap:hover { background: var(--accent-2); transform: scale(1.03); }
     @keyframes cap-pulse {
-      0%,100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); }
-      50%      { box-shadow: 0 0 14px 4px rgba(59,130,246,0.4); }
+      0%,100% { box-shadow: 0 0 0 0 rgba(240,125,32,0); }
+      50%      { box-shadow: 0 0 14px 4px rgba(240,125,32,0.45); }
     }
-    .bcap svg { width: 11px; height: 11px; stroke: #fff; fill: none; stroke-width: 1.8; flex-shrink: 0; }
+    .bcap svg { width: 11px; height: 11px; stroke: #0a0808; fill: none; stroke-width: 1.8; flex-shrink: 0; }
 
     .bopen {
       background: transparent; color: rgba(255,255,255,0.65);
@@ -337,7 +338,7 @@
 
     /* Animated draw box */
     .draw-anim {
-      position: absolute; border: 1.5px solid #3b82f6; border-radius: 2px;
+      position: absolute; border: 1.5px solid var(--accent); border-radius: 2px;
       opacity: 0; pointer-events: none;
       animation: draw-box 4.5s ease-in-out 2s infinite;
     }
@@ -360,7 +361,7 @@
       font-size: 9.5px; color: rgba(255,255,255,0.25); letter-spacing: 0.05em;
     }
 
-    /* ── Responsive ── */
+    /* Responsive */
     @media (max-width: 900px) {
       .iso-scene { max-width: 520px; }
       .iso-wrap  { width: 480px; }
@@ -370,7 +371,6 @@
       .win-top   { width: 480px; height: 320px; }
       .canvas-area { top: 32px; }
       .toolbar-wrap { top: 42px; padding: 0; }
-      /* Pill is ~548px native; window is 480px → scale to fit with margin */
       .toolbar { transform: scale(0.82); transform-origin: center center; }
     }
 
@@ -400,13 +400,13 @@
       transition: border-color 0.2s;
     }
 
-    .feature:hover { border-color: rgba(59, 130, 246, 0.3); }
+    .feature:hover { border-color: rgba(240, 125, 32, 0.35); }
 
     .feature-icon {
       width: 40px;
       height: 40px;
       border-radius: 10px;
-      background: rgba(59, 130, 246, 0.1);
+      background: rgba(240, 125, 32, 0.1);
       display: grid;
       place-items: center;
       margin-bottom: 16px;
@@ -466,7 +466,7 @@
 
     .platform-btn:hover {
       border-color: var(--accent);
-      background: rgba(59, 130, 246, 0.05);
+      background: rgba(240, 125, 32, 0.06);
     }
 
     .platform-btn svg { width: 24px; height: 24px; }
@@ -501,7 +501,6 @@
         left: 50%;
         margin: -20px 0 -120px;
       }
-      /* At 0.58 iso scale the window is ~336px wide; keep 900px toolbar scale */
       .toolbar-wrap { top: 42px; padding: 0; }
       .toolbar { transform: scale(0.82); transform-origin: center center; }
     }
@@ -513,10 +512,7 @@
       <nav class="nav">
         <a class="brand" href="#">
           <span class="brand-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M12 1v4M12 19v4M1 12h4M19 12h4"/>
-            </svg>
+            <img src="256x256.png" alt="pico icon" />
           </span>
           pico
         </a>
@@ -555,7 +551,8 @@
             View Source
           </a>
         </div>
-      </div>
+
+     </div>
     </section>
 
     <div class="iso-scene">
@@ -563,15 +560,15 @@
         <div class="win-left"></div>
         <div class="win-bottom"></div>
 
-        <!-- Toolbar floats above the window, not clipped by overflow:hidden -->
+        <!-- Toolbar floats above the window -->
         <div class="toolbar-wrap">
           <div class="toolbar">
-            <!-- Capture group: 4-corners, window, monitor -->
+            <!-- Capture group -->
             <div class="tbtn" title="Capture screen"><svg viewBox="0 0 16 16"><path d="M1 4V2h3M12 2h3v2M1 12v2h3M12 14h3v-2" stroke-linecap="round"/></svg></div>
             <div class="tbtn" title="Window"><svg viewBox="0 0 16 16"><rect x="1" y="3" width="14" height="10" rx="1.5"/><line x1="1" y1="6" x2="15" y2="6"/></svg></div>
             <div class="tbtn" title="Monitor"><svg viewBox="0 0 16 16"><rect x="1" y="2" width="14" height="9" rx="1"/><path d="M5 14h6M8 11v3"/></svg></div>
             <div class="tsep"></div>
-            <!-- Drawing tools: cursor, rect(active), ellipse, arrow, line, text -->
+            <!-- Drawing tools -->
             <div class="tbtn" title="Select"><svg viewBox="0 0 16 16"><path d="M3 1l10 6-5 1.5L6 14z" stroke-linejoin="round"/></svg></div>
             <div class="tbtn act" id="tool-rect" title="Rectangle"><svg viewBox="0 0 16 16"><rect x="2" y="4" width="12" height="8" rx="1.5"/></svg></div>
             <div class="tbtn" id="tool-ellipse" title="Ellipse"><svg viewBox="0 0 16 16"><ellipse cx="8" cy="8" rx="6" ry="4"/></svg></div>
@@ -629,7 +626,7 @@
           </div>
 
           <div class="statusbar">
-            <span id="status-left">Select · 0 annotations</span>
+            <span id="status-left">Select &middot; 0 annotations</span>
             <span>100%</span>
           </div>
 
@@ -733,7 +730,7 @@
 
   <footer>
     <div class="container">
-      Built with love <span aria-hidden="true">❤</span> by <a href="https://erikmartinjordan.com" target="_blank" rel="noopener noreferrer">Erik Martín</a>
+      Built with love <span aria-hidden="true">&hearts;</span> by <a href="https://erikmartinjordan.com" target="_blank" rel="noopener noreferrer">Erik Mart&iacute;n</a>
     </div>
   </footer>
 
@@ -747,7 +744,7 @@
         tools.forEach(t => document.getElementById(t)?.classList.remove('act'));
         el.classList.add('act');
         const status = document.getElementById('status-left');
-        if (status) status.textContent = names[id] + ' · 0 annotations';
+        if (status) status.textContent = names[id] + ' \u00b7 0 annotations';
       });
     });
     document.querySelectorAll('.sw').forEach(s => {
