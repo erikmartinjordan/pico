@@ -363,7 +363,7 @@ ipcMain.handle('start-capture-window', async () => {
   // Enumerate windows BEFORE hiding (so we see what's on screen)
   const windowBounds = getVisibleWindowBounds();
   console.log(`Window capture: found ${windowBounds.length} windows`);
-  
+
   if (mainWindow) mainWindow.hide();
   await new Promise(r => setTimeout(r, 200));
 
