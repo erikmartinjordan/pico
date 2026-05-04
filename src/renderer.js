@@ -41,11 +41,15 @@ const state = {
   containerGradient: 'none',
   originalImageBeforeContainer: null,
   // Crop state
-  isCropping: false,
-  cropStartX: 0,
-  cropStartY: 0,
-  cropEndX: 0,
-  cropEndY: 0,
+  cropActive: false,
+  cropX: 0,
+  cropY: 0,
+  cropW: 0,
+  cropH: 0,
+  cropDragging: null, // which handle or 'move'
+  cropDragStartX: 0,
+  cropDragStartY: 0,
+  cropOrigRect: null,
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -61,6 +65,7 @@ const elements = {
   container: $('#canvas-container'),
   emptyState: $('#empty-state'),
   btnCopy: $('#btn-copy'),
+  btnCrop: $('#btn-crop'),
   btnUndo: $('#btn-undo'),
   btnRedo: $('#btn-redo'),
   btnClear: $('#btn-clear'),
@@ -78,6 +83,11 @@ const elements = {
   textFontSize: $('#text-font-size'),
   textStyleGroup: $('#text-style-group'),
   textStyleSeparator: $('#text-style-separator'),
+  cropOverlay: $('#crop-overlay'),
+  cropBox: $('#crop-box'),
+  cropConfirm: $('#crop-confirm'),
+  cropCancel: $('#crop-cancel'),
+  cropActions: $('#crop-actions'),
 };
 
 function on(el, event, handler) { if (el) el.addEventListener(event, handler); }
@@ -96,6 +106,7 @@ function init() {
   bindInlineText();
   bindContextMenu();
   bindPaste();
+  bindCrop();
   if (elements.textFontFamily) elements.textFontFamily.value = state.textFontFamily;
   if (elements.textFontSize) elements.textFontSize.value = String(state.textFontSize);
   toggleTextStyleControls();
@@ -107,17 +118,16 @@ function init() {
 // ══════════════════════════════════════════════════════════════════════════════
 
 function bindToolbar() {
-  // Capture mode buttons
   on($('#btn-capture-region'), 'click', startCapture);
   on($('#btn-capture-window'), 'click', startCaptureWindow);
   on($('#btn-capture-fullscreen'), 'click', startCaptureFullscreen);
   
   on(elements.btnCopy, 'click', copyToClipboard);
+  on(elements.btnCrop, 'click', toggleCrop);
   on(elements.btnUndo, 'click', undo);
   on(elements.btnRedo, 'click', redo);
   on(elements.btnClear, 'click', clearCanvas);
 
-  
   elements.emptyCapture.addEventListener('click', startCapture);
   elements.emptyOpen.addEventListener('click', openFile);
   
@@ -147,6 +157,13 @@ function bindKeyboard() {
     if (state.isEditingText) return;
     const isMac = window.pico.platform === 'darwin';
     const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
+
+    // Crop mode keyboard shortcuts
+    if (state.cropActive) {
+      if (e.key === 'Enter') { e.preventDefault(); applyCrop(); return; }
+      if (e.key === 'Escape') { e.preventDefault(); cancelCrop(); return; }
+      return; // Block other shortcuts while cropping
+    }
     
     if (cmdOrCtrl && e.shiftKey && e.key.toLowerCase() === 's') { e.preventDefault(); startCapture(); return; }
     if (cmdOrCtrl && e.key.toLowerCase() === 'o') { e.preventDefault(); openFile(); return; }
@@ -171,7 +188,6 @@ function bindKeyboard() {
       case 'a': selectTool('arrow'); break;
       case 'l': selectTool('line'); break;
       case 't': selectTool('text'); break;
-      case 'c': if (!cmdOrCtrl) selectTool('crop'); break;
       case '=': case '+': setZoom(state.zoom * 1.25); break;
       case '-': setZoom(state.zoom / 1.25); break;
       case '0': fitToWindow(); break;
@@ -205,7 +221,6 @@ function bindInlineText() {
     if (elements.textWrapper.contains(e.target)) return;
     commitInlineText();
   });
-
 }
 
 function bindPaste() {
@@ -234,20 +249,215 @@ function bindPaste() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// Crop Tool (Handle-based)
+// ══════════════════════════════════════════════════════════════════════════════
+
+function bindCrop() {
+  on(elements.cropConfirm, 'click', applyCrop);
+  on(elements.cropCancel, 'click', cancelCrop);
+  
+  // Handle dragging on crop handles and crop box
+  const handles = elements.cropBox.querySelectorAll('.crop-handle');
+  handles.forEach(handle => {
+    handle.addEventListener('mousedown', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      state.cropDragging = handle.dataset.handle;
+      state.cropDragStartX = e.clientX;
+      state.cropDragStartY = e.clientY;
+      state.cropOrigRect = { x: state.cropX, y: state.cropY, w: state.cropW, h: state.cropH };
+    });
+  });
+
+  // Drag to move the entire crop box
+  elements.cropBox.addEventListener('mousedown', (e) => {
+    if (e.target.classList.contains('crop-handle')) return;
+    e.preventDefault();
+    state.cropDragging = 'move';
+    state.cropDragStartX = e.clientX;
+    state.cropDragStartY = e.clientY;
+    state.cropOrigRect = { x: state.cropX, y: state.cropY, w: state.cropW, h: state.cropH };
+  });
+
+  // Double-click on crop box to apply
+  elements.cropBox.addEventListener('dblclick', (e) => {
+    e.preventDefault();
+    applyCrop();
+  });
+
+  document.addEventListener('mousemove', onCropMouseMove);
+  document.addEventListener('mouseup', onCropMouseUp);
+}
+
+function toggleCrop() {
+  if (state.cropActive) {
+    cancelCrop();
+  } else {
+    startCrop();
+  }
+}
+
+function startCrop() {
+  if (!state.image) return;
+  state.cropActive = true;
+  // Select the full image
+  state.cropX = 0;
+  state.cropY = 0;
+  state.cropW = state.imageWidth;
+  state.cropH = state.imageHeight;
+  elements.cropOverlay.classList.add('active');
+  elements.btnCrop.classList.add('active');
+  updateCropUI();
+}
+
+function cancelCrop() {
+  state.cropActive = false;
+  state.cropDragging = null;
+  elements.cropOverlay.classList.remove('active');
+  elements.btnCrop.classList.remove('active');
+}
+
+function applyCrop() {
+  if (!state.cropActive || !state.image) return;
+
+  const x = Math.max(0, Math.round(state.cropX));
+  const y = Math.max(0, Math.round(state.cropY));
+  const w = Math.min(Math.round(state.cropW), state.imageWidth - x);
+  const h = Math.min(Math.round(state.cropH), state.imageHeight - y);
+
+  if (w < 5 || h < 5) {
+    showToast('Crop area too small', 'error');
+    cancelCrop();
+    return;
+  }
+
+  // Composite image + annotations, then crop
+  const compositeDataUrl = getCompositeImage();
+  const compositeImg = new Image();
+  compositeImg.onload = () => {
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = w;
+    tempCanvas.height = h;
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCtx.drawImage(compositeImg, x, y, w, h, 0, 0, w, h);
+    
+    const croppedDataUrl = tempCanvas.toDataURL('image/png');
+    state.annotations = [];
+    state.history = [];
+    state.historyIndex = -1;
+    state.selectedAnnotationIndex = -1;
+    state.windowContainerApplied = false;
+    state.originalImageBeforeContainer = null;
+    cancelCrop();
+    loadImage(croppedDataUrl);
+    showToast('Image cropped', 'success');
+  };
+  compositeImg.src = compositeDataUrl;
+}
+
+function onCropMouseMove(e) {
+  if (!state.cropDragging || !state.cropActive) return;
+
+  const canvasRect = elements.canvas.getBoundingClientRect();
+  const dx = e.clientX - state.cropDragStartX;
+  const dy = e.clientY - state.cropDragStartY;
+  
+  // Convert pixel delta to image coordinate delta
+  const scaleX = state.imageWidth / canvasRect.width;
+  const scaleY = state.imageHeight / canvasRect.height;
+  const imgDx = dx * scaleX;
+  const imgDy = dy * scaleY;
+
+  const orig = state.cropOrigRect;
+  const minSize = 20;
+
+  if (state.cropDragging === 'move') {
+    state.cropX = Math.max(0, Math.min(state.imageWidth - orig.w, orig.x + imgDx));
+    state.cropY = Math.max(0, Math.min(state.imageHeight - orig.h, orig.y + imgDy));
+  } else {
+    let nx = orig.x, ny = orig.y, nw = orig.w, nh = orig.h;
+
+    if (state.cropDragging.includes('w')) {
+      const newX = Math.max(0, Math.min(orig.x + orig.w - minSize, orig.x + imgDx));
+      nw = orig.w + (orig.x - newX);
+      nx = newX;
+    }
+    if (state.cropDragging.includes('e')) {
+      nw = Math.max(minSize, Math.min(state.imageWidth - orig.x, orig.w + imgDx));
+    }
+    if (state.cropDragging.includes('n')) {
+      const newY = Math.max(0, Math.min(orig.y + orig.h - minSize, orig.y + imgDy));
+      nh = orig.h + (orig.y - newY);
+      ny = newY;
+    }
+    if (state.cropDragging.includes('s')) {
+      nh = Math.max(minSize, Math.min(state.imageHeight - orig.y, orig.h + imgDy));
+    }
+
+    state.cropX = nx;
+    state.cropY = ny;
+    state.cropW = nw;
+    state.cropH = nh;
+  }
+
+  updateCropUI();
+}
+
+function onCropMouseUp() {
+  state.cropDragging = null;
+  state.cropOrigRect = null;
+}
+
+function updateCropUI() {
+  if (!state.cropActive) return;
+
+  const canvasRect = elements.canvas.getBoundingClientRect();
+  const containerRect = elements.container.getBoundingClientRect();
+  
+  // Convert image coords to screen coords
+  const scaleX = canvasRect.width / state.imageWidth;
+  const scaleY = canvasRect.height / state.imageHeight;
+  
+  const left = canvasRect.left - containerRect.left + state.cropX * scaleX;
+  const top = canvasRect.top - containerRect.top + state.cropY * scaleY;
+  const width = state.cropW * scaleX;
+  const height = state.cropH * scaleY;
+
+  elements.cropBox.style.left = left + 'px';
+  elements.cropBox.style.top = top + 'px';
+  elements.cropBox.style.width = width + 'px';
+  elements.cropBox.style.height = height + 'px';
+
+  // Position action buttons below the crop box
+  elements.cropActions.style.left = (left + width / 2) + 'px';
+  elements.cropActions.style.top = (top + height + 10) + 'px';
+
+  // Update mask (dark area outside crop)
+  const mask = document.getElementById('crop-mask');
+  mask.style.clipPath = `polygon(
+    0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%,
+    ${left}px ${top}px, ${left}px ${top + height}px, ${left + width}px ${top + height}px, ${left + width}px ${top}px, ${left}px ${top}px
+  )`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // File Operations
 // ══════════════════════════════════════════════════════════════════════════════
 
 async function startCapture() {
+  if (state.cropActive) cancelCrop();
   const result = await window.pico.startCapture();
   if (!result.success) showToast('Failed to start capture', 'error');
 }
 
 async function startCaptureWindow() {
+  if (state.cropActive) cancelCrop();
   const result = await window.pico.startCaptureWindow();
   if (!result.success) showToast('Failed to capture window', 'error');
 }
 
 async function startCaptureFullscreen() {
+  if (state.cropActive) cancelCrop();
   state.pendingFullscreenPreview = true;
   const result = await window.pico.startCaptureFullscreen();
   if (!result.success) {
@@ -257,6 +467,7 @@ async function startCaptureFullscreen() {
 }
 
 async function openFile() {
+  if (state.cropActive) cancelCrop();
   const dataUrl = await window.pico.openFile();
   if (dataUrl) loadImage(dataUrl);
 }
@@ -281,6 +492,7 @@ async function pasteFromClipboard() {
   try {
     const dataUrl = await window.pico.readClipboardImage();
     if (dataUrl) {
+      if (state.cropActive) cancelCrop();
       loadImage(dataUrl);
       showToast('Image pasted from clipboard', 'success');
     } else {
@@ -293,6 +505,7 @@ async function pasteFromClipboard() {
 
 function clearCanvas() {
   if (!state.image) return;
+  if (state.cropActive) cancelCrop();
   state.image = null;
   state.imageWidth = 0;
   state.imageHeight = 0;
@@ -302,7 +515,6 @@ function clearCanvas() {
   state.selectedAnnotationIndex = -1;
   state.windowContainerApplied = false;
   state.originalImageBeforeContainer = null;
-  state.isCropping = false;
   elements.canvas.classList.remove('visible');
   elements.emptyState.classList.remove('hidden');
   elements.ctx.clearRect(0, 0, elements.canvas.width, elements.canvas.height);
@@ -344,7 +556,6 @@ function loadImage(dataUrl, options = {}) {
     state.history = [];
     state.historyIndex = -1;
     state.zoom = 1;
-    state.isCropping = false;
     elements.canvas.width = img.width;
     elements.canvas.height = img.height;
     elements.canvas.classList.add('visible');
@@ -370,6 +581,7 @@ function setZoom(newZoom) {
   state.zoom = Math.max(0.1, Math.min(10, newZoom));
   applyZoom();
   updateStatus();
+  if (state.cropActive) updateCropUI();
 }
 
 function applyZoom() {
@@ -400,8 +612,8 @@ function onWheel(e) {
 
 function selectTool(tool) {
   if (state.isEditingText) commitInlineText();
+  if (state.cropActive) cancelCrop();
   state.currentTool = tool;
-  state.isCropping = false;
   elements.toolBtns.forEach(btn => btn.classList.toggle('active', btn.dataset.tool === tool));
   elements.container.className = 'canvas-container tool-' + tool;
   elements.canvas.style.cursor = tool === 'text' ? 'text' : (tool === 'select' ? 'default' : 'crosshair');
@@ -414,7 +626,6 @@ function selectColor(color) {
   elements.colorSwatches.forEach(s => s.classList.toggle('active', s.dataset.color === color));
   if (state.isEditingText) elements.textInput.style.color = color;
 
-  // Update selected annotation color
   if (state.currentTool === 'select' && state.selectedAnnotationIndex >= 0) {
     const selected = state.annotations[state.selectedAnnotationIndex];
     if (selected) {
@@ -512,16 +723,7 @@ function getCanvasCoords(e) {
   };
 }
 
-function getScreenCoordsFromCanvas(canvasX, canvasY) {
-  const rect = elements.canvas.getBoundingClientRect();
-  return {
-    x: rect.left + canvasX * (rect.width / state.imageWidth),
-    y: rect.top + canvasY * (rect.height / state.imageHeight),
-  };
-}
-
 function findTextAnnotationAt(coords) {
-  const ctx = elements.ctx;
   for (let i = state.annotations.length - 1; i >= 0; i--) {
     const ann = state.annotations[i];
     if (ann.type !== 'text') continue;
@@ -533,7 +735,6 @@ function findTextAnnotationAt(coords) {
   }
   return -1;
 }
-
 
 function findAnnotationAt(coords) {
   for (let i = state.annotations.length - 1; i >= 0; i--) {
@@ -561,20 +762,10 @@ function moveAnnotation(annotation, dx, dy) {
 }
 
 function onCanvasMouseDown(e) {
-  if (!state.image) return;
+  if (!state.image || state.cropActive) return;
   if (state.isEditingText) { commitInlineText(); return; }
   
   const coords = getCanvasCoords(e);
-
-  // Crop tool
-  if (state.currentTool === 'crop') {
-    state.isCropping = true;
-    state.cropStartX = coords.x;
-    state.cropStartY = coords.y;
-    state.cropEndX = coords.x;
-    state.cropEndY = coords.y;
-    return;
-  }
 
   if (state.currentTool === 'select') {
     const handle = findResizeHandleAt(coords);
@@ -623,17 +814,7 @@ function onCanvasMouseDown(e) {
 }
 
 function onCanvasMouseMove(e) {
-  if (!state.image) return;
-
-  // Crop dragging
-  if (state.isCropping && state.currentTool === 'crop') {
-    const coords = getCanvasCoords(e);
-    state.cropEndX = coords.x;
-    state.cropEndY = coords.y;
-    render();
-    drawCropPreview();
-    return;
-  }
+  if (!state.image || state.cropActive) return;
   
   if (state.isDraggingAnnotation) {
     const coords = getCanvasCoords(e);
@@ -678,22 +859,6 @@ function onCanvasMouseMove(e) {
 }
 
 function onCanvasMouseUp(e) {
-  // Crop complete
-  if (state.isCropping && state.currentTool === 'crop') {
-    state.isCropping = false;
-    const x = Math.min(state.cropStartX, state.cropEndX);
-    const y = Math.min(state.cropStartY, state.cropEndY);
-    const width = Math.abs(state.cropEndX - state.cropStartX);
-    const height = Math.abs(state.cropEndY - state.cropStartY);
-    
-    if (width > 5 && height > 5) {
-      applyCrop(x, y, width, height);
-    } else {
-      render();
-    }
-    return;
-  }
-
   if (state.isDraggingAnnotation) {
     state.isDraggingAnnotation = false;
     state.dragAnnotationIndex = -1;
@@ -740,75 +905,6 @@ function onCanvasMouseUp(e) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Crop
-// ══════════════════════════════════════════════════════════════════════════════
-
-function drawCropPreview() {
-  const ctx = elements.ctx;
-  const x = Math.min(state.cropStartX, state.cropEndX);
-  const y = Math.min(state.cropStartY, state.cropEndY);
-  const width = Math.abs(state.cropEndX - state.cropStartX);
-  const height = Math.abs(state.cropEndY - state.cropStartY);
-  
-  if (width < 2 || height < 2) return;
-  
-  // Darken outside crop area
-  ctx.save();
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-  ctx.fillRect(0, 0, state.imageWidth, y);
-  ctx.fillRect(0, y + height, state.imageWidth, state.imageHeight - y - height);
-  ctx.fillRect(0, y, x, height);
-  ctx.fillRect(x + width, y, state.imageWidth - x - width, height);
-  
-  // Draw crop border
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 2;
-  ctx.setLineDash([6, 4]);
-  ctx.strokeRect(x, y, width, height);
-  ctx.setLineDash([]);
-  
-  // Draw dimensions
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
-  ctx.font = 'bold 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-  const dimText = `${Math.round(width)} × ${Math.round(height)}`;
-  const textMetrics = ctx.measureText(dimText);
-  const textX = x + (width - textMetrics.width) / 2;
-  const textY = y > 30 ? y - 10 : y + height + 20;
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-  ctx.fillRect(textX - 4, textY - 14, textMetrics.width + 8, 20);
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText(dimText, textX, textY);
-  
-  ctx.restore();
-}
-
-function applyCrop(x, y, width, height) {
-  if (!state.image) return;
-  
-  // Create composite of image + annotations first
-  const compositeDataUrl = getCompositeImage();
-  const compositeImg = new Image();
-  compositeImg.onload = () => {
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = Math.round(width);
-    tempCanvas.height = Math.round(height);
-    const tempCtx = tempCanvas.getContext('2d');
-    tempCtx.drawImage(compositeImg, Math.round(x), Math.round(y), Math.round(width), Math.round(height), 0, 0, Math.round(width), Math.round(height));
-    
-    const croppedDataUrl = tempCanvas.toDataURL('image/png');
-    state.annotations = [];
-    state.history = [];
-    state.historyIndex = -1;
-    state.selectedAnnotationIndex = -1;
-    state.windowContainerApplied = false;
-    state.originalImageBeforeContainer = null;
-    loadImage(croppedDataUrl);
-    showToast('Image cropped', 'success');
-  };
-  compositeImg.src = compositeDataUrl;
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
 // Inline Text Editing
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -816,7 +912,6 @@ function openInlineText(coords) {
   state.isEditingText = true;
   state.pendingTextPos = coords;
   
-  // Position relative to container (wrapper is position:absolute inside container)
   const canvasRect = elements.canvas.getBoundingClientRect();
   const containerRect = elements.container.getBoundingClientRect();
   const scaleX = canvasRect.width / state.imageWidth;
@@ -898,6 +993,7 @@ function addAnnotation(annotation) {
 }
 
 function undo() {
+  if (state.cropActive) cancelCrop();
   if (state.historyIndex < 0) return;
   state.historyIndex--;
   state.annotations = state.historyIndex >= 0 ? [...state.history[state.historyIndex].map(a => ({...a}))] : [];
@@ -906,6 +1002,7 @@ function undo() {
 }
 
 function redo() {
+  if (state.cropActive) cancelCrop();
   if (state.historyIndex >= state.history.length - 1) return;
   state.historyIndex++;
   state.annotations = [...state.history[state.historyIndex].map(a => ({...a}))];
@@ -977,7 +1074,6 @@ function drawEllipse(ctx, x, y, width, height) {
 }
 
 function drawArrow(ctx, x1, y1, x2, y2, solid) {
-  // Scale arrowhead with stroke width so it's visible at all sizes
   const headLength = Math.max(15, (ctx.lineWidth || 4) * 3);
   const angle = Math.atan2(y2 - y1, x2 - x1);
   ctx.beginPath();
@@ -1082,10 +1178,7 @@ function resizeSelectedAnnotation(coords) {
     return;
   }
   const bounds = ann.type === 'text' ? getTextBounds(ann) : { x: ann.x, y: ann.y, width: ann.width, height: ann.height };
-  const x1 = bounds.x;
-  const y1 = bounds.y;
-  const x2 = bounds.x + bounds.width;
-  const y2 = bounds.y + bounds.height;
+  const x1 = bounds.x, y1 = bounds.y, x2 = bounds.x + bounds.width, y2 = bounds.y + bounds.height;
   let nx1 = x1, ny1 = y1, nx2 = x2, ny2 = y2;
   if (state.resizeHandle.kind.includes('n')) ny1 = coords.y;
   if (state.resizeHandle.kind.includes('s')) ny2 = coords.y;
@@ -1160,13 +1253,14 @@ function getCompositeImage() {
 }
 
 function updateStatus() {
-  const names = { select: 'Select', rect: 'Rectangle', ellipse: 'Ellipse', arrow: 'Arrow', line: 'Line', text: 'Text', highlight: 'Highlight', blur: 'Blur', crop: 'Crop' };
-  elements.statusTool.textContent = names[state.currentTool] || state.currentTool;
+  const names = { select: 'Select', rect: 'Rectangle', ellipse: 'Ellipse', arrow: 'Arrow', line: 'Line', text: 'Text', highlight: 'Highlight', blur: 'Blur' };
+  elements.statusTool.textContent = state.cropActive ? 'Crop' : (names[state.currentTool] || state.currentTool);
   elements.statusZoom.textContent = `${Math.round(state.zoom * 100)}%`;
 }
 
 function updateToolbarState() {
   elements.btnCopy.disabled = !state.image;
+  elements.btnCrop.disabled = !state.image;
   elements.btnUndo.disabled = state.historyIndex < 0;
   elements.btnRedo.disabled = state.historyIndex >= state.history.length - 1;
   elements.btnClear.disabled = !state.image;
@@ -1228,7 +1322,6 @@ function showToast(message, type = 'info') {
 function applyWindowContainer() {
   if (!state.image) return;
 
-  // If container is already applied, remove it
   if (state.windowContainerApplied && state.originalImageBeforeContainer) {
     state.windowContainerApplied = false;
     state.annotations = [];
@@ -1242,7 +1335,6 @@ function applyWindowContainer() {
     return;
   }
 
-  // Configuration
   const titleBarHeight = 48;
   const cornerRadius = 12;
   const padding = 40;
@@ -1251,7 +1343,6 @@ function applyWindowContainer() {
   const titleBarColor = '#2a2a2e';
   const windowBgColor = '#1c1c1e';
 
-  // Gradient backgrounds
   const gradients = {
     none: null,
     sunset: ['#f97316', '#ec4899'],
@@ -1262,7 +1353,6 @@ function applyWindowContainer() {
     warm: ['#fbbf24', '#f97316'],
   };
 
-  // Traffic light colors
   const lights = [
     { color: '#ff5f57', x: 20 },
     { color: '#febc2e', x: 40 },
@@ -1270,7 +1360,6 @@ function applyWindowContainer() {
   ];
   const lightRadius = 6;
 
-  // Save the original image before applying container
   const compositeDataUrl = getCompositeImage();
   state.originalImageBeforeContainer = compositeDataUrl;
 
@@ -1289,7 +1378,6 @@ function applyWindowContainer() {
     tempCanvas.height = canvasH;
     const ctx = tempCanvas.getContext('2d');
 
-    // Fill background (solid or gradient)
     const gradientColors = gradients[state.containerGradient || 'none'];
     if (gradientColors) {
       const grad = ctx.createLinearGradient(0, 0, canvasW, canvasH);
@@ -1301,7 +1389,6 @@ function applyWindowContainer() {
     }
     ctx.fillRect(0, 0, canvasW, canvasH);
 
-    // Draw window shadow
     ctx.save();
     ctx.shadowColor = shadowColor;
     ctx.shadowBlur = shadowBlur;
@@ -1313,17 +1400,14 @@ function applyWindowContainer() {
     ctx.fill();
     ctx.restore();
 
-    // Draw window frame (clipped to rounded rect)
     ctx.save();
     ctx.beginPath();
     roundRect(ctx, padding, padding, windowW, windowH, cornerRadius);
     ctx.clip();
 
-    // Title bar
     ctx.fillStyle = titleBarColor;
     ctx.fillRect(padding, padding, windowW, titleBarHeight);
 
-    // Title bar bottom border
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -1331,7 +1415,6 @@ function applyWindowContainer() {
     ctx.lineTo(padding + windowW, padding + titleBarHeight);
     ctx.stroke();
 
-    // Traffic lights
     const lightY = padding + titleBarHeight / 2;
     lights.forEach(light => {
       ctx.beginPath();
@@ -1340,12 +1423,9 @@ function applyWindowContainer() {
       ctx.fill();
     });
 
-    // Draw the screenshot image below title bar
     ctx.drawImage(compositeImg, padding, padding + titleBarHeight, imgW, imgH);
-
     ctx.restore();
 
-    // Load the result as the new image
     const resultDataUrl = tempCanvas.toDataURL('image/png');
     state.annotations = [];
     state.history = [];
@@ -1381,25 +1461,20 @@ function bindContextMenu() {
   const ctxCopy = document.getElementById('ctx-copy');
   const gradientSwatches = document.querySelectorAll('.gradient-swatch');
 
-  // Show context menu on right-click over the canvas/image area
   elements.container.addEventListener('contextmenu', (e) => {
-    if (!state.image) return;
+    if (!state.image || state.cropActive) return;
     e.preventDefault();
 
-    // Position the menu
     menu.style.left = e.clientX + 'px';
     menu.style.top = e.clientY + 'px';
     menu.classList.add('visible');
 
-    // Update active state for window container toggle
     ctxContainer.classList.toggle('active', state.windowContainerApplied);
 
-    // Update active gradient swatch
     gradientSwatches.forEach(s => {
       s.classList.toggle('active', s.dataset.gradient === (state.containerGradient || 'none'));
     });
 
-    // Ensure menu doesn't overflow viewport
     requestAnimationFrame(() => {
       const rect = menu.getBoundingClientRect();
       if (rect.right > window.innerWidth) {
@@ -1411,37 +1486,31 @@ function bindContextMenu() {
     });
   });
 
-  // Hide menu on click anywhere
   document.addEventListener('mousedown', (e) => {
     if (!menu.contains(e.target)) {
       menu.classList.remove('visible');
     }
   });
 
-  // Hide on escape
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') menu.classList.remove('visible');
   });
 
-  // Window container toggle
   ctxContainer.addEventListener('click', () => {
     menu.classList.remove('visible');
     applyWindowContainer();
   });
 
-  // Copy to clipboard
   ctxCopy.addEventListener('click', () => {
     menu.classList.remove('visible');
     copyToClipboard();
   });
 
-  // Save as PNG
   ctxSavePng.addEventListener('click', () => {
     menu.classList.remove('visible');
     saveFile();
   });
 
-  // Gradient background selection
   gradientSwatches.forEach(swatch => {
     swatch.addEventListener('click', () => {
       const gradient = swatch.dataset.gradient;
@@ -1449,11 +1518,9 @@ function bindContextMenu() {
       gradientSwatches.forEach(s => s.classList.remove('active'));
       swatch.classList.add('active');
 
-      // If window container is already applied, re-apply with new gradient
       if (state.windowContainerApplied && state.originalImageBeforeContainer) {
         state.windowContainerApplied = false;
         const originalImg = state.originalImageBeforeContainer;
-        // Re-apply container with new gradient
         const tempImg = new Image();
         tempImg.onload = () => {
           state.image = tempImg;

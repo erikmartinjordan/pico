@@ -452,3 +452,130 @@ body {
 .gradient-swatch.active span {
   box-shadow: 0 0 0 2px #fff, 0 0 0 3px rgba(255,255,255,0.25);
 }
+
+/* ── Crop Overlay ── */
+.crop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: none;
+  pointer-events: none;
+}
+
+.crop-overlay.active {
+  display: block;
+  pointer-events: auto;
+}
+
+.crop-mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+
+.crop-box {
+  position: absolute;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.3), inset 0 0 0 1px rgba(0,0,0,0.3);
+  cursor: move;
+}
+
+/* Rule of thirds grid */
+.crop-box::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(to right, rgba(255,255,255,0.2) 1px, transparent 1px) 33.33% 0 / 33.33% 100%,
+    linear-gradient(to bottom, rgba(255,255,255,0.2) 1px, transparent 1px) 0 33.33% / 100% 33.33%;
+  pointer-events: none;
+}
+
+/* Crop handles */
+.crop-handle {
+  position: absolute;
+  background: #ffffff;
+  border: 1px solid rgba(0,0,0,0.4);
+  border-radius: 2px;
+  z-index: 2;
+}
+
+/* Corner handles (squares) */
+.crop-handle-nw, .crop-handle-ne, .crop-handle-sw, .crop-handle-se {
+  width: 10px;
+  height: 10px;
+}
+
+.crop-handle-nw { top: -5px; left: -5px; cursor: nwse-resize; }
+.crop-handle-ne { top: -5px; right: -5px; cursor: nesw-resize; }
+.crop-handle-sw { bottom: -5px; left: -5px; cursor: nesw-resize; }
+.crop-handle-se { bottom: -5px; right: -5px; cursor: nwse-resize; }
+
+/* Edge handles (rectangles at midpoints) */
+.crop-handle-n, .crop-handle-s {
+  width: 24px;
+  height: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  cursor: ns-resize;
+  border-radius: 3px;
+}
+
+.crop-handle-n { top: -4px; }
+.crop-handle-s { bottom: -4px; }
+
+.crop-handle-e, .crop-handle-w {
+  width: 8px;
+  height: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: ew-resize;
+  border-radius: 3px;
+}
+
+.crop-handle-e { right: -4px; }
+.crop-handle-w { left: -4px; }
+
+/* Crop action buttons */
+.crop-actions {
+  position: absolute;
+  display: flex;
+  gap: 6px;
+  transform: translateX(-50%);
+  z-index: 12;
+}
+
+.crop-btn {
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: transform 0.1s, background 0.1s;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+}
+
+.crop-btn:hover {
+  transform: scale(1.1);
+}
+
+.crop-btn-confirm {
+  background: #22c55e;
+  color: #fff;
+}
+
+.crop-btn-cancel {
+  background: #ef4444;
+  color: #fff;
+}
+
+/* ── Platform specific ── */
+.platform-darwin .toolbar {
+  top: 50px;
+}

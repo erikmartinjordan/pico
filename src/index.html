@@ -23,7 +23,6 @@
         <button class="toolbar-btn tool-btn" data-tool="arrow" title="Arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 19L19 5"/><path d="M14 5h5v5"/></svg></button>
         <button class="toolbar-btn tool-btn" data-tool="line" title="Line"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 19L19 5"/></svg></button>
         <button class="toolbar-btn tool-btn" data-tool="text" title="Text"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 6h12"/><path d="M12 6v12"/><path d="M8 18h8"/></svg></button>
-        <button class="toolbar-btn tool-btn" data-tool="crop" title="Crop"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2v4H2"/><path d="M6 6h12v12"/><path d="M18 22v-4h4"/><path d="M2 6h4v12h12"/></svg></button>
       </div>
       <div class="toolbar-separator"></div>
       <div class="toolbar-group colors">
@@ -42,6 +41,7 @@
       </div>
       <div class="toolbar-separator"></div>
       <div class="toolbar-group">
+        <button class="toolbar-btn" id="btn-crop" title="Crop image"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2v4H2"/><path d="M6 6h12v12"/><path d="M18 22v-4h4"/><path d="M2 6h4v12h12"/></svg></button>
         <button class="toolbar-btn" id="btn-copy" title="Copy to clipboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M5 15V5h10"/></svg></button>
       </div>
       <div class="toolbar-separator"></div>
@@ -49,6 +49,25 @@
         <button class="toolbar-btn" id="btn-undo" title="Undo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 10h13a4 4 0 010 8H7"/><path d="M7 6L3 10l4 4"/></svg></button>
         <button class="toolbar-btn" id="btn-redo" title="Redo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 10H8a4 4 0 000 8h9"/><path d="M17 6l4 4-4 4"/></svg></button>
         <button class="toolbar-btn" id="btn-clear" title="Clear canvas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M5 6v14a2 2 0 002 2h10a2 2 0 002-2V6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
+      </div>
+    </div>
+
+    <!-- Crop overlay UI -->
+    <div class="crop-overlay" id="crop-overlay">
+      <div class="crop-mask" id="crop-mask"></div>
+      <div class="crop-box" id="crop-box">
+        <div class="crop-handle crop-handle-n" data-handle="n"></div>
+        <div class="crop-handle crop-handle-s" data-handle="s"></div>
+        <div class="crop-handle crop-handle-e" data-handle="e"></div>
+        <div class="crop-handle crop-handle-w" data-handle="w"></div>
+        <div class="crop-handle crop-handle-nw" data-handle="nw"></div>
+        <div class="crop-handle crop-handle-ne" data-handle="ne"></div>
+        <div class="crop-handle crop-handle-sw" data-handle="sw"></div>
+        <div class="crop-handle crop-handle-se" data-handle="se"></div>
+      </div>
+      <div class="crop-actions" id="crop-actions">
+        <button class="crop-btn crop-btn-confirm" id="crop-confirm" title="Apply crop (Enter)">&#10003;</button>
+        <button class="crop-btn crop-btn-cancel" id="crop-cancel" title="Cancel crop (Esc)">&#10005;</button>
       </div>
     </div>
 

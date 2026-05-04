@@ -4,6 +4,7 @@
  */
 
 const { app, BrowserWindow, ipcMain, desktopCapturer, dialog, screen, globalShortcut, nativeImage, clipboard, Menu } = require('electron');
+const { execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
@@ -33,10 +34,116 @@ function copyCaptureDataToClipboard(captureData) {
   copyDataUrlToClipboard(dataUrl);
 }
 
+// ── Window Bounds Enumeration ───────────────────────────────────────────────
+
+function getVisibleWindowBounds() {
+  try {
+    if (process.platform === 'win32') {
+      return getWindowBoundsWindows();
+    } else if (process.platform === 'darwin') {
+      return getWindowBoundsMac();
+    }
+  } catch (err) {
+    console.error('Failed to get window bounds:', err.message);
+  }
+  return [];
+}
+
+function getWindowBoundsWindows() {
+  const psScript = `
+[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new()
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Collections.Generic;
+public class WinEnum {
+    [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc cb, IntPtr lp);
+    [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+    [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
+    [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, ref RECT r);
+    [DllImport("user32.dll", CharSet=CharSet.Auto)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
+    [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr h, int a, ref RECT r, int sz);
+    public delegate bool EnumWindowsProc(IntPtr h, IntPtr l);
+    [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
+    public static string Run() {
+        var list = new List<string>();
+        EnumWindows((h, l) => {
+            if (!IsWindowVisible(h) || IsIconic(h)) return true;
+            var sb = new StringBuilder(256);
+            GetWindowText(h, sb, 256);
+            var name = sb.ToString();
+            if (string.IsNullOrWhiteSpace(name)) return true;
+            var r = new RECT();
+            var dr = new RECT();
+            int sz = Marshal.SizeOf(typeof(RECT));
+            if (DwmGetWindowAttribute(h, 9, ref dr, sz) == 0) r = dr;
+            else GetWindowRect(h, ref r);
+            int w = r.Right - r.Left, ht = r.Bottom - r.Top;
+            if (w < 100 || ht < 50) return true;
+            name = name.Replace("\\","\\\\").Replace("\"","\\\"");
+            list.Add("{\"name\":\""+name+"\",\"x\":"+r.Left+",\"y\":"+r.Top+",\"width\":"+w+",\"height\":"+ht+"}");
+            return true;
+        }, IntPtr.Zero);
+        return "[" + string.Join(",", list) + "]";
+    }
+}
+"@
+[WinEnum]::Run()
+`;
+  const tmpFile = path.join(app.getPath('temp'), 'pico-windows.ps1');
+  fs.writeFileSync(tmpFile, psScript, 'utf8');
+  try {
+    const output = execSync(`powershell -ExecutionPolicy Bypass -File "${tmpFile}"`, {
+      encoding: 'utf8',
+      timeout: 3000,
+      windowsHide: true,
+    });
+    const cleaned = output.trim();
+    if (!cleaned.startsWith('[')) return [];
+    return JSON.parse(cleaned);
+  } finally {
+    try { fs.unlinkSync(tmpFile); } catch (e) {}
+  }
+}
+
+function getWindowBoundsMac() {
+  const pyScript = `
+import json
+try:
+    from Quartz import CGWindowListCopyWindowInfo, kCGWindowListOptionOnScreenOnly, kCGWindowListExcludeDesktopElements, kCGNullWindowID
+    windows = CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID)
+    result = []
+    for w in windows:
+        bounds = w.get('kCGWindowBounds', {})
+        layer = w.get('kCGWindowLayer', 0)
+        if layer != 0:
+            continue
+        owner = w.get('kCGWindowOwnerName', '')
+        name = w.get('kCGWindowName', '')
+        title = (owner + ' - ' + name) if name else owner
+        width = int(bounds.get('Width', 0))
+        height = int(bounds.get('Height', 0))
+        if width < 100 or height < 50:
+            continue
+        result.append({'name': title, 'x': int(bounds.get('X', 0)), 'y': int(bounds.get('Y', 0)), 'width': width, 'height': height})
+    print(json.dumps(result))
+except Exception as e:
+    print('[]')
+`;
+  const tmpFile = path.join(app.getPath('temp'), 'pico-windows.py');
+  fs.writeFileSync(tmpFile, pyScript, 'utf8');
+  try {
+    const output = execSync(`python3 "${tmpFile}"`, { encoding: 'utf8', timeout: 3000 });
+    return JSON.parse(output.trim());
+  } finally {
+    try { fs.unlinkSync(tmpFile); } catch (e) {}
+  }
+}
+
 // ── Window Creation ─────────────────────────────────────────────────────────
 
 function createMainWindow() {
-  // Hide default menu bar (File, Edit, Help, etc.)
   Menu.setApplicationMenu(null);
 
   mainWindow = new BrowserWindow({
@@ -75,7 +182,6 @@ function createMainWindow() {
 async function captureAllScreens() {
   const displays = screen.getAllDisplays();
   
-  // Calculate virtual screen bounds (union of all displays)
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   displays.forEach(d => {
     minX = Math.min(minX, d.bounds.x);
@@ -88,7 +194,6 @@ async function captureAllScreens() {
   const totalHeight = maxY - minY;
 
   try {
-    // Use max scale factor across all displays so every screen is captured at native resolution
     const maxScale = Math.max(...displays.map(d => d.scaleFactor || 1));
     const sources = await desktopCapturer.getSources({
       types: ['screen'],
@@ -103,7 +208,6 @@ async function captureAllScreens() {
       if (source.display_id) sourceByDisplayId.set(String(source.display_id), source);
     }
 
-    // If multiple displays, composite exact source->display matches.
     if (displays.length > 1) {
       const screensData = await Promise.all(displays.map(async (display) => {
         const source = sourceByDisplayId.get(String(display.id));
@@ -111,8 +215,6 @@ async function captureAllScreens() {
           throw new Error(`No screen source found for display ${display.id}`);
         }
 
-        const nativeWidth = Math.round(display.bounds.width * (display.scaleFactor || 1));
-        const nativeHeight = Math.round(display.bounds.height * (display.scaleFactor || 1));
         const thumbnail = source.thumbnail.resize({
           width: display.bounds.width,
           height: display.bounds.height,
@@ -123,8 +225,6 @@ async function captureAllScreens() {
           dataUrl: thumbnail.toDataURL(),
           bounds: display.bounds,
           scaleFactor: display.scaleFactor || 1,
-          nativeWidth,
-          nativeHeight,
         };
       }));
       
@@ -137,15 +237,12 @@ async function captureAllScreens() {
     } else {
       const display = displays[0];
       const source = sourceByDisplayId.get(String(display.id)) || sources[0];
-      const nativeWidth = Math.round(display.bounds.width * (display.scaleFactor || 1));
-      const nativeHeight = Math.round(display.bounds.height * (display.scaleFactor || 1));
       const thumbnail = source.thumbnail.resize({
         width: display.bounds.width,
         height: display.bounds.height,
         quality: 'best',
       });
 
-      // Single screen
       return {
         type: 'single',
         dataUrl: thumbnail.toDataURL(),
@@ -159,7 +256,7 @@ async function captureAllScreens() {
   }
 }
 
-function createCaptureOverlays(captureData, mode = 'region') {
+function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) {
   const displays = screen.getAllDisplays();
 
   displays.forEach((display) => {
@@ -198,7 +295,6 @@ function createCaptureOverlays(captureData, mode = 'region') {
       });
       win.show();
 
-      // Send this display's specific screen data
       const screenData = captureData.type === 'multi'
         ? captureData.screens.find(s =>
             s.bounds.x === display.bounds.x &&
@@ -208,12 +304,27 @@ function createCaptureOverlays(captureData, mode = 'region') {
           )
         : captureData;
 
+      // Filter window bounds to those visible on this display
+      const displayWindowBounds = windowBounds.filter(wb => {
+        const wx2 = wb.x + wb.width;
+        const wy2 = wb.y + wb.height;
+        const dx2 = display.bounds.x + display.bounds.width;
+        const dy2 = display.bounds.y + display.bounds.height;
+        return wb.x < dx2 && wx2 > display.bounds.x && wb.y < dy2 && wy2 > display.bounds.y;
+      }).map(wb => ({
+        ...wb,
+        // Convert to coordinates relative to this display
+        x: wb.x - display.bounds.x,
+        y: wb.y - display.bounds.y,
+      }));
+
       win.webContents.send('capture-data', {
         mode,
         type: 'single',
         dataUrl: screenData ? screenData.dataUrl : captureData.dataUrl,
         bounds: display.bounds,
         scaleFactor: display.scaleFactor || 1,
+        windowBounds: displayWindowBounds,
       });
     });
 
@@ -229,8 +340,6 @@ function createCaptureOverlays(captureData, mode = 'region') {
 
 ipcMain.handle('start-capture', async () => {
   if (mainWindow) mainWindow.hide();
-  
-  // Small delay to ensure window is hidden
   await new Promise(r => setTimeout(r, 200));
   
   try {
@@ -244,75 +353,17 @@ ipcMain.handle('start-capture', async () => {
 });
 
 ipcMain.handle('start-capture-window', async () => {
+  // Get window bounds BEFORE hiding the main window
+  const windowBounds = getVisibleWindowBounds();
+  
   if (mainWindow) mainWindow.hide();
   await new Promise(r => setTimeout(r, 200));
 
   try {
-    // Get window sources (individual windows, not full screens)
-    const sources = await desktopCapturer.getSources({
-      types: ['window'],
-      thumbnailSize: { width: 800, height: 600 },
-      fetchWindowIcons: true,
-    });
-
-    if (sources.length === 0) {
-      if (mainWindow) mainWindow.show();
-      return { success: false, error: 'No windows found' };
-    }
-
-    // Filter out the pico window itself
-    const filteredSources = sources.filter(s => s.name !== 'pico' && s.name !== 'Select Window');
-
-    if (filteredSources.length === 0) {
-      if (mainWindow) mainWindow.show();
-      return { success: false, error: 'No other windows found' };
-    }
-
-    // Store sources for later retrieval
-    pendingWindowSources = filteredSources;
-
-    // Create window picker dialog
-    windowPicker = new BrowserWindow({
-      width: 800,
-      height: 550,
-      resizable: true,
-      frame: false,
-      transparent: false,
-      backgroundColor: '#111111',
-      parent: mainWindow,
-      modal: false,
-      show: false,
-      webPreferences: {
-        preload: path.join(__dirname, 'preload.js'),
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: true,
-      },
-    });
-
-    windowPicker.setAlwaysOnTop(true, 'screen-saver');
-    windowPicker.loadFile(path.join(__dirname, 'window-picker.html'));
-
-    windowPicker.webContents.once('did-finish-load', () => {
-      // Send window sources as serializable data (thumbnails as data URLs)
-      const serializedSources = filteredSources.map(source => ({
-        id: source.id,
-        name: source.name,
-        thumbnail: source.thumbnail.toDataURL(),
-      }));
-      windowPicker.webContents.send('window-sources', serializedSources);
-      windowPicker.show();
-    });
-
-    windowPicker.on('closed', () => {
-      windowPicker = null;
-      // If user closed the picker without selecting, show main window
-      if (pendingWindowSources.length > 0) {
-        pendingWindowSources = [];
-        if (mainWindow) mainWindow.show();
-      }
-    });
-
+    const captureData = await captureAllScreens();
+    // Filter out pico's own window from bounds
+    const filteredBounds = windowBounds.filter(wb => wb.name !== 'pico' && !wb.name.includes('pico'));
+    createCaptureOverlays(captureData, 'window', filteredBounds);
     return { success: true };
   } catch (err) {
     if (mainWindow) mainWindow.show();
@@ -338,33 +389,6 @@ ipcMain.handle('start-capture-fullscreen', async () => {
   }
 });
 
-
-ipcMain.on('window-picker-select', (event, sourceId) => {
-  const source = pendingWindowSources.find(s => s.id === sourceId);
-  if (windowPicker && !windowPicker.isDestroyed()) windowPicker.close();
-  pendingWindowSources = [];
-  if (!source) {
-    if (mainWindow) mainWindow.show();
-    return;
-  }
-  if (mainWindow) {
-    const dataUrl = source.thumbnail.toDataURL();
-    copyDataUrlToClipboard(dataUrl);
-    mainWindow.show();
-    mainWindow.webContents.send('load-capture', {
-      dataUrl,
-      source: 'capture',
-      captureMode: 'window',
-    });
-  }
-});
-
-ipcMain.on('window-picker-cancel', () => {
-  if (windowPicker && !windowPicker.isDestroyed()) windowPicker.close();
-  pendingWindowSources = [];
-  if (mainWindow) mainWindow.show();
-});
-
 ipcMain.on('capture-complete', (event, imageDataUrl) => {
   captureWindows.forEach(w => { if (!w.isDestroyed()) w.close(); });
   captureWindows = [];
@@ -387,13 +411,6 @@ ipcMain.on('capture-cancel', () => {
   }
 });
 
-ipcMain.on('capture-window-hover', (event, hoveredBounds) => {
-  captureWindows.forEach((win) => {
-    if (win.isDestroyed()) return;
-    win.webContents.send('capture-window-hover', hoveredBounds);
-  });
-});
-
 ipcMain.handle('open-file', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ['openFile'],
@@ -402,15 +419,12 @@ ipcMain.handle('open-file', async () => {
     ],
   });
   
-  if (result.canceled || !result.filePaths[0]) {
-    return null;
-  }
+  if (result.canceled || !result.filePaths[0]) return null;
   
   const filePath = result.filePaths[0];
   const buffer = fs.readFileSync(filePath);
   const ext = path.extname(filePath).toLowerCase().slice(1);
   const mime = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', bmp: 'image/bmp', gif: 'image/gif' }[ext] || 'image/png';
-  
   return `data:${mime};base64,${buffer.toString('base64')}`;
 });
 
@@ -423,9 +437,7 @@ ipcMain.handle('save-file', async (event, dataUrl) => {
     ],
   });
   
-  if (result.canceled || !result.filePath) {
-    return { success: false };
-  }
+  if (result.canceled || !result.filePath) return { success: false };
   
   try {
     const base64Data = dataUrl.replace(/^data:image\/\w+;base64,/, '');
@@ -450,9 +462,7 @@ ipcMain.handle('copy-to-clipboard', async (event, dataUrl) => {
 ipcMain.handle('read-clipboard-image', async () => {
   try {
     const image = clipboard.readImage();
-    if (image.isEmpty()) {
-      return null;
-    }
+    if (image.isEmpty()) return null;
     return image.toDataURL();
   } catch (err) {
     return null;
@@ -468,7 +478,6 @@ ipcMain.handle('get-displays', () => {
 app.whenReady().then(() => {
   createMainWindow();
 
-  // Register global shortcut for capture
   globalShortcut.register('CommandOrControl+Shift+S', () => {
     if (mainWindow) {
       mainWindow.webContents.send('trigger-capture');

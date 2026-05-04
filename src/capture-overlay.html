@@ -43,7 +43,7 @@
       content: '';
       position: absolute;
       inset: 0;
-      background: rgba(240, 125, 32, 0.1);
+      background: rgba(240, 125, 32, 0.08);
     }
     
     #dimensions {
@@ -62,15 +62,39 @@
       display: block;
     }
 
-    #selection.window-hover {
-      display: block;
-      left: 0;
-      top: 0;
-      width: 100vw;
-      height: 100vh;
-      border-color: #ffaa55;
+    #window-highlight {
+      position: absolute;
+      border: 3px solid #ffaa55;
+      background: rgba(255, 170, 85, 0.08);
+      pointer-events: none;
+      display: none;
+      border-radius: 4px;
     }
 
+    #window-highlight.visible {
+      display: block;
+    }
+
+    #window-label {
+      position: absolute;
+      background: rgba(0, 0, 0, 0.8);
+      color: #ffaa55;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      pointer-events: none;
+      display: none;
+      white-space: nowrap;
+      max-width: 300px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    #window-label.visible {
+      display: block;
+    }
     
     #instructions {
       position: fixed;
@@ -100,8 +124,10 @@
     <canvas id="canvas"></canvas>
     <div id="selection"></div>
     <div id="dimensions"></div>
+    <div id="window-highlight"></div>
+    <div id="window-label"></div>
     <div id="instructions">
-      Drag to select region · Press <kbd>Esc</kbd> to cancel
+      Drag to select region &middot; Press <kbd>Esc</kbd> to cancel
     </div>
   </div>
 
@@ -110,11 +136,14 @@
     const ctx = canvas.getContext('2d');
     const selection = document.getElementById('selection');
     const dimensions = document.getElementById('dimensions');
+    const windowHighlight = document.getElementById('window-highlight');
+    const windowLabel = document.getElementById('window-label');
     
     let captureData = null;
     let captureMode = 'region';
     let currentBounds = null;
-    let activeHoverBounds = null;
+    let windowBounds = []; // Array of {name, x, y, width, height} in display-relative coords
+    let hoveredWindow = null;
     let isSelecting = false;
     let startX = 0, startY = 0;
     let currentX = 0, currentY = 0;
@@ -124,9 +153,13 @@
       captureData = data;
       captureMode = data.mode || 'region';
       currentBounds = data.bounds || null;
-      if (captureMode === 'window') document.getElementById('instructions').innerHTML = 'Click to capture this screen · Press <kbd>Esc</kbd> to cancel';
+      windowBounds = data.windowBounds || [];
       
-      // Always size canvas to actual viewport (handles DPI mismatches)
+      if (captureMode === 'window') {
+        document.getElementById('instructions').innerHTML = 'Hover over a window and click to capture &middot; Press <kbd>Esc</kbd> to cancel';
+        document.body.style.cursor = 'default';
+      }
+      
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
       
@@ -144,8 +177,6 @@
     
     async function compositeScreens(data) {
       const { screens, virtualBounds } = data;
-      
-      // Draw each screen positioned relative to virtual bounds, scaled to viewport
       const scaleX = canvas.width / virtualBounds.width;
       const scaleY = canvas.height / virtualBounds.height;
       
@@ -173,12 +204,25 @@
       ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
+
+    // Find which window the cursor is over (topmost = first in list)
+    function findWindowAt(clientX, clientY) {
+      for (const wb of windowBounds) {
+        if (clientX >= wb.x && clientX <= wb.x + wb.width &&
+            clientY >= wb.y && clientY <= wb.y + wb.height) {
+          return wb;
+        }
+      }
+      return null;
+    }
     
     // Mouse events
     document.addEventListener('mousedown', (e) => {
       if (captureMode === 'window') {
-        if (activeHoverBounds && !isCurrentBounds(activeHoverBounds)) return;
-        captureRegion(0, 0, window.innerWidth, window.innerHeight);
+        if (hoveredWindow) {
+          // Capture the hovered window region
+          captureRegion(hoveredWindow.x, hoveredWindow.y, hoveredWindow.width, hoveredWindow.height);
+        }
         return;
       }
       isSelecting = true;
@@ -194,7 +238,26 @@
     
     document.addEventListener('mousemove', (e) => {
       if (captureMode === 'window') {
-        if (currentBounds) window.pico.captureWindowHover(currentBounds);
+        const win = findWindowAt(e.clientX, e.clientY);
+        hoveredWindow = win;
+        if (win) {
+          windowHighlight.style.left = win.x + 'px';
+          windowHighlight.style.top = win.y + 'px';
+          windowHighlight.style.width = win.width + 'px';
+          windowHighlight.style.height = win.height + 'px';
+          windowHighlight.classList.add('visible');
+          
+          windowLabel.textContent = win.name;
+          windowLabel.style.left = (win.x + 5) + 'px';
+          windowLabel.style.top = (win.y > 30 ? win.y - 28 : win.y + win.height + 5) + 'px';
+          windowLabel.classList.add('visible');
+          
+          document.body.style.cursor = 'pointer';
+        } else {
+          windowHighlight.classList.remove('visible');
+          windowLabel.classList.remove('visible');
+          document.body.style.cursor = 'default';
+        }
         return;
       }
       if (!isSelecting) return;
@@ -226,21 +289,6 @@
         window.pico.captureCancel();
       }
     });
-
-    window.pico.onCaptureWindowHover((bounds) => {
-      activeHoverBounds = bounds || null;
-      if (captureMode !== 'window' || !currentBounds) return;
-      const shouldHighlight = !!bounds && isCurrentBounds(bounds);
-      selection.classList.toggle('window-hover', shouldHighlight);
-    });
-
-    function isCurrentBounds(bounds) {
-      return currentBounds &&
-        currentBounds.x === bounds.x &&
-        currentBounds.y === bounds.y &&
-        currentBounds.width === bounds.width &&
-        currentBounds.height === bounds.height;
-    }
     
     function updateSelection() {
       const x = Math.min(startX, currentX);
@@ -253,7 +301,7 @@
       selection.style.width = width + 'px';
       selection.style.height = height + 'px';
       
-      dimensions.textContent = `${width} × ${height}`;
+      dimensions.textContent = `${width} \u00d7 ${height}`;
       dimensions.style.left = (x + 5) + 'px';
       dimensions.style.top = (y - 25) + 'px';
       
@@ -266,7 +314,6 @@
       const tempCanvas = document.createElement('canvas');
       const tempCtx = tempCanvas.getContext('2d');
       
-      // Map viewport coordinates to native image coordinates
       const viewW = window.innerWidth;
       const viewH = window.innerHeight;
       
@@ -274,7 +321,6 @@
         Promise.all(captureData.screens.map(s => loadImage(s.dataUrl))).then(images => {
           const { virtualBounds } = captureData;
           
-          // Convert viewport selection to virtual-bounds coordinate space
           const selX = (x / viewW) * virtualBounds.width;
           const selY = (y / viewH) * virtualBounds.height;
           const selW = (width / viewW) * virtualBounds.width;
