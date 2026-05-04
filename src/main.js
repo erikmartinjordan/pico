@@ -10,6 +10,50 @@ const fs = require('fs');
 
 let mainWindow = null;
 let captureWindows = [];
+let windowPickerWindow = null;
+
+async function getWindowSourcesForPicker() {
+  const sources = await desktopCapturer.getSources({
+    types: ['window'],
+    thumbnailSize: { width: 640, height: 400 },
+    fetchWindowIcons: false,
+  });
+  return sources
+    .filter((source) => source && source.name && !source.name.toLowerCase().includes('pico'))
+    .map((source) => ({ id: source.id, name: source.name, thumbnail: source.thumbnail.toDataURL() }));
+}
+
+async function openWindowPickerFallback() {
+  if (windowPickerWindow && !windowPickerWindow.isDestroyed()) {
+    windowPickerWindow.focus();
+    return { success: true, fallback: true };
+  }
+
+  windowPickerWindow = new BrowserWindow({
+    width: 1100,
+    height: 720,
+    autoHideMenuBar: true,
+    title: 'Select Window',
+    resizable: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+
+  windowPickerWindow.loadFile(path.join(__dirname, 'window-picker.html'));
+  windowPickerWindow.on('closed', () => { windowPickerWindow = null; if (mainWindow) mainWindow.show(); });
+
+  windowPickerWindow.webContents.once('did-finish-load', async () => {
+    const sources = await getWindowSourcesForPicker();
+    windowPickerWindow?.webContents.send('window-sources', sources);
+  });
+
+  return { success: true, fallback: true };
+}
+
 
 function copyDataUrlToClipboard(dataUrl) {
   if (!dataUrl) return;
@@ -390,6 +434,10 @@ ipcMain.handle('start-capture-window', async () => {
       wb.name !== 'Select Window'
     );
     console.log(`Window capture: ${filtered.length} windows after filtering`);
+    if (filtered.length === 0) {
+      if (mainWindow) mainWindow.show();
+      return await openWindowPickerFallback();
+    }
     createCaptureOverlays(captureData, 'window', filtered);
     return { success: true };
   } catch (err) {
@@ -433,6 +481,33 @@ ipcMain.on('capture-cancel', () => {
   if (mainWindow) mainWindow.show();
 });
 
+
+ipcMain.on('window-source-select', async (event, sourceId) => {
+  try {
+    const sources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 0, height: 0 } });
+    const selected = sources.find((s) => s.id === sourceId);
+    if (!selected || selected.thumbnail.isEmpty()) {
+      if (windowPickerWindow && !windowPickerWindow.isDestroyed()) windowPickerWindow.close();
+      if (mainWindow) mainWindow.show();
+      return;
+    }
+    const dataUrl = selected.thumbnail.toDataURL();
+    if (windowPickerWindow && !windowPickerWindow.isDestroyed()) windowPickerWindow.close();
+    copyDataUrlToClipboard(dataUrl);
+    if (mainWindow) {
+      mainWindow.show();
+      mainWindow.webContents.send('load-capture', { dataUrl, source: 'capture', captureMode: 'window' });
+    }
+  } catch (err) {
+    if (windowPickerWindow && !windowPickerWindow.isDestroyed()) windowPickerWindow.close();
+    if (mainWindow) mainWindow.show();
+  }
+});
+
+ipcMain.on('window-source-cancel', () => {
+  if (windowPickerWindow && !windowPickerWindow.isDestroyed()) windowPickerWindow.close();
+  if (mainWindow) mainWindow.show();
+});
 ipcMain.handle('open-file', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ['openFile'],

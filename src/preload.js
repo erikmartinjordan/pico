@@ -19,6 +19,11 @@ contextBridge.exposeInMainWorld('pico', {
   captureComplete: (imageDataUrl) => ipcRenderer.send('capture-complete', imageDataUrl),
   captureCancel: () => ipcRenderer.send('capture-cancel'),
 
+  // Window picker fallback
+  onWindowSources: (callback) => ipcRenderer.on('window-sources', (_, data) => callback(data)),
+  selectWindowSource: (sourceId) => ipcRenderer.send('window-source-select', sourceId),
+  cancelWindowSource: () => ipcRenderer.send('window-source-cancel'),
+
   // File operations
   openFile: () => ipcRenderer.invoke('open-file'),
   saveFile: (dataUrl) => ipcRenderer.invoke('save-file', dataUrl),
