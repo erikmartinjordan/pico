@@ -414,8 +414,9 @@
     document.addEventListener('mousedown', (e) => {
       if (captureMode === 'window') {
         if (hoveredWindow) {
-          const dataUrl = cropFromOverlayRect(hoveredWindow);
-          if (dataUrl) window.pico.captureComplete(dataUrl);
+          cropFromScreenRect(hoveredWindow).then((dataUrl) => {
+            if (dataUrl) window.pico.captureComplete(dataUrl);
+          });
         }
         return;
       }

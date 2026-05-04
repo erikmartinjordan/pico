@@ -421,9 +421,17 @@ ipcMain.handle('start-capture', async () => {
 });
 
 ipcMain.handle('start-capture-window', async () => {
-  // Reliable fallback: use Chromium window sources picker directly.
-  // Overlay-based window cropping can fail on some display/DPI setups.
-  return await openWindowPickerFallback();
+  if (mainWindow) mainWindow.hide();
+  await new Promise(r => setTimeout(r, 200));
+  try {
+    const captureData = await captureAllScreens();
+    const winBounds = getVisibleWindowBounds();
+    createCaptureOverlays(captureData, 'window', winBounds);
+    return { success: true };
+  } catch (err) {
+    if (mainWindow) mainWindow.show();
+    return { success: false, error: err.message };
+  }
 });
 
 ipcMain.handle('start-capture-fullscreen', async () => {
