@@ -295,15 +295,22 @@ function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) 
         : captureData;
 
       // Convert window bounds to display-relative coordinates.
+      // On macOS, Quartz returns physical pixels so we must divide by scaleFactor.
+      // On Windows, we try both raw and scaled candidates and pick the best intersection.
       const displayWindowBounds = windowBounds
         .map((wb) => {
-          const scale = process.platform === 'win32' ? (display.scaleFactor || 1) : 1;
+          const scale = display.scaleFactor || 1;
           const candidates = process.platform === 'win32'
             ? [
                 { x: wb.x, y: wb.y, width: wb.width, height: wb.height },
                 { x: wb.x / scale, y: wb.y / scale, width: wb.width / scale, height: wb.height / scale },
               ]
-            : [{ x: wb.x, y: wb.y, width: wb.width, height: wb.height }];
+            : [
+                // macOS: Quartz coords are physical pixels; convert to logical CSS pixels
+                { x: wb.x / scale, y: wb.y / scale, width: wb.width / scale, height: wb.height / scale },
+                // Also try raw in case display already reports logical coords (scaleFactor=1 screens)
+                { x: wb.x, y: wb.y, width: wb.width, height: wb.height },
+              ];
 
           const dx1 = display.bounds.x;
           const dy1 = display.bounds.y;
