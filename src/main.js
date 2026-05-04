@@ -10,6 +10,8 @@ const fs = require('fs');
 
 let mainWindow = null;
 let captureWindows = [];
+let windowPickerWindow = null;
+let pendingWindowSources = [];
 
 function copyDataUrlToClipboard(dataUrl) {
   if (!dataUrl) return;
@@ -360,22 +362,50 @@ ipcMain.handle('start-capture', async () => {
 });
 
 ipcMain.handle('start-capture-window', async () => {
-  // Enumerate windows BEFORE hiding (so we see what's on screen)
-  const windowBounds = getVisibleWindowBounds();
-  console.log(`Window capture: found ${windowBounds.length} windows`);
-  
-  if (mainWindow) mainWindow.hide();
-  await new Promise(r => setTimeout(r, 200));
-
   try {
-    const captureData = await captureAllScreens();
-    // Filter out pico itself
-    const filtered = windowBounds.filter(wb =>
-      !wb.name.toLowerCase().includes('pico') &&
-      wb.name !== 'Select Window'
-    );
-    console.log(`Window capture: ${filtered.length} windows after filtering`);
-    createCaptureOverlays(captureData, 'window', filtered);
+    const sources = await desktopCapturer.getSources({
+      types: ['window'],
+      thumbnailSize: { width: 960, height: 600 },
+      fetchWindowIcons: true,
+    });
+    pendingWindowSources = sources.filter((source) => {
+      const title = (source.name || '').toLowerCase();
+      return title && !title.includes('pico') && !title.includes('select window');
+    });
+
+    if (pendingWindowSources.length === 0) {
+      return { success: false, error: 'No capturable windows found' };
+    }
+
+    if (mainWindow) mainWindow.hide();
+    await new Promise(r => setTimeout(r, 100));
+
+    windowPickerWindow = new BrowserWindow({
+      width: 920,
+      height: 640,
+      minWidth: 720,
+      minHeight: 480,
+      title: 'Select Window',
+      autoHideMenuBar: true,
+      resizable: true,
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    });
+    windowPickerWindow.on('closed', () => {
+      windowPickerWindow = null;
+      pendingWindowSources = [];
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.show();
+    });
+    await windowPickerWindow.loadFile(path.join(__dirname, 'window-picker.html'));
+    windowPickerWindow.webContents.send('window-sources', pendingWindowSources.map((source) => ({
+      id: source.id,
+      name: source.name,
+      thumbnail: source.thumbnail.toDataURL(),
+    })));
     return { success: true };
   } catch (err) {
     if (mainWindow) mainWindow.show();
@@ -415,6 +445,26 @@ ipcMain.on('capture-complete', (event, imageDataUrl) => {
 ipcMain.on('capture-cancel', () => {
   captureWindows.forEach(w => { if (!w.isDestroyed()) w.close(); });
   captureWindows = [];
+  if (mainWindow) mainWindow.show();
+});
+
+ipcMain.on('select-window-source', (event, sourceId) => {
+  const source = pendingWindowSources.find((s) => s.id === sourceId);
+  if (!source) return;
+  const dataUrl = source.thumbnail.toDataURL();
+  if (windowPickerWindow && !windowPickerWindow.isDestroyed()) windowPickerWindow.close();
+  if (mainWindow) {
+    mainWindow.show();
+    mainWindow.webContents.send('load-capture', {
+      dataUrl,
+      source: 'capture',
+      captureMode: 'window',
+    });
+  }
+});
+
+ipcMain.on('cancel-window-source', () => {
+  if (windowPickerWindow && !windowPickerWindow.isDestroyed()) windowPickerWindow.close();
   if (mainWindow) mainWindow.show();
 });
 
