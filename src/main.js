@@ -272,21 +272,48 @@ function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) 
           )
         : captureData;
 
-      // Convert window bounds to display-relative coordinates
+      // Convert window bounds to display-relative coordinates.
+      // Windows can report either DIP-like or physical-pixel-like bounds depending on DPI context.
+      // Choose the coordinate space that yields the best overlap with this display.
       const displayWindowBounds = windowBounds
-        .filter(wb => {
-          const wx2 = wb.x + wb.width, wy2 = wb.y + wb.height;
+        .map((wb) => {
+          const scale = process.platform === 'win32' ? (display.scaleFactor || 1) : 1;
+          const candidates = process.platform === 'win32'
+            ? [
+                { x: wb.x, y: wb.y, width: wb.width, height: wb.height },
+                { x: wb.x / scale, y: wb.y / scale, width: wb.width / scale, height: wb.height / scale },
+              ]
+            : [{ x: wb.x, y: wb.y, width: wb.width, height: wb.height }];
+
+          const dx1 = display.bounds.x;
+          const dy1 = display.bounds.y;
           const dx2 = display.bounds.x + display.bounds.width;
           const dy2 = display.bounds.y + display.bounds.height;
-          return wb.x < dx2 && wx2 > display.bounds.x && wb.y < dy2 && wy2 > display.bounds.y;
+
+          const intersectArea = (r) => {
+            const rx2 = r.x + r.width;
+            const ry2 = r.y + r.height;
+            const ix1 = Math.max(r.x, dx1);
+            const iy1 = Math.max(r.y, dy1);
+            const ix2 = Math.min(rx2, dx2);
+            const iy2 = Math.min(ry2, dy2);
+            const iw = ix2 - ix1;
+            const ih = iy2 - iy1;
+            if (iw <= 0 || ih <= 0) return { area: 0, rect: null };
+            return {
+              area: iw * ih,
+              rect: { x: ix1 - dx1, y: iy1 - dy1, width: iw, height: ih },
+            };
+          };
+
+          const scored = candidates
+            .map((c) => intersectArea(c))
+            .sort((a, b) => b.area - a.area)[0];
+
+          if (!scored || !scored.rect || scored.area <= 0) return null;
+          return { name: wb.name, ...scored.rect };
         })
-        .map(wb => ({
-          name: wb.name,
-          x: wb.x - display.bounds.x,
-          y: wb.y - display.bounds.y,
-          width: wb.width,
-          height: wb.height,
-        }));
+        .filter(Boolean);
 
       win.webContents.send('capture-data', {
         mode,
