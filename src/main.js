@@ -272,21 +272,46 @@ function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) 
           )
         : captureData;
 
-      // Convert window bounds to display-relative coordinates
+      // Convert window bounds to display-relative coordinates.
+      // On Windows, native APIs often return physical pixels while Electron uses DIP,
+      // so we normalize by display scale factor for reliable hover hit-testing.
       const displayWindowBounds = windowBounds
-        .filter(wb => {
-          const wx2 = wb.x + wb.width, wy2 = wb.y + wb.height;
+        .map((wb) => {
+          const scale = process.platform === 'win32' ? (display.scaleFactor || 1) : 1;
+          const normalized = {
+            name: wb.name,
+            x: wb.x / scale,
+            y: wb.y / scale,
+            width: wb.width / scale,
+            height: wb.height / scale,
+          };
+
+          const wx1 = normalized.x;
+          const wy1 = normalized.y;
+          const wx2 = normalized.x + normalized.width;
+          const wy2 = normalized.y + normalized.height;
+
+          const dx1 = display.bounds.x;
+          const dy1 = display.bounds.y;
           const dx2 = display.bounds.x + display.bounds.width;
           const dy2 = display.bounds.y + display.bounds.height;
-          return wb.x < dx2 && wx2 > display.bounds.x && wb.y < dy2 && wy2 > display.bounds.y;
+
+          const ix1 = Math.max(wx1, dx1);
+          const iy1 = Math.max(wy1, dy1);
+          const ix2 = Math.min(wx2, dx2);
+          const iy2 = Math.min(wy2, dy2);
+
+          if (ix2 <= ix1 || iy2 <= iy1) return null;
+
+          return {
+            name: normalized.name,
+            x: ix1 - dx1,
+            y: iy1 - dy1,
+            width: ix2 - ix1,
+            height: iy2 - iy1,
+          };
         })
-        .map(wb => ({
-          name: wb.name,
-          x: wb.x - display.bounds.x,
-          y: wb.y - display.bounds.y,
-          width: wb.width,
-          height: wb.height,
-        }));
+        .filter(Boolean);
 
       win.webContents.send('capture-data', {
         mode,
