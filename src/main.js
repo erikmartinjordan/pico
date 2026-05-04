@@ -87,7 +87,8 @@ public class PicoWinEnum {
             if (!first) sb.Append(",");
             first = false;
             name = name.Replace("\\", "\\\\").Replace("\"", "'");
-            sb.AppendFormat("{{\042name\042:\042{0}\042,\042x\042:{1},\042y\042:{2},\042width\042:{3},\042height\042:{4}}}", name, r.Left, r.Top, w, ht);
+            string q = ((char)34).ToString();
+            sb.Append("{" + q + "name" + q + ":" + q + name + q + "," + q + "x" + q + ":" + r.Left + "," + q + "y" + q + ":" + r.Top + "," + q + "width" + q + ":" + w + "," + q + "height" + q + ":" + ht + "}");
             return true;
         }, IntPtr.Zero);
         sb.Append("]");
