@@ -46,8 +46,6 @@ function getVisibleWindowBounds() {
 }
 
 function getWindowBoundsWindows() {
-  // C# enumerates visible windows; PowerShell serializes with ConvertTo-Json
-  // to avoid manual JSON construction issues with special characters in titles
   const psScript = `
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
 Add-Type -Language CSharp -TypeDefinition @'
@@ -79,7 +77,6 @@ public class PicoWinEnum {
         EnumWindows((h, l) => {
             if (!IsWindowVisible(h) || IsIconic(h)) return true;
             if (GetWindowTextLength(h) == 0) return true;
-            // Skip tool windows (WS_EX_TOOLWINDOW = 0x80)
             int exStyle = GetWindowLong(h, -20);
             if ((exStyle & 0x80) != 0) return true;
             var title = new StringBuilder(512);
@@ -103,27 +100,36 @@ $wins = [PicoWinEnum]::Enumerate()
 if ($wins.Count -eq 0) {
     Write-Output '[]'
 } else {
-    # Force array serialization even for single results
     $json = ConvertTo-Json -InputObject @($wins) -Compress -Depth 2
     Write-Output $json
 }
 `;
+
   const tmpFile = path.join(app.getPath('temp'), 'pico-enum-win.ps1');
-  fs.writeFileSync(tmpFile, psScript, { encoding: 'utf8' });
+  try {
+    fs.writeFileSync(tmpFile, psScript, { encoding: 'utf8' });
+  } catch (e) {
+    console.error('[pico] Cannot write temp PS script:', e.message);
+    return [];
+  }
+
   try {
     const output = execSync(
       `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${tmpFile}"`,
-      { encoding: 'utf8', timeout: 15000, windowsHide: true }
+      { encoding: 'utf8', timeout: 20000, windowsHide: true }
     );
     const trimmed = output.trim();
     if (!trimmed || !trimmed.startsWith('[')) {
-      console.error('PS window enum: unexpected output:', trimmed.slice(0, 200));
+      console.error('[pico] PS window enum: unexpected output:', trimmed.slice(0, 300));
       return [];
     }
-    return JSON.parse(trimmed);
+    const result = JSON.parse(trimmed);
+    console.log(`[pico] Window enum OK: ${result.length} windows found`);
+    return result;
   } catch (e) {
-    console.error('PS window enum error:', e.message);
-    if (e.stderr) console.error('PS stderr:', e.stderr.toString().slice(0, 500));
+    console.error('[pico] PS window enum failed:', e.message);
+    if (e.stderr) console.error('[pico] stderr:', e.stderr.toString().slice(0, 500));
+    if (e.status != null) console.error('[pico] exit code:', e.status);
     return [];
   } finally {
     try { fs.unlinkSync(tmpFile); } catch (e) {}

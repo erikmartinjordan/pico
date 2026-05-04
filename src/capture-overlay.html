@@ -215,8 +215,14 @@
       currentBounds = data.bounds || null;
       windowBounds = data.windowBounds || [];
       
+      console.log('[pico overlay] mode:', captureMode, '| windows:', windowBounds.length);
+      
       if (captureMode === 'window') {
-        document.getElementById('instructions').innerHTML = 'Click on a window to capture &middot; Press <kbd>Esc</kbd> to cancel';
+        if (windowBounds.length === 0) {
+          document.getElementById('instructions').innerHTML = 'Click anywhere to capture full screen &middot; Press <kbd>Esc</kbd> to cancel';
+        } else {
+          document.getElementById('instructions').innerHTML = 'Click on a window to capture &middot; Press <kbd>Esc</kbd> to cancel';
+        }
       } else {
         document.body.classList.add('region-mode');
       }
@@ -340,6 +346,9 @@
         if (hoveredWindow) {
           // Capture the hovered window region and show isolated
           captureWindowIsolated(hoveredWindow);
+        } else if (windowBounds.length === 0) {
+          // Fallback: no windows detected, capture full screen
+          window.pico.captureComplete(captureData.dataUrl);
         }
         return;
       }
