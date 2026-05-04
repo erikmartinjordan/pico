@@ -85,9 +85,7 @@ const elements = {
   textStyleSeparator: $('#text-style-separator'),
   cropOverlay: $('#crop-overlay'),
   cropBox: $('#crop-box'),
-  cropConfirm: $('#crop-confirm'),
-  cropCancel: $('#crop-cancel'),
-  cropActions: $('#crop-actions'),
+  cropHint: $('#crop-hint'),
 };
 
 function on(el, event, handler) { if (el) el.addEventListener(event, handler); }
@@ -253,9 +251,6 @@ function bindPaste() {
 // ══════════════════════════════════════════════════════════════════════════════
 
 function bindCrop() {
-  on(elements.cropConfirm, 'click', applyCrop);
-  on(elements.cropCancel, 'click', cancelCrop);
-  
   // Handle dragging on crop handles and crop box
   const handles = elements.cropBox.querySelectorAll('.crop-handle');
   handles.forEach(handle => {
@@ -428,9 +423,11 @@ function updateCropUI() {
   elements.cropBox.style.width = width + 'px';
   elements.cropBox.style.height = height + 'px';
 
-  // Position action buttons below the crop box
-  elements.cropActions.style.left = (left + width / 2) + 'px';
-  elements.cropActions.style.top = (top + height + 10) + 'px';
+  // Position hint below the crop box
+  if (elements.cropHint) {
+    elements.cropHint.style.left = (left + width / 2) + 'px';
+    elements.cropHint.style.top = (top + height + 12) + 'px';
+  }
 
   // Update mask (dark area outside crop)
   const mask = document.getElementById('crop-mask');

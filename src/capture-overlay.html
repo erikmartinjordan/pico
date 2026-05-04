@@ -156,7 +156,11 @@
       windowBounds = data.windowBounds || [];
       
       if (captureMode === 'window') {
-        document.getElementById('instructions').innerHTML = 'Hover over a window and click to capture &middot; Press <kbd>Esc</kbd> to cancel';
+        if (windowBounds.length > 0) {
+          document.getElementById('instructions').innerHTML = 'Hover over a window and click to capture &middot; Press <kbd>Esc</kbd> to cancel';
+        } else {
+          document.getElementById('instructions').innerHTML = 'Click to capture full screen &middot; Press <kbd>Esc</kbd> to cancel';
+        }
         document.body.style.cursor = 'default';
       }
       
@@ -222,6 +226,9 @@
         if (hoveredWindow) {
           // Capture the hovered window region
           captureRegion(hoveredWindow.x, hoveredWindow.y, hoveredWindow.width, hoveredWindow.height);
+        } else {
+          // No window detected at this position - capture full screen
+          captureRegion(0, 0, window.innerWidth, window.innerHeight);
         }
         return;
       }

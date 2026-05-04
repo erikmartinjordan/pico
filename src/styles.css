@@ -537,42 +537,34 @@ body {
 .crop-handle-e { right: -4px; }
 .crop-handle-w { left: -4px; }
 
-/* Crop action buttons */
-.crop-actions {
+/* Crop hint */
+.crop-hint {
   position: absolute;
-  display: flex;
-  gap: 6px;
   transform: translateX(-50%);
   z-index: 12;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  letter-spacing: 0.02em;
+  pointer-events: none;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.3s ease;
 }
 
-.crop-btn {
-  width: 30px;
-  height: 30px;
-  border: none;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: transform 0.1s, background 0.1s;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+.crop-overlay.active .crop-hint {
+  opacity: 1;
 }
 
-.crop-btn:hover {
-  transform: scale(1.1);
-}
-
-.crop-btn-confirm {
-  background: #22c55e;
-  color: #fff;
-}
-
-.crop-btn-cancel {
-  background: #ef4444;
-  color: #fff;
+.crop-hint kbd {
+  display: inline-block;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-family: inherit;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.7);
 }
 
 /* ── Platform specific ── */

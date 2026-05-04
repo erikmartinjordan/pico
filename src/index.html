@@ -65,10 +65,7 @@
         <div class="crop-handle crop-handle-sw" data-handle="sw"></div>
         <div class="crop-handle crop-handle-se" data-handle="se"></div>
       </div>
-      <div class="crop-actions" id="crop-actions">
-        <button class="crop-btn crop-btn-confirm" id="crop-confirm" title="Apply crop (Enter)">&#10003;</button>
-        <button class="crop-btn crop-btn-cancel" id="crop-cancel" title="Cancel crop (Esc)">&#10005;</button>
-      </div>
+      <div class="crop-hint" id="crop-hint"><kbd>Enter</kbd> to crop &middot; <kbd>Esc</kbd> to cancel</div>
     </div>
 
     <div class="empty-state" id="empty-state">
@@ -96,7 +93,6 @@
     <div class="statusbar-spacer"></div>
     <span class="zoom-level" id="status-zoom">100%</span>
   </div>
-
 
   <div class="context-menu" id="context-menu">
     <button class="context-menu-item" id="ctx-window-container">
