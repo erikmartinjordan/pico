@@ -1,6 +1,16 @@
 # pico
 
-![Total downloads](https://img.shields.io/github/downloads/erikmartinjordan/pico/total?label=Total%20downloads&style=flat-square)
+<p align="center">
+  <img src="src/assets/icons/macos/256x256.png" alt="pico icon" width="128" height="128" />
+</p>
+
+<p align="center">
+  <strong>Capture, annotate, share.</strong>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/github/downloads/erikmartinjordan/pico/total?label=Total%20downloads&style=flat-square" alt="Total downloads" />
+</p>
 
 Lightweight screen-capture & annotation app for **macOS** and **Windows**. Modern, fast, and portable.
 
@@ -10,6 +20,7 @@ Lightweight screen-capture & annotation app for **macOS** and **Windows**. Moder
 - **Cross-platform** — Native apps for macOS (Intel & Apple Silicon) and Windows
 - **Multi-monitor capture** — Seamlessly capture across all connected displays
 - **Region selection** — Drag to crop the exact area you need
+- **Window container** — Wrap screenshots in a macOS-style window chrome
 - **Annotation tools**
   - Rectangle & Ellipse
   - Arrow & Line
@@ -40,6 +51,7 @@ Lightweight screen-capture & annotation app for **macOS** and **Windows**. Moder
 | `T` | Text tool |
 | `H` | Highlight tool |
 | `B` | Blur tool |
+| `W` | Window container |
 | `+` / `-` | Zoom in/out |
 | `0` | Fit to window |
 
@@ -117,23 +129,24 @@ pico/
 │   ├── renderer.js       # UI logic & canvas drawing
 │   ├── capture-overlay.html  # Screen capture overlay
 │   └── assets/
-│       └── icons/        # App icons
+│       └── icons/        # App icons (macOS, Windows, Linux)
 └── dist/                 # Built applications
 ```
 
 ## Design
 
-Dark theme with a clean, modern aesthetic:
+Dark theme with an orange accent:
 
 | Token | Value | Usage |
 | --- | --- | --- |
-| Background | `#0a0a0b` | App background |
-| Surface | `#111113` | Toolbar, panels |
-| Accent | `#3b82f6` | Active states, buttons |
-| Text | `#fafafa` | Primary text |
-| Muted | `#71717a` | Secondary text |
+| Background | `#09090b` | App background |
+| Surface | `#1e1f24` | Toolbar, panels |
+| Accent | `#f07d20` | Active states, buttons |
+| Accent soft | `#ffaa55` | Hover, highlights |
+| Text | `#f5f0eb` | Primary text |
+| Muted | `#6b6560` | Secondary text |
 
-Typography: System fonts (-apple-system, Segoe UI) at 12–14px.
+Typography: DM Mono / system monospace at 10–13px.
 
 ## Tech Stack
 

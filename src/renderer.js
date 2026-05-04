@@ -13,7 +13,7 @@ const state = {
   imageHeight: 0,
   zoom: 1,
   currentTool: 'select',
-  currentColor: '#ef4444',
+  currentColor: '#f97316',
   strokeWidth: 4,
   textFontSize: 24,
   textFontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
@@ -103,6 +103,7 @@ function bindToolbar() {
   on(elements.btnCopy, 'click', copyToClipboard);
   on(elements.btnUndo, 'click', undo);
   on(elements.btnRedo, 'click', redo);
+  on($('#btn-window-container'), 'click', applyWindowContainer);
   
   elements.emptyCapture.addEventListener('click', startCapture);
   elements.emptyOpen.addEventListener('click', openFile);
@@ -159,6 +160,7 @@ function bindKeyboard() {
       case '=': case '+': setZoom(state.zoom * 1.25); break;
       case '-': setZoom(state.zoom / 1.25); break;
       case '0': fitToWindow(); break;
+      case 'w': applyWindowContainer(); break;
     }
   });
 }
@@ -1020,6 +1022,129 @@ function showToast(message, type = 'info') {
   toast.textContent = message;
   elements.toastContainer.appendChild(toast);
   setTimeout(() => toast.remove(), 3000);
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Window Container (macOS-style chrome)
+// ══════════════════════════════════════════════════════════════════════════════
+
+function applyWindowContainer() {
+  if (!state.image) return;
+  
+  // Configuration
+  const titleBarHeight = 48;
+  const cornerRadius = 12;
+  const padding = 40;         // space around the window for shadow
+  const shadowBlur = 30;
+  const shadowColor = 'rgba(0, 0, 0, 0.5)';
+  const titleBarColor = '#2a2a2e';
+  const windowBgColor = '#1c1c1e';
+  const bgColor = '#09090b';
+  
+  // Traffic light colors
+  const lights = [
+    { color: '#ff5f57', x: 20 },
+    { color: '#febc2e', x: 40 },
+    { color: '#28c840', x: 60 },
+  ];
+  const lightRadius = 6;
+  
+  // Get the current composite (image + annotations)
+  const compositeDataUrl = getCompositeImage();
+  const compositeImg = new Image();
+  compositeImg.onload = () => {
+    const imgW = compositeImg.width;
+    const imgH = compositeImg.height;
+    
+    // Final canvas size: image + title bar + padding for shadow
+    const windowW = imgW;
+    const windowH = imgH + titleBarHeight;
+    const canvasW = windowW + padding * 2;
+    const canvasH = windowH + padding * 2;
+    
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = canvasW;
+    tempCanvas.height = canvasH;
+    const ctx = tempCanvas.getContext('2d');
+    
+    // Fill background
+    ctx.fillStyle = bgColor;
+    ctx.fillRect(0, 0, canvasW, canvasH);
+    
+    // Draw window shadow
+    ctx.save();
+    ctx.shadowColor = shadowColor;
+    ctx.shadowBlur = shadowBlur;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 8;
+    ctx.beginPath();
+    roundRect(ctx, padding, padding, windowW, windowH, cornerRadius);
+    ctx.fillStyle = windowBgColor;
+    ctx.fill();
+    ctx.restore();
+    
+    // Draw window frame (clipped to rounded rect)
+    ctx.save();
+    ctx.beginPath();
+    roundRect(ctx, padding, padding, windowW, windowH, cornerRadius);
+    ctx.clip();
+    
+    // Title bar
+    ctx.fillStyle = titleBarColor;
+    ctx.fillRect(padding, padding, windowW, titleBarHeight);
+    
+    // Title bar bottom border
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padding, padding + titleBarHeight);
+    ctx.lineTo(padding + windowW, padding + titleBarHeight);
+    ctx.stroke();
+    
+    // Traffic lights
+    const lightY = padding + titleBarHeight / 2;
+    lights.forEach(light => {
+      ctx.beginPath();
+      ctx.arc(padding + light.x, lightY, lightRadius, 0, Math.PI * 2);
+      ctx.fillStyle = light.color;
+      ctx.fill();
+    });
+    
+    // Optional: title text
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('pico', padding + windowW / 2, lightY + 4);
+    
+    // Draw the screenshot image below title bar
+    ctx.drawImage(compositeImg, padding, padding + titleBarHeight, imgW, imgH);
+    
+    ctx.restore();
+    
+    // Load the result as the new image
+    const resultDataUrl = tempCanvas.toDataURL('image/png');
+    state.annotations = [];
+    state.history = [];
+    state.historyIndex = -1;
+    state.selectedAnnotationIndex = -1;
+    loadImage(resultDataUrl);
+    showToast('Window container applied', 'success');
+  };
+  compositeImg.src = compositeDataUrl;
+}
+
+function roundRect(ctx, x, y, width, height, radius) {
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.arcTo(x + width, y, x + width, y + radius, radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.arcTo(x + width, y + height, x + width - radius, y + height, radius);
+  ctx.lineTo(x + radius, y + height);
+  ctx.arcTo(x, y + height, x, y + height - radius, radius);
+  ctx.lineTo(x, y + radius);
+  ctx.arcTo(x, y, x + radius, y, radius);
+  ctx.closePath();
 }
 
 document.addEventListener('DOMContentLoaded', init);
