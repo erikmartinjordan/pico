@@ -21,10 +21,16 @@ contextBridge.exposeInMainWorld('pico', {
   captureWindowHover: (bounds) => ipcRenderer.send('capture-window-hover', bounds),
   onCaptureWindowHover: (callback) => ipcRenderer.on('capture-window-hover', (_, bounds) => callback(bounds)),
   
+  // Window picker
+  onWindowSources: (callback) => ipcRenderer.on('window-sources', (_, sources) => callback(sources)),
+  selectWindowSource: (sourceId) => ipcRenderer.send('window-picker-select', sourceId),
+  cancelWindowSource: () => ipcRenderer.send('window-picker-cancel'),
+
   // File operations
   openFile: () => ipcRenderer.invoke('open-file'),
   saveFile: (dataUrl) => ipcRenderer.invoke('save-file', dataUrl),
   copyToClipboard: (dataUrl) => ipcRenderer.invoke('copy-to-clipboard', dataUrl),
+  readClipboardImage: () => ipcRenderer.invoke('read-clipboard-image'),
   
   // Display info
   getDisplays: () => ipcRenderer.invoke('get-displays'),

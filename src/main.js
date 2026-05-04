@@ -248,8 +248,71 @@ ipcMain.handle('start-capture-window', async () => {
   await new Promise(r => setTimeout(r, 200));
 
   try {
-    const captureData = await captureAllScreens();
-    createCaptureOverlays(captureData, 'window');
+    // Get window sources (individual windows, not full screens)
+    const sources = await desktopCapturer.getSources({
+      types: ['window'],
+      thumbnailSize: { width: 800, height: 600 },
+      fetchWindowIcons: true,
+    });
+
+    if (sources.length === 0) {
+      if (mainWindow) mainWindow.show();
+      return { success: false, error: 'No windows found' };
+    }
+
+    // Filter out the pico window itself
+    const filteredSources = sources.filter(s => s.name !== 'pico' && s.name !== 'Select Window');
+
+    if (filteredSources.length === 0) {
+      if (mainWindow) mainWindow.show();
+      return { success: false, error: 'No other windows found' };
+    }
+
+    // Store sources for later retrieval
+    pendingWindowSources = filteredSources;
+
+    // Create window picker dialog
+    windowPicker = new BrowserWindow({
+      width: 800,
+      height: 550,
+      resizable: true,
+      frame: false,
+      transparent: false,
+      backgroundColor: '#111111',
+      parent: mainWindow,
+      modal: false,
+      show: false,
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    });
+
+    windowPicker.setAlwaysOnTop(true, 'screen-saver');
+    windowPicker.loadFile(path.join(__dirname, 'window-picker.html'));
+
+    windowPicker.webContents.once('did-finish-load', () => {
+      // Send window sources as serializable data (thumbnails as data URLs)
+      const serializedSources = filteredSources.map(source => ({
+        id: source.id,
+        name: source.name,
+        thumbnail: source.thumbnail.toDataURL(),
+      }));
+      windowPicker.webContents.send('window-sources', serializedSources);
+      windowPicker.show();
+    });
+
+    windowPicker.on('closed', () => {
+      windowPicker = null;
+      // If user closed the picker without selecting, show main window
+      if (pendingWindowSources.length > 0) {
+        pendingWindowSources = [];
+        if (mainWindow) mainWindow.show();
+      }
+    });
+
     return { success: true };
   } catch (err) {
     if (mainWindow) mainWindow.show();
@@ -381,6 +444,18 @@ ipcMain.handle('copy-to-clipboard', async (event, dataUrl) => {
     return { success: true };
   } catch (err) {
     return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('read-clipboard-image', async () => {
+  try {
+    const image = clipboard.readImage();
+    if (image.isEmpty()) {
+      return null;
+    }
+    return image.toDataURL();
+  } catch (err) {
+    return null;
   }
 });
 

@@ -40,6 +40,12 @@ const state = {
   windowContainerApplied: false,
   containerGradient: 'none',
   originalImageBeforeContainer: null,
+  // Crop state
+  isCropping: false,
+  cropStartX: 0,
+  cropStartY: 0,
+  cropEndX: 0,
+  cropEndY: 0,
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -57,6 +63,7 @@ const elements = {
   btnCopy: $('#btn-copy'),
   btnUndo: $('#btn-undo'),
   btnRedo: $('#btn-redo'),
+  btnClear: $('#btn-clear'),
   emptyCapture: $('#empty-capture'),
   emptyOpen: $('#empty-open'),
   toolBtns: $$('.tool-btn'),
@@ -88,6 +95,7 @@ function init() {
   bindIPC();
   bindInlineText();
   bindContextMenu();
+  bindPaste();
   if (elements.textFontFamily) elements.textFontFamily.value = state.textFontFamily;
   if (elements.textFontSize) elements.textFontSize.value = String(state.textFontSize);
   toggleTextStyleControls();
@@ -107,6 +115,7 @@ function bindToolbar() {
   on(elements.btnCopy, 'click', copyToClipboard);
   on(elements.btnUndo, 'click', undo);
   on(elements.btnRedo, 'click', redo);
+  on(elements.btnClear, 'click', clearCanvas);
 
   
   elements.emptyCapture.addEventListener('click', startCapture);
@@ -143,6 +152,7 @@ function bindKeyboard() {
     if (cmdOrCtrl && e.key.toLowerCase() === 'o') { e.preventDefault(); openFile(); return; }
     if (cmdOrCtrl && e.key.toLowerCase() === 'e') { e.preventDefault(); saveFile(); return; }
     if (cmdOrCtrl && e.key.toLowerCase() === 'c' && state.image) { e.preventDefault(); copyToClipboard(); return; }
+    if (cmdOrCtrl && e.key.toLowerCase() === 'v') { e.preventDefault(); pasteFromClipboard(); return; }
     if (cmdOrCtrl && e.shiftKey && e.key.toLowerCase() === 'z') { e.preventDefault(); redo(); return; }
     if (cmdOrCtrl && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); return; }
     if (e.key === 'Delete' || e.key === 'Backspace' || e.key === 'Del' || e.key === 'Suppr') {
@@ -161,6 +171,7 @@ function bindKeyboard() {
       case 'a': selectTool('arrow'); break;
       case 'l': selectTool('line'); break;
       case 't': selectTool('text'); break;
+      case 'c': if (!cmdOrCtrl) selectTool('crop'); break;
       case '=': case '+': setZoom(state.zoom * 1.25); break;
       case '-': setZoom(state.zoom / 1.25); break;
       case '0': fitToWindow(); break;
@@ -195,6 +206,31 @@ function bindInlineText() {
     commitInlineText();
   });
 
+}
+
+function bindPaste() {
+  document.addEventListener('paste', async (e) => {
+    if (state.isEditingText) return;
+    
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const blob = item.getAsFile();
+        if (blob) {
+          const reader = new FileReader();
+          reader.onload = () => {
+            loadImage(reader.result);
+            showToast('Image pasted from clipboard', 'success');
+          };
+          reader.readAsDataURL(blob);
+        }
+        return;
+      }
+    }
+  });
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -241,6 +277,40 @@ async function copyToClipboard() {
   else showToast('Failed to copy to clipboard', 'error');
 }
 
+async function pasteFromClipboard() {
+  try {
+    const dataUrl = await window.pico.readClipboardImage();
+    if (dataUrl) {
+      loadImage(dataUrl);
+      showToast('Image pasted from clipboard', 'success');
+    } else {
+      showToast('No image in clipboard', 'info');
+    }
+  } catch (err) {
+    showToast('Failed to paste from clipboard', 'error');
+  }
+}
+
+function clearCanvas() {
+  if (!state.image) return;
+  state.image = null;
+  state.imageWidth = 0;
+  state.imageHeight = 0;
+  state.annotations = [];
+  state.history = [];
+  state.historyIndex = -1;
+  state.selectedAnnotationIndex = -1;
+  state.windowContainerApplied = false;
+  state.originalImageBeforeContainer = null;
+  state.isCropping = false;
+  elements.canvas.classList.remove('visible');
+  elements.emptyState.classList.remove('hidden');
+  elements.ctx.clearRect(0, 0, elements.canvas.width, elements.canvas.height);
+  updateStatus();
+  updateToolbarState();
+  showToast('Canvas cleared', 'success');
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // Image Loading
 // ══════════════════════════════════════════════════════════════════════════════
@@ -274,6 +344,7 @@ function loadImage(dataUrl, options = {}) {
     state.history = [];
     state.historyIndex = -1;
     state.zoom = 1;
+    state.isCropping = false;
     elements.canvas.width = img.width;
     elements.canvas.height = img.height;
     elements.canvas.classList.add('visible');
@@ -330,6 +401,7 @@ function onWheel(e) {
 function selectTool(tool) {
   if (state.isEditingText) commitInlineText();
   state.currentTool = tool;
+  state.isCropping = false;
   elements.toolBtns.forEach(btn => btn.classList.toggle('active', btn.dataset.tool === tool));
   elements.container.className = 'canvas-container tool-' + tool;
   elements.canvas.style.cursor = tool === 'text' ? 'text' : (tool === 'select' ? 'default' : 'crosshair');
@@ -494,6 +566,16 @@ function onCanvasMouseDown(e) {
   
   const coords = getCanvasCoords(e);
 
+  // Crop tool
+  if (state.currentTool === 'crop') {
+    state.isCropping = true;
+    state.cropStartX = coords.x;
+    state.cropStartY = coords.y;
+    state.cropEndX = coords.x;
+    state.cropEndY = coords.y;
+    return;
+  }
+
   if (state.currentTool === 'select') {
     const handle = findResizeHandleAt(coords);
     if (handle) {
@@ -542,6 +624,16 @@ function onCanvasMouseDown(e) {
 
 function onCanvasMouseMove(e) {
   if (!state.image) return;
+
+  // Crop dragging
+  if (state.isCropping && state.currentTool === 'crop') {
+    const coords = getCanvasCoords(e);
+    state.cropEndX = coords.x;
+    state.cropEndY = coords.y;
+    render();
+    drawCropPreview();
+    return;
+  }
   
   if (state.isDraggingAnnotation) {
     const coords = getCanvasCoords(e);
@@ -586,6 +678,22 @@ function onCanvasMouseMove(e) {
 }
 
 function onCanvasMouseUp(e) {
+  // Crop complete
+  if (state.isCropping && state.currentTool === 'crop') {
+    state.isCropping = false;
+    const x = Math.min(state.cropStartX, state.cropEndX);
+    const y = Math.min(state.cropStartY, state.cropEndY);
+    const width = Math.abs(state.cropEndX - state.cropStartX);
+    const height = Math.abs(state.cropEndY - state.cropStartY);
+    
+    if (width > 5 && height > 5) {
+      applyCrop(x, y, width, height);
+    } else {
+      render();
+    }
+    return;
+  }
+
   if (state.isDraggingAnnotation) {
     state.isDraggingAnnotation = false;
     state.dragAnnotationIndex = -1;
@@ -629,6 +737,75 @@ function onCanvasMouseUp(e) {
   }
   
   addAnnotation(createAnnotation(state.startX, state.startY, coords.x, coords.y));
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Crop
+// ══════════════════════════════════════════════════════════════════════════════
+
+function drawCropPreview() {
+  const ctx = elements.ctx;
+  const x = Math.min(state.cropStartX, state.cropEndX);
+  const y = Math.min(state.cropStartY, state.cropEndY);
+  const width = Math.abs(state.cropEndX - state.cropStartX);
+  const height = Math.abs(state.cropEndY - state.cropStartY);
+  
+  if (width < 2 || height < 2) return;
+  
+  // Darken outside crop area
+  ctx.save();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+  ctx.fillRect(0, 0, state.imageWidth, y);
+  ctx.fillRect(0, y + height, state.imageWidth, state.imageHeight - y - height);
+  ctx.fillRect(0, y, x, height);
+  ctx.fillRect(x + width, y, state.imageWidth - x - width, height);
+  
+  // Draw crop border
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([6, 4]);
+  ctx.strokeRect(x, y, width, height);
+  ctx.setLineDash([]);
+  
+  // Draw dimensions
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+  ctx.font = 'bold 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  const dimText = `${Math.round(width)} × ${Math.round(height)}`;
+  const textMetrics = ctx.measureText(dimText);
+  const textX = x + (width - textMetrics.width) / 2;
+  const textY = y > 30 ? y - 10 : y + height + 20;
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+  ctx.fillRect(textX - 4, textY - 14, textMetrics.width + 8, 20);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(dimText, textX, textY);
+  
+  ctx.restore();
+}
+
+function applyCrop(x, y, width, height) {
+  if (!state.image) return;
+  
+  // Create composite of image + annotations first
+  const compositeDataUrl = getCompositeImage();
+  const compositeImg = new Image();
+  compositeImg.onload = () => {
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = Math.round(width);
+    tempCanvas.height = Math.round(height);
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCtx.drawImage(compositeImg, Math.round(x), Math.round(y), Math.round(width), Math.round(height), 0, 0, Math.round(width), Math.round(height));
+    
+    const croppedDataUrl = tempCanvas.toDataURL('image/png');
+    state.annotations = [];
+    state.history = [];
+    state.historyIndex = -1;
+    state.selectedAnnotationIndex = -1;
+    state.windowContainerApplied = false;
+    state.originalImageBeforeContainer = null;
+    loadImage(croppedDataUrl);
+    showToast('Image cropped', 'success');
+  };
+  compositeImg.src = compositeDataUrl;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -983,7 +1160,7 @@ function getCompositeImage() {
 }
 
 function updateStatus() {
-  const names = { select: 'Select', rect: 'Rectangle', ellipse: 'Ellipse', arrow: 'Arrow', line: 'Line', text: 'Text', highlight: 'Highlight', blur: 'Blur' };
+  const names = { select: 'Select', rect: 'Rectangle', ellipse: 'Ellipse', arrow: 'Arrow', line: 'Line', text: 'Text', highlight: 'Highlight', blur: 'Blur', crop: 'Crop' };
   elements.statusTool.textContent = names[state.currentTool] || state.currentTool;
   elements.statusZoom.textContent = `${Math.round(state.zoom * 100)}%`;
 }
@@ -992,6 +1169,7 @@ function updateToolbarState() {
   elements.btnCopy.disabled = !state.image;
   elements.btnUndo.disabled = state.historyIndex < 0;
   elements.btnRedo.disabled = state.historyIndex >= state.history.length - 1;
+  elements.btnClear.disabled = !state.image;
 }
 
 
