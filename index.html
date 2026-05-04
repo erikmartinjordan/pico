@@ -492,12 +492,14 @@
       .iso-scene {
         max-width: 100%;
         padding: 0 0 40px;
-        overflow: hidden;
+        overflow: visible;
       }
       .iso-wrap {
-        transform: rotateX(52deg) rotateZ(-45deg) scale(0.58);
+        transform: translateX(-50%) rotateX(52deg) rotateZ(-45deg) scale(0.5);
         transform-origin: center top;
-        margin: -20px auto -100px;
+        position: relative;
+        left: 50%;
+        margin: -20px 0 -120px;
       }
       /* At 0.58 iso scale the window is ~336px wide; keep 900px toolbar scale */
       .toolbar-wrap { top: 42px; padding: 0; }
