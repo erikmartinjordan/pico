@@ -273,43 +273,45 @@ function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) 
         : captureData;
 
       // Convert window bounds to display-relative coordinates.
-      // On Windows, native APIs often return physical pixels while Electron uses DIP,
-      // so we normalize by display scale factor for reliable hover hit-testing.
+      // Windows can report either DIP-like or physical-pixel-like bounds depending on DPI context.
+      // Choose the coordinate space that yields the best overlap with this display.
       const displayWindowBounds = windowBounds
         .map((wb) => {
           const scale = process.platform === 'win32' ? (display.scaleFactor || 1) : 1;
-          const normalized = {
-            name: wb.name,
-            x: wb.x / scale,
-            y: wb.y / scale,
-            width: wb.width / scale,
-            height: wb.height / scale,
-          };
-
-          const wx1 = normalized.x;
-          const wy1 = normalized.y;
-          const wx2 = normalized.x + normalized.width;
-          const wy2 = normalized.y + normalized.height;
+          const candidates = process.platform === 'win32'
+            ? [
+                { x: wb.x, y: wb.y, width: wb.width, height: wb.height },
+                { x: wb.x / scale, y: wb.y / scale, width: wb.width / scale, height: wb.height / scale },
+              ]
+            : [{ x: wb.x, y: wb.y, width: wb.width, height: wb.height }];
 
           const dx1 = display.bounds.x;
           const dy1 = display.bounds.y;
           const dx2 = display.bounds.x + display.bounds.width;
           const dy2 = display.bounds.y + display.bounds.height;
 
-          const ix1 = Math.max(wx1, dx1);
-          const iy1 = Math.max(wy1, dy1);
-          const ix2 = Math.min(wx2, dx2);
-          const iy2 = Math.min(wy2, dy2);
-
-          if (ix2 <= ix1 || iy2 <= iy1) return null;
-
-          return {
-            name: normalized.name,
-            x: ix1 - dx1,
-            y: iy1 - dy1,
-            width: ix2 - ix1,
-            height: iy2 - iy1,
+          const intersectArea = (r) => {
+            const rx2 = r.x + r.width;
+            const ry2 = r.y + r.height;
+            const ix1 = Math.max(r.x, dx1);
+            const iy1 = Math.max(r.y, dy1);
+            const ix2 = Math.min(rx2, dx2);
+            const iy2 = Math.min(ry2, dy2);
+            const iw = ix2 - ix1;
+            const ih = iy2 - iy1;
+            if (iw <= 0 || ih <= 0) return { area: 0, rect: null };
+            return {
+              area: iw * ih,
+              rect: { x: ix1 - dx1, y: iy1 - dy1, width: iw, height: ih },
+            };
           };
+
+          const scored = candidates
+            .map((c) => intersectArea(c))
+            .sort((a, b) => b.area - a.area)[0];
+
+          if (!scored || !scored.rect || scored.area <= 0) return null;
+          return { name: wb.name, ...scored.rect };
         })
         .filter(Boolean);
 
