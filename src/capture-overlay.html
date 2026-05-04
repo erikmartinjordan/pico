@@ -14,9 +14,19 @@
       cursor: default;
     }
     
+    body.region-mode {
+      cursor: crosshair;
+    }
+    
     #overlay {
       position: fixed;
       inset: 0;
+      transition: opacity 0.2s ease;
+    }
+
+    #overlay.fade-out {
+      opacity: 0;
+      pointer-events: none;
     }
     
     #canvas {
@@ -64,15 +74,18 @@
 
     #window-highlight {
       position: absolute;
-      border: 3px solid #7dd3fc;
+      border: 3px solid #f07d20;
       background: transparent;
       pointer-events: none;
       display: none;
-      border-radius: 4px;
+      border-radius: 6px;
       box-shadow:
-        0 0 0 1px rgba(255, 255, 255, 0.8),
-        0 0 14px rgba(125, 211, 252, 0.9),
-        0 0 24px rgba(96, 165, 250, 0.55);
+        0 0 0 1px rgba(0, 0, 0, 0.3),
+        0 0 20px rgba(240, 125, 32, 0.7),
+        0 0 40px rgba(240, 125, 32, 0.4),
+        0 0 60px rgba(240, 125, 32, 0.15),
+        inset 0 0 12px rgba(240, 125, 32, 0.15);
+      transition: top 0.08s ease, left 0.08s ease, width 0.08s ease, height 0.08s ease;
     }
 
     #window-highlight.visible {
@@ -82,7 +95,7 @@
     #window-label {
       position: absolute;
       background: rgba(0, 0, 0, 0.85);
-      color: #e0f2fe;
+      color: #f07d20;
       padding: 5px 12px;
       border-radius: 4px;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -94,7 +107,7 @@
       max-width: 300px;
       overflow: hidden;
       text-overflow: ellipsis;
-      border: 1px solid rgba(186, 230, 253, 0.9);
+      border: 1px solid rgba(240, 125, 32, 0.5);
     }
 
     #window-label.visible {
@@ -114,6 +127,7 @@
       font-size: 14px;
       pointer-events: none;
       backdrop-filter: blur(10px);
+      transition: opacity 0.3s ease;
     }
     
     #instructions kbd {
@@ -121,6 +135,41 @@
       padding: 2px 6px;
       border-radius: 4px;
       font-family: inherit;
+    }
+
+    /* Isolated capture result view */
+    #capture-result {
+      position: fixed;
+      inset: 0;
+      background: #1a1a1c;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+      z-index: 100;
+    }
+
+    #capture-result.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    #capture-result img {
+      max-width: 85vw;
+      max-height: 85vh;
+      border-radius: 8px;
+      box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6),
+                  0 0 0 1px rgba(255, 255, 255, 0.06);
+      transform: scale(0.92);
+      opacity: 0.5;
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+    }
+
+    #capture-result.visible img {
+      transform: scale(1);
+      opacity: 1;
     }
   </style>
 </head>
@@ -135,6 +184,7 @@
       Drag to select region &middot; Press <kbd>Esc</kbd> to cancel
     </div>
   </div>
+  <div id="capture-result"></div>
 
   <script>
     const canvas = document.getElementById('canvas');
@@ -143,6 +193,8 @@
     const dimensions = document.getElementById('dimensions');
     const windowHighlight = document.getElementById('window-highlight');
     const windowLabel = document.getElementById('window-label');
+    const overlay = document.getElementById('overlay');
+    const captureResult = document.getElementById('capture-result');
     
     let captureData = null;
     let captureMode = 'region';
@@ -165,10 +217,8 @@
       
       if (captureMode === 'window') {
         document.getElementById('instructions').innerHTML = 'Click on a window to capture &middot; Press <kbd>Esc</kbd> to cancel';
-        // Pointer cursor in window mode (hover-to-select)
-        document.body.style.cursor = 'pointer';
       } else {
-        document.body.style.cursor = 'crosshair';
+        document.body.classList.add('region-mode');
       }
       
       canvas.width = window.innerWidth;
@@ -244,7 +294,7 @@
         // Draw the original (undimmed) image clipped to the window area
         ctx.save();
         ctx.beginPath();
-        ctx.roundRect(win.x, win.y, win.width, win.height, 4);
+        ctx.roundRect(win.x, win.y, win.width, win.height, 6);
         ctx.clip();
         ctx.drawImage(originalImageCanvas, 0, 0);
         ctx.restore();
@@ -261,15 +311,36 @@
       }
       return null;
     }
+
+    // Show the captured window isolated on a neutral background
+    function showIsolatedCapture(dataUrl) {
+      // Fade out the overlay
+      overlay.classList.add('fade-out');
+      
+      // Show isolated result
+      const img = document.createElement('img');
+      img.src = dataUrl;
+      captureResult.innerHTML = '';
+      captureResult.appendChild(img);
+
+      // Trigger reflow then animate in
+      requestAnimationFrame(() => {
+        captureResult.classList.add('visible');
+      });
+
+      // Send to main process after the animation completes
+      setTimeout(() => {
+        window.pico.captureComplete(dataUrl);
+      }, 600);
+    }
     
     // Mouse events
     document.addEventListener('mousedown', (e) => {
       if (captureMode === 'window') {
         if (hoveredWindow) {
-          // Capture the hovered window region
-          captureRegion(hoveredWindow.x, hoveredWindow.y, hoveredWindow.width, hoveredWindow.height);
+          // Capture the hovered window region and show isolated
+          captureWindowIsolated(hoveredWindow);
         }
-        // If no window under cursor, do nothing (user must click a window)
         return;
       }
       isSelecting = true;
@@ -357,6 +428,91 @@
       
       if (y < 30) {
         dimensions.style.top = (y + height + 5) + 'px';
+      }
+    }
+
+    // Capture a window and show it isolated on neutral background
+    function captureWindowIsolated(win) {
+      const viewW = window.innerWidth;
+      const viewH = window.innerHeight;
+      const tempCanvas = document.createElement('canvas');
+      const tempCtx = tempCanvas.getContext('2d');
+
+      if (captureData.type === 'multi') {
+        Promise.all(captureData.screens.map(s => loadImage(s.dataUrl))).then(images => {
+          const { virtualBounds } = captureData;
+          const selX = (win.x / viewW) * virtualBounds.width;
+          const selY = (win.y / viewH) * virtualBounds.height;
+          const selW = (win.width / viewW) * virtualBounds.width;
+          const selH = (win.height / viewH) * virtualBounds.height;
+          const selX2 = selX + selW;
+          const selY2 = selY + selH;
+
+          let outputWidth = 0;
+          let outputHeight = 0;
+
+          captureData.screens.forEach((screen) => {
+            const screenX = screen.bounds.x - virtualBounds.x;
+            const screenY = screen.bounds.y - virtualBounds.y;
+            const screenX2 = screenX + screen.bounds.width;
+            const screenY2 = screenY + screen.bounds.height;
+            const overlapX1 = Math.max(selX, screenX);
+            const overlapY1 = Math.max(selY, screenY);
+            const overlapX2 = Math.min(selX2, screenX2);
+            const overlapY2 = Math.min(selY2, screenY2);
+            if (overlapX2 <= overlapX1 || overlapY2 <= overlapY1) return;
+            const scale = screen.scaleFactor || 1;
+            outputWidth = Math.max(outputWidth, Math.round((overlapX2 - selX) * scale));
+            outputHeight = Math.max(outputHeight, Math.round((overlapY2 - selY) * scale));
+          });
+
+          if (outputWidth <= 0 || outputHeight <= 0) {
+            window.pico.captureCancel();
+            return;
+          }
+
+          tempCanvas.width = outputWidth;
+          tempCanvas.height = outputHeight;
+
+          images.forEach((img, i) => {
+            const screen = captureData.screens[i];
+            const scale = screen.scaleFactor || 1;
+            const screenX = screen.bounds.x - virtualBounds.x;
+            const screenY = screen.bounds.y - virtualBounds.y;
+            const screenX2 = screenX + screen.bounds.width;
+            const screenY2 = screenY + screen.bounds.height;
+            const overlapX1 = Math.max(selX, screenX);
+            const overlapY1 = Math.max(selY, screenY);
+            const overlapX2 = Math.min(selX2, screenX2);
+            const overlapY2 = Math.min(selY2, screenY2);
+            if (overlapX2 <= overlapX1 || overlapY2 <= overlapY1) return;
+            const srcX = Math.round((overlapX1 - screenX) * scale);
+            const srcY = Math.round((overlapY1 - screenY) * scale);
+            const srcW = Math.round((overlapX2 - overlapX1) * scale);
+            const srcH = Math.round((overlapY2 - overlapY1) * scale);
+            const destX = Math.round((overlapX1 - selX) * scale);
+            const destY = Math.round((overlapY1 - selY) * scale);
+            tempCtx.drawImage(img, srcX, srcY, srcW, srcH, destX, destY, srcW, srcH);
+          });
+
+          showIsolatedCapture(tempCanvas.toDataURL('image/png'));
+        });
+      } else {
+        const img = new Image();
+        img.onload = () => {
+          const scaleX = img.width / viewW;
+          const scaleY = img.height / viewH;
+          const cropX = win.x * scaleX;
+          const cropY = win.y * scaleY;
+          const cropWidth = win.width * scaleX;
+          const cropHeight = win.height * scaleY;
+
+          tempCanvas.width = Math.round(cropWidth);
+          tempCanvas.height = Math.round(cropHeight);
+          tempCtx.drawImage(img, cropX, cropY, cropWidth, cropHeight, 0, 0, tempCanvas.width, tempCanvas.height);
+          showIsolatedCapture(tempCanvas.toDataURL('image/png'));
+        };
+        img.src = captureData.dataUrl;
       }
     }
     
