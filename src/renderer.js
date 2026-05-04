@@ -140,8 +140,10 @@ function bindKeyboard() {
     if (cmdOrCtrl && e.key.toLowerCase() === 'c' && state.image) { e.preventDefault(); copyToClipboard(); return; }
     if (cmdOrCtrl && e.shiftKey && e.key.toLowerCase() === 'z') { e.preventDefault(); redo(); return; }
     if (cmdOrCtrl && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); return; }
-    if ((e.key === 'Delete' || e.key === 'Backspace' || e.key === 'Del' || e.key === 'Suppr') && state.currentTool === 'select') {
-      if (state.selectedAnnotationIndex >= 0) {
+    if (e.key === 'Delete' || e.key === 'Backspace' || e.key === 'Del' || e.key === 'Suppr') {
+      const selected = state.annotations[state.selectedAnnotationIndex];
+      const canDelete = state.selectedAnnotationIndex >= 0 && (state.currentTool === 'select' || selected?.type === 'text');
+      if (canDelete) {
         e.preventDefault();
         deleteSelectedAnnotation();
       }
@@ -395,9 +397,15 @@ function getTextBounds(annotation) {
 }
 
 function toggleTextStyleControls() {
-  const visible = state.currentTool === 'text';
+  const selected = state.annotations[state.selectedAnnotationIndex];
+  const visible = state.currentTool === 'text' || (state.currentTool === 'select' && selected?.type === 'text');
   elements.textStyleGroup?.classList.toggle('text-style-hidden', !visible);
   elements.textStyleSeparator?.classList.toggle('text-style-hidden', !visible);
+
+  if (visible && selected?.type === 'text') {
+    if (elements.textFontFamily) elements.textFontFamily.value = selected.fontFamily || state.textFontFamily;
+    if (elements.textFontSize) elements.textFontSize.value = String(selected.fontSize || state.textFontSize);
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -493,11 +501,13 @@ function onCanvasMouseDown(e) {
   if (state.currentTool === 'text') {
     const textIdx = findTextAnnotationAt(coords);
     if (textIdx >= 0) {
+      state.selectedAnnotationIndex = textIdx;
       state.isDraggingText = true;
       state.dragTextIndex = textIdx;
       state.dragOffsetX = coords.x - state.annotations[textIdx].x;
       state.dragOffsetY = coords.y - state.annotations[textIdx].y;
       elements.canvas.style.cursor = 'grabbing';
+      render();
       return;
     }
     openInlineText(coords);
