@@ -391,10 +391,31 @@
       });
     }
 
+    function cropFromOverlayRect(rect) {
+      if (!screenshotCanvas) return null;
+      const out = document.createElement('canvas');
+      out.width = Math.max(1, Math.round(rect.width));
+      out.height = Math.max(1, Math.round(rect.height));
+      const octx = out.getContext('2d');
+      octx.drawImage(
+        screenshotCanvas,
+        Math.round(rect.x),
+        Math.round(rect.y),
+        Math.round(rect.width),
+        Math.round(rect.height),
+        0,
+        0,
+        out.width,
+        out.height,
+      );
+      return out.toDataURL('image/png');
+    }
+
     document.addEventListener('mousedown', (e) => {
       if (captureMode === 'window') {
         if (hoveredWindow) {
-          cropFromScreenRect(hoveredWindow).then((dataUrl) => window.pico.captureComplete(dataUrl));
+          const dataUrl = cropFromOverlayRect(hoveredWindow);
+          if (dataUrl) window.pico.captureComplete(dataUrl);
         }
         return;
       }
