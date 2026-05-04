@@ -515,14 +515,12 @@
       } else {
         const img = new Image();
         img.onload = () => {
-          // win.x/y/width/height are in logical CSS pixels (display-relative).
-          // The captured image is in physical pixels (logical * scaleFactor).
-          // Use the scaleFactor from captureData to map correctly.
-          const sf = captureData.scaleFactor || 1;
-          const cropX = Math.round(win.x * sf);
-          const cropY = Math.round(win.y * sf);
-          const cropWidth = Math.round(win.width * sf);
-          const cropHeight = Math.round(win.height * sf);
+          const scaleX = img.width / viewW;
+          const scaleY = img.height / viewH;
+          const cropX = Math.round(win.x * scaleX);
+          const cropY = Math.round(win.y * scaleY);
+          const cropWidth = Math.round(win.width * scaleX);
+          const cropHeight = Math.round(win.height * scaleY);
 
           // Clamp to image bounds to avoid black borders
           const clampedX = Math.max(0, Math.min(cropX, img.width - 1));
