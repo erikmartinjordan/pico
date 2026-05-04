@@ -161,12 +161,9 @@
       windowBounds = data.windowBounds || [];
       
       if (captureMode === 'window') {
-        if (windowBounds.length > 0) {
-          document.getElementById('instructions').innerHTML = 'Hover over a window and click to capture &middot; Press <kbd>Esc</kbd> to cancel';
-        } else {
-          document.getElementById('instructions').innerHTML = 'Click to capture full screen &middot; Press <kbd>Esc</kbd> to cancel';
-        }
-        document.body.style.cursor = 'default';
+        document.getElementById('instructions').innerHTML = 'Click on a window to capture &middot; Press <kbd>Esc</kbd> to cancel';
+        // Crosshair cursor always in window mode
+        document.body.style.cursor = 'crosshair';
       }
       
       canvas.width = window.innerWidth;
@@ -233,7 +230,7 @@
     function redrawWithWindowHighlight(win) {
       if (!originalImageCanvas) return;
       
-      // Draw the dimmed version (original + overlay)
+      // Draw the dimmed version (original + dark overlay)
       ctx.drawImage(originalImageCanvas, 0, 0);
       ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -266,10 +263,8 @@
         if (hoveredWindow) {
           // Capture the hovered window region
           captureRegion(hoveredWindow.x, hoveredWindow.y, hoveredWindow.width, hoveredWindow.height);
-        } else {
-          // No window detected at this position - capture full screen
-          captureRegion(0, 0, window.innerWidth, window.innerHeight);
         }
+        // If no window under cursor, do nothing (user must click a window)
         return;
       }
       isSelecting = true;
@@ -303,12 +298,9 @@
             windowLabel.style.left = (win.x + 5) + 'px';
             windowLabel.style.top = (win.y > 30 ? win.y - 30 : win.y + win.height + 5) + 'px';
             windowLabel.classList.add('visible');
-            
-            document.body.style.cursor = 'pointer';
           } else {
             windowHighlight.classList.remove('visible');
             windowLabel.classList.remove('visible');
-            document.body.style.cursor = 'default';
           }
         }
         return;

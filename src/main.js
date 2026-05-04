@@ -46,70 +46,84 @@ function getVisibleWindowBounds() {
 }
 
 function getWindowBoundsWindows() {
-  // Use a here-string for the C# code to avoid quote-escaping issues
+  // C# enumerates visible windows; PowerShell serializes with ConvertTo-Json
+  // to avoid manual JSON construction issues with special characters in titles
   const psScript = `
-$ErrorActionPreference='SilentlyContinue'
-[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new()
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
 Add-Type -Language CSharp -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Collections.Generic;
 
 public class PicoWinEnum {
     [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc cb, IntPtr lp);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
     [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
     [DllImport("user32.dll")] public static extern int GetWindowTextLength(IntPtr h);
-    [DllImport("user32.dll", CharSet=CharSet.Auto)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
-    [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr h, int attr, ref RECT rect, int size);
-    [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, ref RECT r);
+    [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
+    [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr h, int attr, out RECT rect, int size);
+    [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
+    [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr h, int index);
+    [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr h, uint cmd);
     public delegate bool EnumWindowsProc(IntPtr h, IntPtr l);
     [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
 
-    public static string Enumerate() {
-        var sb = new StringBuilder();
-        sb.Append("[");
-        bool first = true;
+    public struct WinInfo {
+        public string name;
+        public int x, y, width, height;
+    }
+
+    public static WinInfo[] Enumerate() {
+        var results = new List<WinInfo>();
         EnumWindows((h, l) => {
             if (!IsWindowVisible(h) || IsIconic(h)) return true;
             if (GetWindowTextLength(h) == 0) return true;
-            var title = new StringBuilder(256);
-            GetWindowText(h, title, 256);
+            // Skip tool windows (WS_EX_TOOLWINDOW = 0x80)
+            int exStyle = GetWindowLong(h, -20);
+            if ((exStyle & 0x80) != 0) return true;
+            var title = new StringBuilder(512);
+            GetWindowText(h, title, 512);
             var name = title.ToString();
             if (string.IsNullOrWhiteSpace(name)) return true;
-            var r = new RECT();
-            var dr = new RECT();
+            RECT r;
             int sz = Marshal.SizeOf(typeof(RECT));
-            if (DwmGetWindowAttribute(h, 9, ref dr, sz) == 0) r = dr;
-            else GetWindowRect(h, ref r);
+            if (DwmGetWindowAttribute(h, 9, out r, sz) != 0)
+                GetWindowRect(h, out r);
             int w = r.Right - r.Left, ht = r.Bottom - r.Top;
-            if (w < 80 || ht < 40) return true;
-            if (!first) sb.Append(",");
-            first = false;
-            name = name.Replace("\\", "\\\\").Replace("\"", "'");
-            string q = ((char)34).ToString();
-            sb.Append("{" + q + "name" + q + ":" + q + name + q + "," + q + "x" + q + ":" + r.Left + "," + q + "y" + q + ":" + r.Top + "," + q + "width" + q + ":" + w + "," + q + "height" + q + ":" + ht + "}");
+            if (w < 50 || ht < 30) return true;
+            results.Add(new WinInfo { name = name, x = r.Left, y = r.Top, width = w, height = ht });
             return true;
         }, IntPtr.Zero);
-        sb.Append("]");
-        return sb.ToString();
+        return results.ToArray();
     }
 }
 '@
-[PicoWinEnum]::Enumerate()
+$wins = [PicoWinEnum]::Enumerate()
+if ($wins.Count -eq 0) {
+    Write-Output '[]'
+} else {
+    # Force array serialization even for single results
+    $json = ConvertTo-Json -InputObject @($wins) -Compress -Depth 2
+    Write-Output $json
+}
 `;
   const tmpFile = path.join(app.getPath('temp'), 'pico-enum-win.ps1');
   fs.writeFileSync(tmpFile, psScript, { encoding: 'utf8' });
   try {
     const output = execSync(
       `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${tmpFile}"`,
-      { encoding: 'utf8', timeout: 8000, windowsHide: true }
+      { encoding: 'utf8', timeout: 15000, windowsHide: true }
     );
     const trimmed = output.trim();
-    if (!trimmed.startsWith('[')) return [];
+    if (!trimmed || !trimmed.startsWith('[')) {
+      console.error('PS window enum: unexpected output:', trimmed.slice(0, 200));
+      return [];
+    }
     return JSON.parse(trimmed);
   } catch (e) {
     console.error('PS window enum error:', e.message);
+    if (e.stderr) console.error('PS stderr:', e.stderr.toString().slice(0, 500));
     return [];
   } finally {
     try { fs.unlinkSync(tmpFile); } catch (e) {}
@@ -131,11 +145,13 @@ try:
         name = w.get('kCGWindowName', '')
         title = (owner + ' - ' + name) if name else owner
         width, height = int(b.get('Width', 0)), int(b.get('Height', 0))
-        if width < 80 or height < 40: continue
+        if width < 50 or height < 30: continue
         r.append({'name': title, 'x': int(b.get('X', 0)), 'y': int(b.get('Y', 0)), 'width': width, 'height': height})
     print(json.dumps(r))
-except:
+except Exception as ex:
+    import sys
     print('[]')
+    print(str(ex), file=sys.stderr)
 `;
   try {
     const output = execSync(`python3 -c ${JSON.stringify(script)}`, {
@@ -273,8 +289,6 @@ function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) 
         : captureData;
 
       // Convert window bounds to display-relative coordinates.
-      // Windows can report either DIP-like or physical-pixel-like bounds depending on DPI context.
-      // Choose the coordinate space that yields the best overlap with this display.
       const displayWindowBounds = windowBounds
         .map((wb) => {
           const scale = process.platform === 'win32' ? (display.scaleFactor || 1) : 1;
@@ -348,6 +362,7 @@ ipcMain.handle('start-capture', async () => {
 ipcMain.handle('start-capture-window', async () => {
   // Enumerate windows BEFORE hiding (so we see what's on screen)
   const windowBounds = getVisibleWindowBounds();
+  console.log(`Window capture: found ${windowBounds.length} windows`);
   
   if (mainWindow) mainWindow.hide();
   await new Promise(r => setTimeout(r, 200));
@@ -359,6 +374,7 @@ ipcMain.handle('start-capture-window', async () => {
       !wb.name.toLowerCase().includes('pico') &&
       wb.name !== 'Select Window'
     );
+    console.log(`Window capture: ${filtered.length} windows after filtering`);
     createCaptureOverlays(captureData, 'window', filtered);
     return { success: true };
   } catch (err) {
