@@ -193,90 +193,79 @@
     const dimensions = document.getElementById('dimensions');
     const windowHighlight = document.getElementById('window-highlight');
     const windowLabel = document.getElementById('window-label');
-    const overlay = document.getElementById('overlay');
-    const captureResult = document.getElementById('capture-result');
-    
+
     let captureData = null;
     let captureMode = 'region';
-    let currentBounds = null;
-    let windowBounds = []; // Array of {name, x, y, width, height} in display-relative coords
-    let hoveredWindow = null;
+    let windowBounds = [];
+    let screenshotCanvas = null;
     let isSelecting = false;
-    let startX = 0, startY = 0;
-    let currentX = 0, currentY = 0;
+    let startX = 0;
+    let startY = 0;
+    let currentX = 0;
+    let currentY = 0;
+    let hoveredWindow = null;
 
-    // Store the original undimmed image for window mode
-    let originalImageCanvas = null;
-    
-    // Listen for capture data from main process
     window.pico.onCaptureData(async (data) => {
       captureData = data;
       captureMode = data.mode || 'region';
-      currentBounds = data.bounds || null;
-      windowBounds = data.windowBounds || [];
-      
-      console.log('[pico overlay] mode:', captureMode, '| windows:', windowBounds.length, '| scaleFactor:', data.scaleFactor);
-      if (windowBounds.length > 0) {
-        console.log('[pico overlay] first window bounds:', JSON.stringify(windowBounds[0]));
-      }
-      
-      if (captureMode === 'window') {
-        if (windowBounds.length === 0) {
-          document.getElementById('instructions').innerHTML = 'Click anywhere to capture full screen &middot; Press <kbd>Esc</kbd> to cancel';
-        } else {
-          document.getElementById('instructions').innerHTML = 'Click on a window to capture &middot; Press <kbd>Esc</kbd> to cancel';
-        }
-      } else {
-        document.body.classList.add('region-mode');
-      }
-      
+      windowBounds = (data.windowBounds || []).slice();
+
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
-      
-      if (data.type === 'multi') {
-        await compositeScreens(data);
+
+      await drawScreenshot(data);
+      repaintOverlay();
+
+      if (captureMode === 'region') {
+        document.body.classList.add('region-mode');
       } else {
-        const img = new Image();
-        img.onload = () => {
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          // Store original undimmed image for window mode
-          if (captureMode === 'window') {
-            originalImageCanvas = document.createElement('canvas');
-            originalImageCanvas.width = canvas.width;
-            originalImageCanvas.height = canvas.height;
-            originalImageCanvas.getContext('2d').drawImage(canvas, 0, 0);
-          }
-          applyDarkOverlay();
-        };
-        img.src = data.dataUrl;
+        document.getElementById('instructions').innerHTML = windowBounds.length
+          ? 'Click on a window to capture · Press <kbd>Esc</kbd> to cancel'
+          : 'No window detected. Click anywhere to cancel · Press <kbd>Esc</kbd> to cancel';
       }
     });
-    
-    async function compositeScreens(data) {
-      const { screens, virtualBounds } = data;
-      const scaleX = canvas.width / virtualBounds.width;
-      const scaleY = canvas.height / virtualBounds.height;
-      
-      for (const screen of screens) {
-        const img = await loadImage(screen.dataUrl);
-        const x = (screen.bounds.x - virtualBounds.x) * scaleX;
-        const y = (screen.bounds.y - virtualBounds.y) * scaleY;
-        const w = screen.bounds.width * scaleX;
-        const h = screen.bounds.height * scaleY;
-        ctx.drawImage(img, x, y, w, h);
+
+    async function drawScreenshot(data) {
+      screenshotCanvas = document.createElement('canvas');
+      screenshotCanvas.width = canvas.width;
+      screenshotCanvas.height = canvas.height;
+      const sctx = screenshotCanvas.getContext('2d');
+
+      if (data.type === 'multi') {
+        const { screens, virtualBounds } = data;
+        const scaleX = canvas.width / virtualBounds.width;
+        const scaleY = canvas.height / virtualBounds.height;
+        for (const screen of screens) {
+          const img = await loadImage(screen.dataUrl);
+          const x = (screen.bounds.x - virtualBounds.x) * scaleX;
+          const y = (screen.bounds.y - virtualBounds.y) * scaleY;
+          const w = screen.bounds.width * scaleX;
+          const h = screen.bounds.height * scaleY;
+          sctx.drawImage(img, x, y, w, h);
+        }
+      } else {
+        const img = await loadImage(data.dataUrl);
+        sctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       }
-      
-      // Store original undimmed image for window mode
-      if (captureMode === 'window') {
-        originalImageCanvas = document.createElement('canvas');
-        originalImageCanvas.width = canvas.width;
-        originalImageCanvas.height = canvas.height;
-        originalImageCanvas.getContext('2d').drawImage(canvas, 0, 0);
-      }
-      
-      applyDarkOverlay();
     }
-    
+
+    function repaintOverlay() {
+      if (!screenshotCanvas) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(screenshotCanvas, 0, 0);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      if (captureMode === 'window' && hoveredWindow) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(hoveredWindow.x, hoveredWindow.y, hoveredWindow.width, hoveredWindow.height);
+        ctx.clip();
+        ctx.drawImage(screenshotCanvas, 0, 0);
+        ctx.restore();
+      }
+    }
+
     function loadImage(src) {
       return new Promise((resolve) => {
         const img = new Image();
@@ -284,365 +273,162 @@
         img.src = src;
       });
     }
-    
-    function applyDarkOverlay() {
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    function getSelectionRect() {
+      const x = Math.min(startX, currentX);
+      const y = Math.min(startY, currentY);
+      const width = Math.abs(currentX - startX);
+      const height = Math.abs(currentY - startY);
+      return { x, y, width, height };
     }
 
-    // Redraw canvas with the hovered window shown at full brightness
-    function redrawWithWindowHighlight(win) {
-      if (!originalImageCanvas) return;
-      
-      // Draw the dimmed version (original + dark overlay)
-      ctx.drawImage(originalImageCanvas, 0, 0);
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      
-      if (win) {
-        // Draw the original (undimmed) image clipped to the window area
-        ctx.save();
-        ctx.beginPath();
-        ctx.roundRect(win.x, win.y, win.width, win.height, 6);
-        ctx.clip();
-        ctx.drawImage(originalImageCanvas, 0, 0);
-        ctx.restore();
-      }
+    function updateSelectionUi() {
+      const { x, y, width, height } = getSelectionRect();
+      selection.style.left = `${x}px`;
+      selection.style.top = `${y}px`;
+      selection.style.width = `${width}px`;
+      selection.style.height = `${height}px`;
+      dimensions.textContent = `${width} × ${height}`;
+      dimensions.style.left = `${x + 6}px`;
+      dimensions.style.top = `${y > 28 ? y - 24 : y + height + 6}px`;
     }
 
-    // Find which window the cursor is over (topmost = first in list)
-    function findWindowAt(clientX, clientY) {
+    function findWindowAt(x, y) {
       for (const wb of windowBounds) {
-        if (clientX >= wb.x && clientX <= wb.x + wb.width &&
-            clientY >= wb.y && clientY <= wb.y + wb.height) {
-          return wb;
-        }
+        if (x >= wb.x && x <= wb.x + wb.width && y >= wb.y && y <= wb.y + wb.height) return wb;
       }
       return null;
     }
 
-    // Show the captured window isolated on a neutral background
-    function showIsolatedCapture(dataUrl) {
-      // Fade out the overlay
-      overlay.classList.add('fade-out');
-      
-      // Show isolated result
-      const img = document.createElement('img');
-      img.src = dataUrl;
-      captureResult.innerHTML = '';
-      captureResult.appendChild(img);
+    function updateWindowHover(win) {
+      hoveredWindow = win;
+      repaintOverlay();
 
-      // Trigger reflow then animate in
-      requestAnimationFrame(() => {
-        captureResult.classList.add('visible');
-      });
+      if (!win) {
+        windowHighlight.classList.remove('visible');
+        windowLabel.classList.remove('visible');
+        return;
+      }
 
-      // Send to main process after the animation completes
-      setTimeout(() => {
-        window.pico.captureComplete(dataUrl);
-      }, 600);
+      windowHighlight.style.left = `${win.x}px`;
+      windowHighlight.style.top = `${win.y}px`;
+      windowHighlight.style.width = `${win.width}px`;
+      windowHighlight.style.height = `${win.height}px`;
+      windowHighlight.classList.add('visible');
+
+      windowLabel.textContent = win.name || 'Window';
+      windowLabel.style.left = `${win.x + 6}px`;
+      windowLabel.style.top = `${win.y > 34 ? win.y - 30 : win.y + win.height + 6}px`;
+      windowLabel.classList.add('visible');
     }
-    
-    // Mouse events
+
+    function cropFromScreenRect(rect) {
+      if (!captureData) return null;
+      const viewW = window.innerWidth;
+      const viewH = window.innerHeight;
+
+      if (captureData.type === 'single') {
+        const img = new Image();
+        img.src = captureData.dataUrl;
+        const scaleX = (captureData.bounds?.width || viewW) / viewW;
+        const scaleY = (captureData.bounds?.height || viewH) / viewH;
+        const out = document.createElement('canvas');
+        out.width = Math.max(1, Math.round(rect.width * scaleX));
+        out.height = Math.max(1, Math.round(rect.height * scaleY));
+        const octx = out.getContext('2d');
+        return new Promise((resolve) => {
+          img.onload = () => {
+            octx.drawImage(
+              img,
+              Math.round(rect.x * scaleX),
+              Math.round(rect.y * scaleY),
+              Math.round(rect.width * scaleX),
+              Math.round(rect.height * scaleY),
+              0, 0,
+              out.width,
+              out.height,
+            );
+            resolve(out.toDataURL('image/png'));
+          };
+        });
+      }
+
+      const out = document.createElement('canvas');
+      const scaleFactor = captureData.maxScale || 1;
+      out.width = Math.max(1, Math.round(rect.width * scaleFactor));
+      out.height = Math.max(1, Math.round(rect.height * scaleFactor));
+      const octx = out.getContext('2d');
+
+      const { virtualBounds } = captureData;
+      const selX = (rect.x / viewW) * virtualBounds.width;
+      const selY = (rect.y / viewH) * virtualBounds.height;
+      const selW = (rect.width / viewW) * virtualBounds.width;
+      const selH = (rect.height / viewH) * virtualBounds.height;
+
+      return Promise.all(captureData.screens.map((s) => loadImage(s.dataUrl))).then((images) => {
+        images.forEach((img, i) => {
+          const s = captureData.screens[i];
+          const screenX = s.bounds.x - virtualBounds.x;
+          const screenY = s.bounds.y - virtualBounds.y;
+          const overlapX1 = Math.max(selX, screenX);
+          const overlapY1 = Math.max(selY, screenY);
+          const overlapX2 = Math.min(selX + selW, screenX + s.bounds.width);
+          const overlapY2 = Math.min(selY + selH, screenY + s.bounds.height);
+          if (overlapX2 <= overlapX1 || overlapY2 <= overlapY1) return;
+
+          const sf = s.scaleFactor || 1;
+          const srcX = Math.round((overlapX1 - screenX) * sf);
+          const srcY = Math.round((overlapY1 - screenY) * sf);
+          const srcW = Math.round((overlapX2 - overlapX1) * sf);
+          const srcH = Math.round((overlapY2 - overlapY1) * sf);
+          const dstX = Math.round((overlapX1 - selX) * scaleFactor);
+          const dstY = Math.round((overlapY1 - selY) * scaleFactor);
+          const dstW = Math.round((overlapX2 - overlapX1) * scaleFactor);
+          const dstH = Math.round((overlapY2 - overlapY1) * scaleFactor);
+          octx.drawImage(img, srcX, srcY, srcW, srcH, dstX, dstY, dstW, dstH);
+        });
+        return out.toDataURL('image/png');
+      });
+    }
+
     document.addEventListener('mousedown', (e) => {
       if (captureMode === 'window') {
         if (hoveredWindow) {
-          // Capture the hovered window region and show isolated
-          captureWindowIsolated(hoveredWindow);
-        } else if (windowBounds.length === 0) {
-          console.warn('[pico overlay] No windows detected — falling back to full screen capture');
-          // Fallback: no windows detected, capture full screen
-          window.pico.captureComplete(captureData.dataUrl);
-        } else {
-          console.warn('[pico overlay] Click missed all windows. windowBounds:', JSON.stringify(windowBounds), 'click:', e.clientX, e.clientY);
+          cropFromScreenRect(hoveredWindow).then((dataUrl) => window.pico.captureComplete(dataUrl));
         }
         return;
       }
       isSelecting = true;
-      startX = e.clientX;
-      startY = e.clientY;
-      currentX = startX;
-      currentY = startY;
-      
+      startX = currentX = e.clientX;
+      startY = currentY = e.clientY;
       selection.classList.add('visible');
       dimensions.classList.add('visible');
-      updateSelection();
+      updateSelectionUi();
     });
-    
+
     document.addEventListener('mousemove', (e) => {
       if (captureMode === 'window') {
         const win = findWindowAt(e.clientX, e.clientY);
-        
-        // Only redraw if hovered window changed
-        if (win !== hoveredWindow) {
-          hoveredWindow = win;
-          redrawWithWindowHighlight(win);
-          
-          if (win) {
-            windowHighlight.style.left = win.x + 'px';
-            windowHighlight.style.top = win.y + 'px';
-            windowHighlight.style.width = win.width + 'px';
-            windowHighlight.style.height = win.height + 'px';
-            windowHighlight.classList.add('visible');
-            
-            windowLabel.textContent = win.name;
-            windowLabel.style.left = (win.x + 5) + 'px';
-            windowLabel.style.top = (win.y > 30 ? win.y - 30 : win.y + win.height + 5) + 'px';
-            windowLabel.classList.add('visible');
-          } else {
-            windowHighlight.classList.remove('visible');
-            windowLabel.classList.remove('visible');
-          }
-        }
+        if (win !== hoveredWindow) updateWindowHover(win);
         return;
       }
       if (!isSelecting) return;
-      
       currentX = e.clientX;
       currentY = e.clientY;
-      updateSelection();
+      updateSelectionUi();
     });
-    
-    document.addEventListener('mouseup', (e) => {
-      if (!isSelecting) return;
+
+    document.addEventListener('mouseup', () => {
+      if (captureMode === 'window' || !isSelecting) return;
       isSelecting = false;
-      
-      const x = Math.min(startX, currentX);
-      const y = Math.min(startY, currentY);
-      const width = Math.abs(currentX - startX);
-      const height = Math.abs(currentY - startY);
-      
-      if (width < 10 || height < 10) {
-        window.pico.captureCancel();
-        return;
-      }
-      
-      captureRegion(x, y, width, height);
+      const rect = getSelectionRect();
+      if (rect.width < 4 || rect.height < 4) return window.pico.captureCancel();
+      cropFromScreenRect(rect).then((dataUrl) => window.pico.captureComplete(dataUrl));
     });
-    
+
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        window.pico.captureCancel();
-      }
+      if (e.key === 'Escape') window.pico.captureCancel();
     });
-    
-    function updateSelection() {
-      const x = Math.min(startX, currentX);
-      const y = Math.min(startY, currentY);
-      const width = Math.abs(currentX - startX);
-      const height = Math.abs(currentY - startY);
-      
-      selection.style.left = x + 'px';
-      selection.style.top = y + 'px';
-      selection.style.width = width + 'px';
-      selection.style.height = height + 'px';
-      
-      dimensions.textContent = `${width} \u00d7 ${height}`;
-      dimensions.style.left = (x + 5) + 'px';
-      dimensions.style.top = (y - 25) + 'px';
-      
-      if (y < 30) {
-        dimensions.style.top = (y + height + 5) + 'px';
-      }
-    }
-
-    // Capture a window and show it isolated on neutral background
-    function captureWindowIsolated(win) {
-      const viewW = window.innerWidth;
-      const viewH = window.innerHeight;
-      const tempCanvas = document.createElement('canvas');
-      const tempCtx = tempCanvas.getContext('2d');
-
-      if (captureData.type === 'multi') {
-        Promise.all(captureData.screens.map(s => loadImage(s.dataUrl))).then(images => {
-          const { virtualBounds } = captureData;
-          const selX = (win.x / viewW) * virtualBounds.width;
-          const selY = (win.y / viewH) * virtualBounds.height;
-          const selW = (win.width / viewW) * virtualBounds.width;
-          const selH = (win.height / viewH) * virtualBounds.height;
-          const selX2 = selX + selW;
-          const selY2 = selY + selH;
-
-          let outputWidth = 0;
-          let outputHeight = 0;
-
-          captureData.screens.forEach((screen) => {
-            const screenX = screen.bounds.x - virtualBounds.x;
-            const screenY = screen.bounds.y - virtualBounds.y;
-            const screenX2 = screenX + screen.bounds.width;
-            const screenY2 = screenY + screen.bounds.height;
-            const overlapX1 = Math.max(selX, screenX);
-            const overlapY1 = Math.max(selY, screenY);
-            const overlapX2 = Math.min(selX2, screenX2);
-            const overlapY2 = Math.min(selY2, screenY2);
-            if (overlapX2 <= overlapX1 || overlapY2 <= overlapY1) return;
-            const scale = screen.scaleFactor || 1;
-            outputWidth = Math.max(outputWidth, Math.round((overlapX2 - selX) * scale));
-            outputHeight = Math.max(outputHeight, Math.round((overlapY2 - selY) * scale));
-          });
-
-          if (outputWidth <= 0 || outputHeight <= 0) {
-            window.pico.captureCancel();
-            return;
-          }
-
-          tempCanvas.width = outputWidth;
-          tempCanvas.height = outputHeight;
-
-          images.forEach((img, i) => {
-            const screen = captureData.screens[i];
-            const scale = screen.scaleFactor || 1;
-            const screenX = screen.bounds.x - virtualBounds.x;
-            const screenY = screen.bounds.y - virtualBounds.y;
-            const screenX2 = screenX + screen.bounds.width;
-            const screenY2 = screenY + screen.bounds.height;
-            const overlapX1 = Math.max(selX, screenX);
-            const overlapY1 = Math.max(selY, screenY);
-            const overlapX2 = Math.min(selX2, screenX2);
-            const overlapY2 = Math.min(selY2, screenY2);
-            if (overlapX2 <= overlapX1 || overlapY2 <= overlapY1) return;
-            const srcX = Math.round((overlapX1 - screenX) * scale);
-            const srcY = Math.round((overlapY1 - screenY) * scale);
-            const srcW = Math.round((overlapX2 - overlapX1) * scale);
-            const srcH = Math.round((overlapY2 - overlapY1) * scale);
-            const destX = Math.round((overlapX1 - selX) * scale);
-            const destY = Math.round((overlapY1 - selY) * scale);
-            tempCtx.drawImage(img, srcX, srcY, srcW, srcH, destX, destY, srcW, srcH);
-          });
-
-          showIsolatedCapture(tempCanvas.toDataURL('image/png'));
-        });
-      } else {
-        const img = new Image();
-        img.onload = () => {
-          const scaleX = img.width / viewW;
-          const scaleY = img.height / viewH;
-          const cropX = Math.round(win.x * scaleX);
-          const cropY = Math.round(win.y * scaleY);
-          const cropWidth = Math.round(win.width * scaleX);
-          const cropHeight = Math.round(win.height * scaleY);
-
-          // Clamp to image bounds to avoid black borders
-          const clampedX = Math.max(0, Math.min(cropX, img.width - 1));
-          const clampedY = Math.max(0, Math.min(cropY, img.height - 1));
-          const clampedW = Math.max(1, Math.min(cropWidth, img.width - clampedX));
-          const clampedH = Math.max(1, Math.min(cropHeight, img.height - clampedY));
-
-          tempCanvas.width = clampedW;
-          tempCanvas.height = clampedH;
-          tempCtx.drawImage(img, clampedX, clampedY, clampedW, clampedH, 0, 0, clampedW, clampedH);
-          showIsolatedCapture(tempCanvas.toDataURL('image/png'));
-        };
-        img.src = captureData.dataUrl;
-      }
-    }
-    
-    function captureRegion(x, y, width, height) {
-      const tempCanvas = document.createElement('canvas');
-      const tempCtx = tempCanvas.getContext('2d');
-      
-      const viewW = window.innerWidth;
-      const viewH = window.innerHeight;
-      
-      if (captureData.type === 'multi') {
-        Promise.all(captureData.screens.map(s => loadImage(s.dataUrl))).then(images => {
-          const { virtualBounds } = captureData;
-          
-          const selX = (x / viewW) * virtualBounds.width;
-          const selY = (y / viewH) * virtualBounds.height;
-          const selW = (width / viewW) * virtualBounds.width;
-          const selH = (height / viewH) * virtualBounds.height;
-          const selX2 = selX + selW;
-          const selY2 = selY + selH;
-          
-          let outputWidth = 0;
-          let outputHeight = 0;
-
-          captureData.screens.forEach((screen) => {
-            const screenX = screen.bounds.x - virtualBounds.x;
-            const screenY = screen.bounds.y - virtualBounds.y;
-            const screenX2 = screenX + screen.bounds.width;
-            const screenY2 = screenY + screen.bounds.height;
-
-            const overlapX1 = Math.max(selX, screenX);
-            const overlapY1 = Math.max(selY, screenY);
-            const overlapX2 = Math.min(selX2, screenX2);
-            const overlapY2 = Math.min(selY2, screenY2);
-
-            if (overlapX2 <= overlapX1 || overlapY2 <= overlapY1) return;
-
-            const scale = screen.scaleFactor || 1;
-            outputWidth = Math.max(outputWidth, Math.round((overlapX2 - selX) * scale));
-            outputHeight = Math.max(outputHeight, Math.round((overlapY2 - selY) * scale));
-          });
-
-          if (outputWidth <= 0 || outputHeight <= 0) {
-            window.pico.captureCancel();
-            return;
-          }
-
-          tempCanvas.width = outputWidth;
-          tempCanvas.height = outputHeight;
-
-          images.forEach((img, i) => {
-            const screen = captureData.screens[i];
-            const scale = screen.scaleFactor || 1;
-
-            const screenX = screen.bounds.x - virtualBounds.x;
-            const screenY = screen.bounds.y - virtualBounds.y;
-            const screenX2 = screenX + screen.bounds.width;
-            const screenY2 = screenY + screen.bounds.height;
-
-            const overlapX1 = Math.max(selX, screenX);
-            const overlapY1 = Math.max(selY, screenY);
-            const overlapX2 = Math.min(selX2, screenX2);
-            const overlapY2 = Math.min(selY2, screenY2);
-
-            if (overlapX2 <= overlapX1 || overlapY2 <= overlapY1) return;
-
-            const srcX = Math.round((overlapX1 - screenX) * scale);
-            const srcY = Math.round((overlapY1 - screenY) * scale);
-            const srcW = Math.round((overlapX2 - overlapX1) * scale);
-            const srcH = Math.round((overlapY2 - overlapY1) * scale);
-
-            const destX = Math.round((overlapX1 - selX) * scale);
-            const destY = Math.round((overlapY1 - selY) * scale);
-
-            tempCtx.drawImage(img, srcX, srcY, srcW, srcH, destX, destY, srcW, srcH);
-          });
-
-          window.pico.captureComplete(tempCanvas.toDataURL('image/png'));
-        });
-      } else {
-        // Single screen - map viewport selection to native image pixels
-        const img = new Image();
-        img.onload = () => {
-          const scaleX = img.width / viewW;
-          const scaleY = img.height / viewH;
-          const cropX = x * scaleX;
-          const cropY = y * scaleY;
-          const cropWidth = width * scaleX;
-          const cropHeight = height * scaleY;
-
-          tempCanvas.width = Math.round(cropWidth);
-          tempCanvas.height = Math.round(cropHeight);
-
-          tempCtx.drawImage(
-            img,
-            cropX,
-            cropY,
-            cropWidth,
-            cropHeight,
-            0,
-            0,
-            tempCanvas.width,
-            tempCanvas.height
-          );
-          window.pico.captureComplete(tempCanvas.toDataURL('image/png'));
-        };
-        img.src = captureData.dataUrl;
-      }
-    }
   </script>
 </body>
 </html>
