@@ -12,6 +12,27 @@ let captureWindows = [];
 let windowPicker = null;
 let pendingWindowSources = [];
 
+function copyDataUrlToClipboard(dataUrl) {
+  if (!dataUrl) return;
+  const image = nativeImage.createFromDataURL(dataUrl);
+  clipboard.writeImage(image);
+}
+
+function copyCaptureDataToClipboard(captureData) {
+  if (!captureData) return;
+  if (captureData.type === 'single') {
+    copyDataUrlToClipboard(captureData.dataUrl);
+    return;
+  }
+
+  const orderedScreens = [...(captureData.screens || [])].sort((a, b) => {
+    if (a.bounds.y !== b.bounds.y) return a.bounds.y - b.bounds.y;
+    return a.bounds.x - b.bounds.x;
+  });
+  const dataUrl = orderedScreens[0]?.dataUrl;
+  copyDataUrlToClipboard(dataUrl);
+}
+
 // ── Window Creation ─────────────────────────────────────────────────────────
 
 function createMainWindow() {
@@ -238,6 +259,7 @@ ipcMain.handle('start-capture-fullscreen', async () => {
 
   try {
     const captureData = await captureAllScreens();
+    copyCaptureDataToClipboard(captureData);
     if (mainWindow) {
       mainWindow.show();
       mainWindow.webContents.send('load-capture-data', captureData);
@@ -259,9 +281,11 @@ ipcMain.on('window-picker-select', (event, sourceId) => {
     return;
   }
   if (mainWindow) {
+    const dataUrl = source.thumbnail.toDataURL();
+    copyDataUrlToClipboard(dataUrl);
     mainWindow.show();
     mainWindow.webContents.send('load-capture', {
-      dataUrl: source.thumbnail.toDataURL(),
+      dataUrl,
       source: 'capture',
       captureMode: 'window',
     });
@@ -277,6 +301,7 @@ ipcMain.on('window-picker-cancel', () => {
 ipcMain.on('capture-complete', (event, imageDataUrl) => {
   captureWindows.forEach(w => { if (!w.isDestroyed()) w.close(); });
   captureWindows = [];
+  copyDataUrlToClipboard(imageDataUrl);
   if (mainWindow) {
     mainWindow.show();
     mainWindow.webContents.send('load-capture', {
