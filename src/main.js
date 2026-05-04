@@ -419,45 +419,9 @@ ipcMain.handle('start-capture', async () => {
 });
 
 ipcMain.handle('start-capture-window', async () => {
-  // 1. Obtener coordenadas (incluye basura/ventanas fantasma del sistema)
-  const windowBounds = getVisibleWindowBounds();
-  console.log(`Window capture: found ${windowBounds.length} raw windows`);
-
-  if (mainWindow) mainWindow.hide();
-  await new Promise(r => setTimeout(r, 200));
-
-  try {
-    const captureData = await captureAllScreens();
-
-    // 2. Obtener lista de ventanas "REALES" según el motor de Chromium
-    const sources = await desktopCapturer.getSources({
-      types: ['window'],
-      fetchWindowIcons: false
-    });
-
-    // Crear un Set con los nombres de ventanas válidas para búsqueda ultrarrápida
-    const validNames = new Set(sources.map(s => s.name));
-
-    // 3. Filtrar windowBounds: Solo conservamos las que Chromium considera válidas
-    const filtered = windowBounds.filter(wb =>
-      validNames.has(wb.name) &&
-      !wb.name.toLowerCase().includes('pico') &&
-      wb.name !== 'Select Window' &&
-      wb.name !== 'Desktop' // Evitar que seleccione el fondo de escritorio como ventana
-    );
-
-    console.log(`Window capture: ${filtered.length} real windows after filtering`);
-
-    if (filtered.length === 0) {
-      if (mainWindow) mainWindow.show();
-      return await openWindowPickerFallback();
-    }
-    createCaptureOverlays(captureData, 'window', filtered);
-    return { success: true };
-  } catch (err) {
-    if (mainWindow) mainWindow.show();
-    return { success: false, error: err.message };
-  }
+  // Reliable fallback: use Chromium window sources picker directly.
+  // Overlay-based window cropping can fail on some display/DPI setups.
+  return await openWindowPickerFallback();
 });
 
 ipcMain.handle('start-capture-fullscreen', async () => {
