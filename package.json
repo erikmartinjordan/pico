@@ -62,7 +62,7 @@
       "artifactName": "${productName}-portable.${ext}",
       "icon": "src/assets/icons/windows/icon.ico"
     },
-    "icon": "src/assets/icons/icon_512x512.png",
+    "icon": "src/assets/icons/icon.png",
     "linux": {
       "icon": "src/assets/icons/linux/icons",
       "target": [
