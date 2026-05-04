@@ -3,7 +3,7 @@
  * Handles window creation, screen capture, and native dialogs
  */
 
-const { app, BrowserWindow, ipcMain, desktopCapturer, dialog, screen, globalShortcut, nativeImage, clipboard } = require('electron');
+const { app, BrowserWindow, ipcMain, desktopCapturer, dialog, screen, globalShortcut, nativeImage, clipboard, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -36,12 +36,16 @@ function copyCaptureDataToClipboard(captureData) {
 // ── Window Creation ─────────────────────────────────────────────────────────
 
 function createMainWindow() {
+  // Hide default menu bar (File, Edit, Help, etc.)
+  Menu.setApplicationMenu(null);
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     minWidth: 900,
     minHeight: 600,
     backgroundColor: '#0a0a0b',
+    autoHideMenuBar: true,
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     frame: process.platform !== 'darwin',
     trafficLightPosition: { x: 16, y: 16 },

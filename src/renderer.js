@@ -86,6 +86,7 @@ function init() {
   bindKeyboard();
   bindIPC();
   bindInlineText();
+  bindContextMenu();
   if (elements.textFontFamily) elements.textFontFamily.value = state.textFontFamily;
   if (elements.textFontSize) elements.textFontSize.value = String(state.textFontSize);
   toggleTextStyleControls();
@@ -105,7 +106,7 @@ function bindToolbar() {
   on(elements.btnCopy, 'click', copyToClipboard);
   on(elements.btnUndo, 'click', undo);
   on(elements.btnRedo, 'click', redo);
-  on($('#btn-window-container'), 'click', applyWindowContainer);
+
   
   elements.emptyCapture.addEventListener('click', startCapture);
   elements.emptyOpen.addEventListener('click', openFile);
@@ -1160,6 +1161,62 @@ function roundRect(ctx, x, y, width, height, radius) {
   ctx.lineTo(x, y + radius);
   ctx.arcTo(x, y, x + radius, y, radius);
   ctx.closePath();
+}
+
+
+function bindContextMenu() {
+  const menu = document.getElementById('context-menu');
+  const ctxContainer = document.getElementById('ctx-window-container');
+  const ctxSavePng = document.getElementById('ctx-save-png');
+
+  // Show context menu on right-click over the canvas/image area
+  elements.container.addEventListener('contextmenu', (e) => {
+    if (!state.image) return;
+    e.preventDefault();
+
+    // Position the menu
+    menu.style.left = e.clientX + 'px';
+    menu.style.top = e.clientY + 'px';
+    menu.classList.add('visible');
+
+    // Update active state for window container toggle
+    ctxContainer.classList.toggle('active', state.windowContainerApplied);
+
+    // Ensure menu doesn't overflow viewport
+    requestAnimationFrame(() => {
+      const rect = menu.getBoundingClientRect();
+      if (rect.right > window.innerWidth) {
+        menu.style.left = (window.innerWidth - rect.width - 8) + 'px';
+      }
+      if (rect.bottom > window.innerHeight) {
+        menu.style.top = (window.innerHeight - rect.height - 8) + 'px';
+      }
+    });
+  });
+
+  // Hide menu on click anywhere
+  document.addEventListener('mousedown', (e) => {
+    if (!menu.contains(e.target)) {
+      menu.classList.remove('visible');
+    }
+  });
+
+  // Hide on escape
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') menu.classList.remove('visible');
+  });
+
+  // Window container toggle
+  ctxContainer.addEventListener('click', () => {
+    menu.classList.remove('visible');
+    applyWindowContainer();
+  });
+
+  // Save as PNG
+  ctxSavePng.addEventListener('click', () => {
+    menu.classList.remove('visible');
+    saveFile();
+  });
 }
 
 document.addEventListener('DOMContentLoaded', init);

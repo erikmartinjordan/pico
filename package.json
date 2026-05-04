@@ -20,7 +20,8 @@
     "appId": "com.pico.screenshot",
     "productName": "pico",
     "directories": {
-      "output": "dist"
+      "output": "dist",
+      "buildResources": "build"
     },
     "files": [
       "src/**/*",
@@ -44,7 +45,7 @@
           ]
         }
       ],
-      "icon": "src/assets/icons/macos/icon.icns"
+      "icon": "build/icon.icns"
     },
     "win": {
       "publisherName": [
@@ -60,11 +61,10 @@
       ],
       "requestedExecutionLevel": "asInvoker",
       "artifactName": "${productName}-portable.${ext}",
-      "icon": "src/assets/icons/windows/icon.ico"
+      "icon": "build/icon.ico"
     },
-    "icon": "src/assets/icons/icon.png",
     "linux": {
-      "icon": "src/assets/icons/linux/icons",
+      "icon": "build/icon.png",
       "target": [
         {
           "target": "AppImage",
