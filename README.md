@@ -47,8 +47,8 @@ Lightweight screen-capture & annotation app for **macOS** and **Windows**. Moder
 
 Grab the latest release for your platform:
 
-- **macOS**: `pico-x.x.x.dmg` and `pico-x.x.x-mac.zip` (Universal binaries for Intel & Apple Silicon)
-- **Windows**: `pico-x.x.x-portable.exe` (Portable, no install needed)
+- **macOS**: `pico-universal.dmg` and `pico-arm64.zip` / `pico-x64.zip`
+- **Windows**: `pico-portable.exe` (Portable, no install needed)
 
 > **Windows first-run note:** because current releases are not yet Authenticode-signed, Windows SmartScreen may show a warning the first time you launch pico. Click **More info → Run anyway** to continue. Signed releases are planned for a future version.
 
