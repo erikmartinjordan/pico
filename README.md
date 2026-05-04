@@ -1,5 +1,7 @@
 # pico
 
+![Total downloads](https://img.shields.io/github/downloads/erikmartinjordan/pico/total?label=Total%20downloads&style=flat-square)
+
 Lightweight screen-capture & annotation app for **macOS** and **Windows**. Modern, fast, and portable.
 
 
