@@ -163,9 +163,9 @@ try {
     // and has asymmetric vertical chrome (title bar + drop shadow) that changes with theme/DPI.
     // Keep this as a single calibration block so we can tune capture alignment
     // without touching the rest of the capture pipeline.
-    const frameInsetX = 7;
-    const frameInsetTop = 6;
-    const frameInsetBottom = 10;
+    const frameInsetX = 14;
+    const frameInsetTop = 0;
+    const frameInsetBottom = 14;
     const corrected = result.map(w => ({
       name: w.name,
       x: w.x + frameInsetX,
@@ -348,23 +348,18 @@ function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) 
       // On macOS, Quartz CGWindowBounds are already in logical points, so use as-is.
       const displayWindowBounds = windowBounds
         .map((wb) => {
-          // Convert to logical (DIP) coordinates to match display.bounds and the screenshot.
-          // On Windows, UIAutomation returns system-DPI coords (physical pixels on primary).
-          // Divide by scaleFactor to get DIPs that align with Electron's coordinate space.
-          const scale = display.scaleFactor || 1;
-          const logical = process.platform === 'win32'
-            ? { x: wb.x / scale, y: wb.y / scale, width: wb.width / scale, height: wb.height / scale }
-            : { x: wb.x, y: wb.y, width: wb.width, height: wb.height };
-
-          // Clip to this display's bounds and convert to display-relative coords
+          // UIAutomation BoundingRectangle returns logical pixels (DIPs) that match
+          // Electron's display.bounds coordinate space. Use directly without scaling.
           const dx1 = display.bounds.x;
           const dy1 = display.bounds.y;
           const dx2 = display.bounds.x + display.bounds.width;
           const dy2 = display.bounds.y + display.bounds.height;
-          const ix1 = Math.max(logical.x, dx1);
-          const iy1 = Math.max(logical.y, dy1);
-          const ix2 = Math.min(logical.x + logical.width, dx2);
-          const iy2 = Math.min(logical.y + logical.height, dy2);
+
+          // Clip to this display and convert to display-relative coords
+          const ix1 = Math.max(wb.x, dx1);
+          const iy1 = Math.max(wb.y, dy1);
+          const ix2 = Math.min(wb.x + wb.width, dx2);
+          const iy2 = Math.min(wb.y + wb.height, dy2);
           if (ix2 - ix1 <= 0 || iy2 - iy1 <= 0) return null;
 
           return { name: wb.name, x: ix1 - dx1, y: iy1 - dy1, width: ix2 - ix1, height: iy2 - iy1 };
