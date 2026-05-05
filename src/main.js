@@ -159,8 +159,19 @@ try {
       return [];
     }
     const result = JSON.parse(trimmed);
-    console.log(`[pico] UIAutomation window enum OK: ${result.length} windows found`);
-    return result;
+    // Windows 10/11: UIAutomation BoundingRectangle includes the invisible DWM frame
+    // (resize handles). Shrink bounds to match the visible window area.
+    // Invisible frame: ~7px on left/right/bottom, 0px on top.
+    const frameInset = 7;
+    const corrected = result.map(w => ({
+      name: w.name,
+      x: w.x + frameInset,
+      y: w.y,
+      width: w.width - frameInset * 2,
+      height: w.height - frameInset,
+    }));
+    console.log(`[pico] UIAutomation window enum OK: ${corrected.length} windows found`);
+    return corrected;
   } catch (e) {
     console.error('[pico] PS window enum failed:', e.message);
     if (e.stderr) console.error('[pico] stderr:', e.stderr.toString().slice(0, 500));

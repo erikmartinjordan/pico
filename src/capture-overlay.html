@@ -440,8 +440,8 @@
     document.addEventListener('mousedown', (e) => {
       if (captureMode === 'window') {
         if (hoveredWindow) {
-          // Expand bounds by a few pixels to compensate for DPI rounding and window frame variance
-          const pad = 8;
+          // Small padding for DPI rounding tolerance
+          const pad = 2;
           const maxW = window.innerWidth;
           const maxH = window.innerHeight;
           const padded = {
