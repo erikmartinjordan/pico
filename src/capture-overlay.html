@@ -440,19 +440,8 @@
     document.addEventListener('mousedown', (e) => {
       if (captureMode === 'window') {
         if (hoveredWindow) {
-          // Padding to ensure full window content is captured
-          const pad = 6;
-          const maxW = window.innerWidth;
-          const maxH = window.innerHeight;
-          const padded = {
-            x: Math.max(0, hoveredWindow.x - pad),
-            y: Math.max(0, hoveredWindow.y - pad),
-            width: Math.min(maxW - Math.max(0, hoveredWindow.x - pad), hoveredWindow.width + pad * 2),
-            height: Math.min(maxH - Math.max(0, hoveredWindow.y - pad), hoveredWindow.height + pad * 2),
-          };
-          cropFromScreenRect(padded).then((dataUrl) => {
-            if (dataUrl) window.pico.captureComplete(dataUrl);
-          });
+          // Use native desktopCapturer for pixel-perfect window capture (no frame math needed)
+          window.pico.selectWindowByName(hoveredWindow.name);
         }
         return;
       }

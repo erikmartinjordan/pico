@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('pico', {
   // Capture overlay communication
   onCaptureData: (callback) => ipcRenderer.on('capture-data', (_, data) => callback(data)),
   captureComplete: (imageDataUrl) => ipcRenderer.send('capture-complete', imageDataUrl),
+  selectWindowByName: (name) => ipcRenderer.send('window-overlay-select', name),
   captureCancel: () => ipcRenderer.send('capture-cancel'),
 
   // Window picker fallback

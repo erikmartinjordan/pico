@@ -403,6 +403,14 @@ ipcMain.handle('start-capture-window', async () => {
   try {
     const captureData = await captureAllScreens();
     const winBounds = getVisibleWindowBounds();
+    // Also fetch desktopCapturer window sources for reliable capture on click.
+    // The overlay uses bounds for highlighting, but the actual capture uses the source thumbnail.
+    const windowSources = await desktopCapturer.getSources({
+      types: ['window'],
+      thumbnailSize: { width: 1920, height: 1200 },
+      fetchWindowIcons: false,
+    });
+    windowPickerSources = windowSources.filter(s => s && s.name && !s.name.toLowerCase().includes('pico'));
     createCaptureOverlays(captureData, 'window', winBounds);
     return { success: true };
   } catch (err) {
@@ -426,6 +434,47 @@ ipcMain.handle('start-capture-fullscreen', async () => {
     if (mainWindow) mainWindow.show();
     return { success: false, error: err.message };
   }
+});
+
+ipcMain.on('window-overlay-select', async (event, windowName) => {
+  // Use desktopCapturer to get a pixel-perfect capture of the selected window.
+  // This avoids the frame inset guessing entirely.
+  captureWindows.forEach(w => { if (!w.isDestroyed()) w.close(); });
+  captureWindows = [];
+
+  try {
+    // Find matching source by name (best match)
+    let selected = windowPickerSources.find(s => s.name === windowName);
+    if (!selected) {
+      // Fuzzy match: find source whose name contains the window name or vice versa
+      selected = windowPickerSources.find(s =>
+        s.name.includes(windowName) || windowName.includes(s.name)
+      );
+    }
+    if (!selected) {
+      // Re-fetch fresh sources as fallback
+      const fresh = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 1920, height: 1200 } });
+      selected = fresh.find(s => s.name === windowName) ||
+                 fresh.find(s => s.name.includes(windowName) || windowName.includes(s.name));
+    }
+
+    if (selected && !selected.thumbnail.isEmpty()) {
+      const dataUrl = selected.thumbnail.toDataURL();
+      windowPickerSources = [];
+      copyDataUrlToClipboard(dataUrl);
+      if (mainWindow) {
+        mainWindow.show();
+        mainWindow.webContents.send('load-capture', { dataUrl, source: 'capture', captureMode: 'window' });
+      }
+      return;
+    }
+  } catch (err) {
+    console.error('[pico] window-overlay-select error:', err.message);
+  }
+
+  // Fallback: if no matching source found, just show main window
+  windowPickerSources = [];
+  if (mainWindow) mainWindow.show();
 });
 
 ipcMain.on('capture-complete', (event, imageDataUrl) => {
