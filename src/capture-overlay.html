@@ -465,6 +465,13 @@
       updateSelectionUi();
     });
 
+    // Clear hover when mouse leaves this overlay (fixes stuck highlight on multi-monitor)
+    document.addEventListener('mouseleave', () => {
+      if (captureMode === 'window' && hoveredWindow) {
+        updateWindowHover(null);
+      }
+    });
+
     document.addEventListener('mouseup', () => {
       if (captureMode === 'window' || !isSelecting) return;
       isSelecting = false;

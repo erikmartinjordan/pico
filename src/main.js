@@ -163,16 +163,9 @@ try {
     // and has asymmetric vertical chrome (title bar + drop shadow) that changes with theme/DPI.
     // Keep this as a single calibration block so we can tune capture alignment
     // without touching the rest of the capture pipeline.
-    const frameInsetX = 8;
-    const frameInsetTop = 0;
-    const frameInsetBottom = 8;
-    const corrected = result.map(w => ({
-      name: w.name,
-      x: w.x + frameInsetX,
-      y: w.y + frameInsetTop,
-      width: Math.max(1, w.width - frameInsetX * 2),
-      height: Math.max(1, w.height - frameInsetTop - frameInsetBottom),
-    }));
+    // No frame inset - use bounds as-is. The highlight will be slightly larger
+    // than the visible window, giving a comfortable margin around it.
+    const corrected = result;
     console.log(`[pico] UIAutomation window enum OK: ${corrected.length} windows found`);
     return corrected;
   } catch (e) {
@@ -399,7 +392,7 @@ ipcMain.handle('start-capture', async () => {
 
 ipcMain.handle('start-capture-window', async () => {
   if (mainWindow) mainWindow.hide();
-  await new Promise(r => setTimeout(r, 200));
+  await new Promise(r => setTimeout(r, 80));
   try {
     const captureData = await captureAllScreens();
     const winBounds = getVisibleWindowBounds();
