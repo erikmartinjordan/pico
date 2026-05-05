@@ -160,18 +160,18 @@ try {
     }
     const result = JSON.parse(trimmed);
     // Windows 10/11: UIAutomation BoundingRectangle includes invisible DWM frame
-    // and may be slightly biased on Y depending on theme/DPI.
+    // and has asymmetric vertical chrome (title bar + drop shadow) that changes with theme/DPI.
     // Keep this as a single calibration block so we can tune capture alignment
     // without touching the rest of the capture pipeline.
     const frameInsetX = 7;
-    const frameInsetBottom = 7;
-    const verticalNudge = -4;
+    const frameInsetTop = 6;
+    const frameInsetBottom = 10;
     const corrected = result.map(w => ({
       name: w.name,
       x: w.x + frameInsetX,
-      y: w.y + verticalNudge,
+      y: w.y + frameInsetTop,
       width: Math.max(1, w.width - frameInsetX * 2),
-      height: Math.max(1, w.height - frameInsetBottom),
+      height: Math.max(1, w.height - frameInsetTop - frameInsetBottom),
     }));
     console.log(`[pico] UIAutomation window enum OK: ${corrected.length} windows found`);
     return corrected;
