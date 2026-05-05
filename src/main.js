@@ -165,7 +165,7 @@ try {
     // without touching the rest of the capture pipeline.
     const frameInsetX = 7;
     const frameInsetBottom = 7;
-    const verticalNudge = -2;
+    const verticalNudge = -4;
     const corrected = result.map(w => ({
       name: w.name,
       x: w.x + frameInsetX,
