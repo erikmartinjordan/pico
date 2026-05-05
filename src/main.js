@@ -326,7 +326,6 @@ function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) 
     });
 
     win.setAlwaysOnTop(true, 'screen-saver');
-    if (process.platform === 'win32') win.setFullScreen(true);
     win.loadFile(path.join(__dirname, 'capture-overlay.html'));
 
     win.webContents.once('did-finish-load', () => {
@@ -349,46 +348,26 @@ function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) 
       // On macOS, Quartz CGWindowBounds are already in logical points, so use as-is.
       const displayWindowBounds = windowBounds
         .map((wb) => {
+          // Convert to logical (DIP) coordinates to match display.bounds and the screenshot.
+          // On Windows, UIAutomation returns system-DPI coords (physical pixels on primary).
+          // Divide by scaleFactor to get DIPs that align with Electron's coordinate space.
           const scale = display.scaleFactor || 1;
-          const candidates = process.platform === 'win32'
-            ? [
-                // Primary: physical → logical
-                { x: wb.x / scale, y: wb.y / scale, width: wb.width / scale, height: wb.height / scale },
-                // Fallback: raw (handles 100% DPI where scale=1 anyway)
-                { x: wb.x, y: wb.y, width: wb.width, height: wb.height },
-              ]
-            : [
-                // macOS: already logical pixels
-                { x: wb.x, y: wb.y, width: wb.width, height: wb.height },
-              ];
+          const logical = process.platform === 'win32'
+            ? { x: wb.x / scale, y: wb.y / scale, width: wb.width / scale, height: wb.height / scale }
+            : { x: wb.x, y: wb.y, width: wb.width, height: wb.height };
 
+          // Clip to this display's bounds and convert to display-relative coords
           const dx1 = display.bounds.x;
           const dy1 = display.bounds.y;
           const dx2 = display.bounds.x + display.bounds.width;
           const dy2 = display.bounds.y + display.bounds.height;
+          const ix1 = Math.max(logical.x, dx1);
+          const iy1 = Math.max(logical.y, dy1);
+          const ix2 = Math.min(logical.x + logical.width, dx2);
+          const iy2 = Math.min(logical.y + logical.height, dy2);
+          if (ix2 - ix1 <= 0 || iy2 - iy1 <= 0) return null;
 
-          const intersectArea = (r) => {
-            const rx2 = r.x + r.width;
-            const ry2 = r.y + r.height;
-            const ix1 = Math.max(r.x, dx1);
-            const iy1 = Math.max(r.y, dy1);
-            const ix2 = Math.min(rx2, dx2);
-            const iy2 = Math.min(ry2, dy2);
-            const iw = ix2 - ix1;
-            const ih = iy2 - iy1;
-            if (iw <= 0 || ih <= 0) return { area: 0, rect: null };
-            return {
-              area: iw * ih,
-              rect: { x: ix1 - dx1, y: iy1 - dy1, width: iw, height: ih },
-            };
-          };
-
-          const scored = candidates
-            .map((c) => intersectArea(c))
-            .sort((a, b) => b.area - a.area)[0];
-
-          if (!scored || !scored.rect || scored.area <= 0) return null;
-          return { name: wb.name, ...scored.rect };
+          return { name: wb.name, x: ix1 - dx1, y: iy1 - dy1, width: ix2 - ix1, height: iy2 - iy1 };
         })
         .filter(Boolean);
 
