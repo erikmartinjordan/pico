@@ -205,6 +205,12 @@
     let currentY = 0;
     let hoveredWindow = null;
 
+    // Scale factors to map display-relative window bounds to viewport coordinates.
+    // The screenshot is stretched to fill the viewport, so window bounds (in display coords)
+    // must be scaled by (viewport / display.bounds) to align with the rendered screenshot.
+    let boundsScaleX = 1;
+    let boundsScaleY = 1;
+
     window.pico.onCaptureData(async (data) => {
       captureData = data;
       captureMode = data.mode || 'region';
@@ -213,6 +219,12 @@
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
 
+      // Compute scale from display coordinate space to viewport
+      if (data.bounds) {
+        boundsScaleX = window.innerWidth / data.bounds.width;
+        boundsScaleY = window.innerHeight / data.bounds.height;
+      }
+
       await drawScreenshot(data);
       repaintOverlay();
 
@@ -220,8 +232,8 @@
         document.body.classList.add('region-mode');
       } else {
         document.getElementById('instructions').innerHTML = windowBounds.length
-          ? 'Click on a window to capture · Press <kbd>Esc</kbd> to cancel'
-          : 'No window detected. Click anywhere to cancel · Press <kbd>Esc</kbd> to cancel';
+          ? 'Click on a window to capture \u00b7 Press <kbd>Esc</kbd> to cancel'
+          : 'No window detected. Click anywhere to cancel \u00b7 Press <kbd>Esc</kbd> to cancel';
       }
     });
 
@@ -257,9 +269,14 @@
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       if (captureMode === 'window' && hoveredWindow) {
+        // Use viewport-scaled coordinates for the bright (unmasked) clip region
+        const vx = Math.round(hoveredWindow.x * boundsScaleX);
+        const vy = Math.round(hoveredWindow.y * boundsScaleY);
+        const vw = Math.round(hoveredWindow.width * boundsScaleX);
+        const vh = Math.round(hoveredWindow.height * boundsScaleY);
         ctx.save();
         ctx.beginPath();
-        ctx.rect(hoveredWindow.x, hoveredWindow.y, hoveredWindow.width, hoveredWindow.height);
+        ctx.rect(vx, vy, vw, vh);
         ctx.clip();
         ctx.drawImage(screenshotCanvas, 0, 0);
         ctx.restore();
@@ -294,8 +311,11 @@
     }
 
     function findWindowAt(x, y) {
+      // Convert viewport coords to display-relative coords for hit testing
+      const dx = x / boundsScaleX;
+      const dy = y / boundsScaleY;
       for (const wb of windowBounds) {
-        if (x >= wb.x && x <= wb.x + wb.width && y >= wb.y && y <= wb.y + wb.height) return wb;
+        if (dx >= wb.x && dx <= wb.x + wb.width && dy >= wb.y && dy <= wb.y + wb.height) return wb;
       }
       return null;
     }
@@ -310,15 +330,21 @@
         return;
       }
 
-      windowHighlight.style.left = `${win.x}px`;
-      windowHighlight.style.top = `${win.y}px`;
-      windowHighlight.style.width = `${win.width}px`;
-      windowHighlight.style.height = `${win.height}px`;
+      // Convert display-relative bounds to viewport coordinates
+      const vx = Math.round(win.x * boundsScaleX);
+      const vy = Math.round(win.y * boundsScaleY);
+      const vw = Math.round(win.width * boundsScaleX);
+      const vh = Math.round(win.height * boundsScaleY);
+
+      windowHighlight.style.left = `${vx}px`;
+      windowHighlight.style.top = `${vy}px`;
+      windowHighlight.style.width = `${vw}px`;
+      windowHighlight.style.height = `${vh}px`;
       windowHighlight.classList.add('visible');
 
       windowLabel.textContent = win.name || 'Window';
-      windowLabel.style.left = `${win.x + 6}px`;
-      windowLabel.style.top = `${win.y > 34 ? win.y - 30 : win.y + win.height + 6}px`;
+      windowLabel.style.left = `${vx + 6}px`;
+      windowLabel.style.top = `${vy > 34 ? vy - 30 : vy + vh + 6}px`;
       windowLabel.classList.add('visible');
     }
 

@@ -312,6 +312,7 @@ function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) 
     });
 
     win.setAlwaysOnTop(true, 'screen-saver');
+    if (process.platform === 'win32') win.setFullScreen(true);
     win.loadFile(path.join(__dirname, 'capture-overlay.html'));
 
     win.webContents.once('did-finish-load', () => {
