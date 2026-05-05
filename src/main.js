@@ -159,16 +159,19 @@ try {
       return [];
     }
     const result = JSON.parse(trimmed);
-    // Windows 10/11: UIAutomation BoundingRectangle includes the invisible DWM frame
-    // (resize handles). Shrink bounds to match the visible window area.
-    // Invisible frame: ~7px on left/right/bottom, 0px on top.
-    const frameInset = 7;
+    // Windows 10/11: UIAutomation BoundingRectangle includes invisible DWM frame
+    // and has asymmetric vertical chrome (title bar + drop shadow) that changes with theme/DPI.
+    // Keep this as a single calibration block so we can tune capture alignment
+    // without touching the rest of the capture pipeline.
+    const frameInsetX = 7;
+    const frameInsetTop = 6;
+    const frameInsetBottom = 10;
     const corrected = result.map(w => ({
       name: w.name,
-      x: w.x + frameInset,
-      y: w.y,
-      width: w.width - frameInset * 2,
-      height: w.height - frameInset,
+      x: w.x + frameInsetX,
+      y: w.y + frameInsetTop,
+      width: Math.max(1, w.width - frameInsetX * 2),
+      height: Math.max(1, w.height - frameInsetTop - frameInsetBottom),
     }));
     console.log(`[pico] UIAutomation window enum OK: ${corrected.length} windows found`);
     return corrected;
