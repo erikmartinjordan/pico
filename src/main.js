@@ -163,9 +163,9 @@ try {
     // and has asymmetric vertical chrome (title bar + drop shadow) that changes with theme/DPI.
     // Keep this as a single calibration block so we can tune capture alignment
     // without touching the rest of the capture pipeline.
-    const frameInsetX = 14;
+    const frameInsetX = 8;
     const frameInsetTop = 0;
-    const frameInsetBottom = 14;
+    const frameInsetBottom = 8;
     const corrected = result.map(w => ({
       name: w.name,
       x: w.x + frameInsetX,
