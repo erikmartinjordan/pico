@@ -414,7 +414,17 @@
     document.addEventListener('mousedown', (e) => {
       if (captureMode === 'window') {
         if (hoveredWindow) {
-          cropFromScreenRect(hoveredWindow).then((dataUrl) => {
+          // Expand bounds by a few pixels to compensate for DPI rounding and window frame variance
+          const pad = 8;
+          const maxW = window.innerWidth;
+          const maxH = window.innerHeight;
+          const padded = {
+            x: Math.max(0, hoveredWindow.x - pad),
+            y: Math.max(0, hoveredWindow.y - pad),
+            width: Math.min(maxW - Math.max(0, hoveredWindow.x - pad), hoveredWindow.width + pad * 2),
+            height: Math.min(maxH - Math.max(0, hoveredWindow.y - pad), hoveredWindow.height + pad * 2),
+          };
+          cropFromScreenRect(padded).then((dataUrl) => {
             if (dataUrl) window.pico.captureComplete(dataUrl);
           });
         }
