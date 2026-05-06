@@ -14,6 +14,7 @@ let captureWindows = [];
 let windowPickerWindow = null;
 let windowPickerSources = [];
 let recordingIndicatorWindow = null;
+let recordingSourceSelection = null;
 
 async function getDefaultRecordingSource() {
   const primaryDisplay = screen.getPrimaryDisplay();
@@ -59,7 +60,10 @@ async function openWindowPickerFallback() {
   });
 
   windowPickerWindow.loadFile(path.join(__dirname, 'window-picker.html'));
-  windowPickerWindow.on('closed', () => { windowPickerWindow = null; if (mainWindow) mainWindow.show(); });
+  windowPickerWindow.on('closed', () => {
+    windowPickerWindow = null;
+    if (!recordingSourceSelection && mainWindow) mainWindow.show();
+  });
 
   windowPickerWindow.webContents.once('did-finish-load', async () => {
     const sources = await getWindowSourcesForPicker();
@@ -233,28 +237,29 @@ function showRecordingIndicator() {
     return;
   }
 
-  const { workArea } = screen.getPrimaryDisplay();
-  const width = 232;
-  const height = 44;
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { bounds, workArea } = primaryDisplay;
+  const controlWidth = 276;
+  const controlHeight = 54;
   recordingIndicatorWindow = new BrowserWindow({
-    width,
-    height,
-    x: Math.round(workArea.x + (workArea.width - width) / 2),
-    y: Math.round(workArea.y + 14),
+    width: bounds.width,
+    height: bounds.height,
+    x: bounds.x,
+    y: bounds.y,
     frame: false,
     transparent: true,
     resizable: false,
     movable: false,
     alwaysOnTop: true,
     skipTaskbar: true,
-    focusable: false,
+    focusable: true,
     hasShadow: false,
     autoHideMenuBar: true,
     type: process.platform === 'darwin' ? 'panel' : undefined,
     webPreferences: {
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
+      contextIsolation: false,
+      nodeIntegration: true,
+      sandbox: false,
     },
   });
 
@@ -269,50 +274,78 @@ function showRecordingIndicator() {
           * { box-sizing: border-box; }
           body {
             margin: 0;
+            width: 100vw;
             height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             overflow: hidden;
             background: transparent;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             user-select: none;
           }
-          .pill {
+          .recording-glow {
+            position: fixed;
+            inset: 7px;
+            border: 3px solid rgba(239, 68, 68, 0.95);
+            border-radius: 18px;
+            box-shadow:
+              inset 0 0 20px rgba(248, 113, 113, 0.78),
+              inset 0 0 44px rgba(220, 38, 38, 0.35),
+              0 0 26px rgba(239, 68, 68, 0.82),
+              0 0 62px rgba(127, 29, 29, 0.62);
+            animation: glowPulse 1.25s ease-in-out infinite;
+            pointer-events: none;
+          }
+          .recording-controls {
+            position: fixed;
+            left: ${Math.round(workArea.x - bounds.x + (workArea.width - controlWidth) / 2)}px;
+            bottom: ${Math.max(12, Math.round(bounds.y + bounds.height - workArea.y - workArea.height + 16))}px;
+            width: ${controlWidth}px;
+            height: ${controlHeight}px;
             display: flex;
             align-items: center;
-            gap: 9px;
-            height: 34px;
-            padding: 0 15px;
-            border: 1px solid rgba(248, 113, 113, 0.72);
+            justify-content: space-between;
+            gap: 12px;
+            padding: 8px 10px 8px 14px;
+            border: 1px solid rgba(248, 113, 113, 0.45);
             border-radius: 999px;
-            background: rgba(127, 29, 29, 0.92);
+            background: rgba(20, 20, 24, 0.90);
             color: #fee2e2;
-            box-shadow: 0 12px 32px rgba(0,0,0,0.30), 0 0 22px rgba(239,68,68,0.38);
+            box-shadow: 0 18px 42px rgba(0,0,0,0.38), 0 0 24px rgba(239,68,68,0.35);
+            backdrop-filter: blur(18px);
+            pointer-events: auto;
+          }
+          .status { display: flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 800; }
+          .dot { width: 10px; height: 10px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.85); animation: dotPulse 1.1s ease-out infinite; }
+          button {
+            border: 0;
+            border-radius: 999px;
+            padding: 10px 16px;
+            background: linear-gradient(135deg, #ef4444, #b91c1c);
+            color: white;
             font-size: 13px;
-            font-weight: 800;
-            letter-spacing: 0.01em;
+            font-weight: 900;
+            cursor: pointer;
           }
-          .dot {
-            width: 9px;
-            height: 9px;
-            border-radius: 50%;
-            background: #ef4444;
-            box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.85);
-            animation: pulse 1.1s ease-out infinite;
-          }
-          @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.85); }
-            80%, 100% { box-shadow: 0 0 0 9px rgba(248, 113, 113, 0); }
-          }
+          button:hover { filter: brightness(1.08); }
+          @keyframes glowPulse { 0%, 100% { opacity: 0.72; } 50% { opacity: 1; } }
+          @keyframes dotPulse { 0% { box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.85); } 80%, 100% { box-shadow: 0 0 0 10px rgba(248, 113, 113, 0); } }
         </style>
       </head>
-      <body><div class="pill"><span class="dot"></span><span>Recording screen</span></div></body>
+      <body>
+        <div class="recording-glow"></div>
+        <div class="recording-controls">
+          <div class="status"><span class="dot"></span><span>Recording</span></div>
+          <button id="stop">Stop</button>
+        </div>
+        <script>
+          const { ipcRenderer } = require('electron');
+          const stop = document.getElementById('stop');
+          stop.addEventListener('click', () => ipcRenderer.send('pro-recording-stop-clicked'));
+        </script>
+      </body>
     </html>
   `)}`);
   recordingIndicatorWindow.on('closed', () => { recordingIndicatorWindow = null; });
 }
-
 function hideRecordingIndicator() {
   if (recordingIndicatorWindow && !recordingIndicatorWindow.isDestroyed()) {
     recordingIndicatorWindow.close();
@@ -606,12 +639,22 @@ ipcMain.on('window-source-select', async (event, sourceId) => {
     }
     if (!selected || selected.thumbnail.isEmpty()) {
       if (windowPickerWindow && !windowPickerWindow.isDestroyed()) windowPickerWindow.close();
+      windowPickerSources = [];
+      recordingSourceSelection?.resolve(null);
+      recordingSourceSelection = null;
       if (mainWindow) mainWindow.show();
       return;
     }
-    const dataUrl = selected.thumbnail.toDataURL();
     if (windowPickerWindow && !windowPickerWindow.isDestroyed()) windowPickerWindow.close();
     windowPickerSources = [];
+
+    if (recordingSourceSelection) {
+      recordingSourceSelection.resolve({ id: selected.id, name: selected.name });
+      recordingSourceSelection = null;
+      return;
+    }
+
+    const dataUrl = selected.thumbnail.toDataURL();
     copyDataUrlToClipboard(dataUrl);
     if (mainWindow) {
       mainWindow.show();
@@ -620,6 +663,8 @@ ipcMain.on('window-source-select', async (event, sourceId) => {
   } catch (err) {
     if (windowPickerWindow && !windowPickerWindow.isDestroyed()) windowPickerWindow.close();
     windowPickerSources = [];
+    recordingSourceSelection?.reject(err);
+    recordingSourceSelection = null;
     if (mainWindow) mainWindow.show();
   }
 });
@@ -627,6 +672,8 @@ ipcMain.on('window-source-select', async (event, sourceId) => {
 ipcMain.on('window-source-cancel', () => {
   if (windowPickerWindow && !windowPickerWindow.isDestroyed()) windowPickerWindow.close();
   windowPickerSources = [];
+  recordingSourceSelection?.resolve(null);
+  recordingSourceSelection = null;
   if (mainWindow) mainWindow.show();
 });
 ipcMain.handle('open-file', async () => {
@@ -689,9 +736,27 @@ ipcMain.handle('pro-recording-indicator-hide', async () => {
   return { success: true };
 });
 
+function chooseRecordingWindowSource() {
+  if (recordingSourceSelection) return recordingSourceSelection.promise;
+
+  const promise = new Promise(async (resolve, reject) => {
+    recordingSourceSelection = { resolve, reject, promise: null };
+    try {
+      if (mainWindow) mainWindow.hide();
+      const opened = await openWindowPickerFallback();
+      if (!opened?.success) throw new Error('Unable to open the window picker');
+    } catch (error) {
+      recordingSourceSelection = null;
+      reject(error);
+    }
+  });
+  recordingSourceSelection.promise = promise;
+  return promise;
+}
+
 ipcMain.handle('pro-recording-source', async () => {
-  const source = await getDefaultRecordingSource();
-  if (!source) throw new Error('No screen source available for recording');
+  const source = await chooseRecordingWindowSource();
+  if (!source) return null;
   return { id: source.id, name: source.name };
 });
 
@@ -699,11 +764,15 @@ ipcMain.handle('pro-save-recording', async (event, payload) => {
   const data = payload?.data;
   if (!data) throw new Error('Recording payload is empty');
 
+  const format = payload?.format === 'gif' || payload?.gif ? 'gif' : 'mp4';
+  const extension = format === 'gif' ? 'gif' : 'mp4';
   const saveResult = await dialog.showSaveDialog(mainWindow, {
     title: 'Save screen recording',
-    defaultPath: path.join(app.getPath('videos'), `pico-recording-${Date.now()}.mp4`),
+    defaultPath: path.join(app.getPath('videos'), `pico-recording-${Date.now()}.${extension}`),
     buttonLabel: 'Save Recording',
-    filters: [{ name: 'MP4 Video', extensions: ['mp4'] }],
+    filters: format === 'gif'
+      ? [{ name: 'GIF Animation', extensions: ['gif'] }]
+      : [{ name: 'MP4 Video', extensions: ['mp4'] }],
   });
   if (saveResult.canceled || !saveResult.filePath) return { canceled: true };
 
@@ -712,29 +781,37 @@ ipcMain.handle('pro-save-recording', async (event, payload) => {
   fs.writeFileSync(webmPath, bytes);
 
   try {
+    let mp4Path = saveResult.filePath;
+    if (format === 'gif') mp4Path = tempRecordingPath('mp4');
+
     let mp4;
     try {
-      mp4 = await convertWebmToMp4(webmPath, saveResult.filePath);
+      mp4 = await convertWebmToMp4(webmPath, mp4Path);
     } catch (conversionError) {
       const webm = saveWebmFallback(webmPath, saveResult.filePath);
       return {
-        mp4: webm,
-        warning: `MP4 conversion skipped: ${conversionError.message}`.slice(0, 240),
+        webm,
+        warning: `${format.toUpperCase()} conversion skipped: ${conversionError.message}`.slice(0, 240),
       };
     }
 
-    const result = { mp4 };
-    if (payload?.gif) {
+    if (format === 'gif') {
       try {
-        result.gif = await convertMp4ToGif(mp4);
-      } catch (gifError) {
-        result.warning = `GIF export skipped: ${gifError.message}`.slice(0, 240);
+        return { gif: await convertMp4ToGif(mp4, saveResult.filePath) };
+      } finally {
+        fs.rmSync(mp4, { force: true });
       }
     }
-    return result;
+
+    return { mp4 };
   } finally {
     fs.rmSync(webmPath, { force: true });
   }
+});
+
+
+ipcMain.on('pro-recording-stop-clicked', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('pro-recording-stop-requested');
 });
 
 // ── App Lifecycle ───────────────────────────────────────────────────────────
