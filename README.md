@@ -12,13 +12,13 @@
   <img src="https://img.shields.io/github/downloads/erikmartinjordan/pico/total?label=Total%20downloads&style=flat-square" alt="Total downloads" />
 </p>
 
-Minimal screen-capture and annotation app for macOS and Windows.
+pico is a minimal screen capture and annotation app for macOS and Windows.
 
 ## Download
 
 [Download the latest release](../../releases/latest)
 
-- macOS: universal DMG, arm64 ZIP, or x64 ZIP
+- macOS: universal DMG, arm64 ZIP, x64 ZIP, or legacy Intel DMG
 - Windows: portable EXE
 
 > Windows may show a SmartScreen warning on first launch because releases are not yet signed.
@@ -29,7 +29,7 @@ Minimal screen-capture and annotation app for macOS and Windows.
 - Annotate with shapes, arrows, text, highlight, and blur
 - Undo, redo, zoom, and pan
 - Save as PNG or copy to clipboard
-- Optional Pro tools for scrolling capture and screen recording
+- Pro tools: scrolling capture and screen recording
 
 ## Shortcuts
 
@@ -41,118 +41,29 @@ Minimal screen-capture and annotation app for macOS and Windows.
 | `Cmd/Ctrl+C` | Copy to clipboard |
 | `Cmd/Ctrl+Z` | Undo |
 | `Cmd/Ctrl+Shift+Z` | Redo |
-| `R` | Rectangle tool |
-| `E` | Ellipse tool |
-| `A` | Arrow tool |
-| `L` | Line tool |
-| `T` | Text tool |
-| `H` | Highlight tool |
-| `B` | Blur tool |
-| `W` | Window container |
+| `R`, `E`, `A`, `L`, `T`, `H`, `B`, `W` | Select annotation tools |
 | `+` / `-` | Zoom in/out |
 | `0` | Fit to window |
-| Shift-click Record (Pro) stop | Export MP4 and GIF |
-
-## Download
-
-Grab the latest release for your platform:
-
-- **macOS**: `pico-universal.dmg` and `pico-arm64.zip` / `pico-x64.zip`
-- **macOS legacy**: `pico_legacy.dmg` for older Intel Macs
-- **Windows**: `pico-portable.exe` (Portable, no install needed)
-
-> **Windows first-run note:** because current releases are not yet Authenticode-signed, Windows SmartScreen may show a warning the first time you launch pico. Click **More info → Run anyway** to continue. Signed releases are planned for a future version.
-
-[Download latest release →](../../releases/latest)
 
 ## Development
 
-### Prerequisites
-
-- Node.js 20+ 
-- npm or yarn
-
-### Setup
+Requirements: Node.js 20+ and npm.
 
 ```bash
-# Install dependencies
 npm install
-
-# Run in development mode
 npm start
 ```
 
-### Build
+Build the app:
 
 ```bash
-# Build for current platform
-npm run build
-
-# Build for macOS
-npm run build:mac
-
-# Build pico_legacy.dmg for macOS 10.13+ Intel Macs without changing the default Electron build
-npm run build:mac:legacy
-
-# Build for Windows  
-npm run build:win
-
-# Build for all platforms
-npm run build:all
+npm run build        # current platform
+npm run build:mac    # macOS
+npm run build:win    # Windows
+npm run build:all    # macOS and Windows
 ```
 
-Built apps are output to the `dist/` folder.
-
-### Code signing (Windows)
-
-Electron Builder supports optional Authenticode signing in CI when certificate secrets are configured:
-
-```bash
-# Base64-encoded .p12 certificate
-export CSC_LINK=<base64-p12>
-export CSC_KEY_PASSWORD=<p12-password>
-# Keep local/unsigned builds working when no certificate is configured
-export CSC_IDENTITY_AUTO_DISCOVERY=false
-```
-
-> TODO: For production releases, use a DigiCert or Sectigo Authenticode OV/EV certificate and configure `signingHashAlgorithms: ["sha256"]`. EV certificates typically establish SmartScreen reputation faster than OV certificates.
-
-
-## Project Structure
-
-```
-pico/
-├── package.json          # Dependencies & build config
-├── src/
-│   ├── main.js           # Electron main process
-│   ├── preload.js        # IPC bridge
-│   ├── index.html        # Main window UI
-│   ├── styles.css        # Styling
-│   ├── renderer.js       # UI logic & canvas drawing
-│   ├── capture-overlay.html  # Screen capture overlay
-│   └── assets/
-│       └── icons/        # App icons (macOS, Windows, Linux)
-└── dist/                 # Built applications
-```
-
-## Design
-
-Dark theme with an orange accent:
-
-| Token | Value | Usage |
-| --- | --- | --- |
-| Background | `#09090b` | App background |
-| Surface | `#1e1f24` | Toolbar, panels |
-| Accent | `#f07d20` | Active states, buttons |
-| Accent soft | `#ffaa55` | Hover, highlights |
-| Text | `#f5f0eb` | Primary text |
-| Muted | `#6b6560` | Secondary text |
-
-Typography: DM Mono / system monospace at 10–13px.
-
-## Tech Stack
-
-Built apps are generated in `dist/`.
+Builds are written to `dist/`.
 
 ## License
 
