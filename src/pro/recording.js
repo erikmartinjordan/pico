@@ -14,6 +14,10 @@ function recordingsDir() {
   return dir;
 }
 
+function ensureOutputDir(filePath) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+}
+
 function tempRecordingPath(extension) {
   return path.join(app.getPath('temp'), `pico-recording-${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`);
 }
@@ -31,15 +35,19 @@ function runBinary(binary, args) {
   });
 }
 
-function saveWebmFallback(webmPath) {
-  const webmOutputPath = path.join(recordingsDir(), `recording-${Date.now()}.webm`);
+function saveWebmFallback(webmPath, requestedOutputPath = null) {
+  const webmOutputPath = requestedOutputPath
+    ? requestedOutputPath.replace(/\.[^.]+$/i, '.webm')
+    : path.join(recordingsDir(), `recording-${Date.now()}.webm`);
+  ensureOutputDir(webmOutputPath);
   fs.copyFileSync(webmPath, webmOutputPath);
   return webmOutputPath;
 }
 
-async function convertWebmToMp4(webmPath) {
+async function convertWebmToMp4(webmPath, requestedOutputPath = null) {
   const ffmpeg = resolveBundledBinary('ffmpeg');
-  const mp4Path = path.join(recordingsDir(), `recording-${Date.now()}.mp4`);
+  const mp4Path = requestedOutputPath || path.join(recordingsDir(), `recording-${Date.now()}.mp4`);
+  ensureOutputDir(mp4Path);
   await runBinary(ffmpeg, [
     '-y',
     '-i', webmPath,
