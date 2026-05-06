@@ -42,14 +42,6 @@ Minimal screen-capture and annotation app for macOS and Windows.
 | `Cmd/Ctrl+Z` | Undo |
 | `Cmd/Ctrl+Shift+Z` | Redo |
 
-## Development
-
-```bash
-npm install
-npm start
-npm run build
-```
-
 Built apps are generated in `dist/`.
 
 ## License
