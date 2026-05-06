@@ -53,6 +53,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
+      - name: Build legacy macOS DMG
+        if: matrix.platform == 'mac'
+        run: npm run build:mac:legacy
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
       - name: Build (Windows)
         if: matrix.platform == 'win'
         run: npm run build:win
@@ -114,6 +121,7 @@ jobs:
 
           **Download:**
           - **macOS** — \`.dmg\` and \`.zip\` (Universal: Intel + Apple Silicon)
+          - **macOS legacy** — \`pico_legacy.dmg\` for older Intel Macs
           - **Windows** — portable \`.exe\` (no install needed)" \
             --latest
         env:

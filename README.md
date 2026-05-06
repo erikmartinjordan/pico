@@ -72,6 +72,7 @@ Lightweight screen-capture & annotation app for **macOS** and **Windows**. Moder
 Grab the latest release for your platform:
 
 - **macOS**: `pico-universal.dmg` and `pico-arm64.zip` / `pico-x64.zip`
+- **macOS legacy**: `pico_legacy.dmg` for older Intel Macs
 - **Windows**: `pico-portable.exe` (Portable, no install needed)
 
 > **Windows first-run note:** because current releases are not yet Authenticode-signed, Windows SmartScreen may show a warning the first time you launch pico. Click **More info → Run anyway** to continue. Signed releases are planned for a future version.
@@ -103,6 +104,9 @@ npm run build
 
 # Build for macOS
 npm run build:mac
+
+# Build pico_legacy.dmg for macOS 10.13+ Intel Macs without changing the default Electron build
+npm run build:mac:legacy
 
 # Build for Windows  
 npm run build:win
