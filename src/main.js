@@ -15,6 +15,7 @@ let windowPickerWindow = null;
 let windowPickerSources = [];
 let recordingIndicatorWindow = null;
 let recordingSourceSelection = null;
+let lastRecordingSourceId = null;
 
 async function getDefaultRecordingSource() {
   const primaryDisplay = screen.getPrimaryDisplay();
@@ -272,8 +273,24 @@ function showRecordingIndicator() {
     return;
   }
 
-  const primaryDisplay = screen.getPrimaryDisplay();
-  const { bounds, workArea } = primaryDisplay;
+  // Determine which display to show the glow on based on the selected recording source
+  let targetDisplay = screen.getPrimaryDisplay();
+  if (lastRecordingSourceId) {
+    const sourceIdStr = String(lastRecordingSourceId);
+    if (sourceIdStr.startsWith('screen:')) {
+      // Screen source: parse display id from "screen:DISPLAY_ID:0"
+      const parts = sourceIdStr.split(':');
+      const displayId = parts[1];
+      const allDisplays = screen.getAllDisplays();
+      const matched = allDisplays.find(d => String(d.id) === displayId);
+      if (matched) targetDisplay = matched;
+    } else {
+      // Window source: use cursor position to find the display (cursor is on the picker screen)
+      const cursorPoint = screen.getCursorScreenPoint();
+      targetDisplay = screen.getDisplayNearestPoint(cursorPoint);
+    }
+  }
+  const { bounds, workArea } = targetDisplay;
   const controlWidth = 276;
   const controlHeight = 54;
   recordingIndicatorWindow = new BrowserWindow({
@@ -407,6 +424,7 @@ function hideRecordingIndicator() {
     recordingIndicatorWindow.close();
   }
   recordingIndicatorWindow = null;
+  lastRecordingSourceId = null;
 
   // Restore pico main window when recording ends
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -827,6 +845,7 @@ function chooseRecordingWindowSource() {
 ipcMain.handle('pro-recording-source', async () => {
   const source = await chooseRecordingWindowSource();
   if (!source) return null;
+  lastRecordingSourceId = source.id;
   return { id: source.id, name: source.name };
 });
 
@@ -858,11 +877,14 @@ ipcMain.handle('pro-save-recording', async (event, payload) => {
     try {
       mp4 = await convertWebmToMp4(webmPath, mp4Path);
     } catch (conversionError) {
-      throw new Error(
-        `Could not convert recording to ${format.toUpperCase()}. ` +
-        `Make sure ffmpeg is installed and available in your PATH or bundled in resources/bin. ` +
-        `(${conversionError.message})`
-      );
+      // Save as webm so the recording is not lost, but inform the user clearly
+      const webmOutputPath = saveResult.filePath.replace(/\.[^.]+$/i, '.webm');
+      fs.mkdirSync(path.dirname(webmOutputPath), { recursive: true });
+      fs.copyFileSync(webmPath, webmOutputPath);
+      return {
+        webm: webmOutputPath,
+        warning: `Saved as .webm (ffmpeg required for ${format.toUpperCase()} conversion). Install ffmpeg and add it to your PATH.`,
+      };
     }
 
     if (format === 'gif') {
