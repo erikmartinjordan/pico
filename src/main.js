@@ -898,7 +898,7 @@ ipcMain.handle('pro-save-recording', async (event, payload) => {
       fs.copyFileSync(webmPath, webmOutputPath);
       return {
         webm: webmOutputPath,
-        warning: `Saved as .webm (ffmpeg required for ${format.toUpperCase()} conversion). Install ffmpeg and add it to your PATH.`,
+        warning: `Saved as .webm (bundled ffmpeg/gifski conversion tools are unavailable for ${format.toUpperCase()} export).`,
       };
     }
 

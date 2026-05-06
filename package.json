@@ -17,6 +17,10 @@
     "electron": "^34.5.8",
     "electron-builder": "^25.1.8"
   },
+  "dependencies": {
+    "ffmpeg-static": "5.2.0",
+    "gifski": "1.7.1"
+  },
   "build": {
     "appId": "com.pico.screenshot",
     "productName": "pico",
@@ -83,6 +87,10 @@
           "**/*"
         ]
       }
+    ],
+    "asarUnpack": [
+      "node_modules/ffmpeg-static/**",
+      "node_modules/gifski/**"
     ]
   }
 }
