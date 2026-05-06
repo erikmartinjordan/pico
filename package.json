@@ -11,11 +11,15 @@
     "build:mac": "electron-builder --mac",
     "build:win": "electron-builder --win",
     "build:all": "electron-builder --mac --win",
-    "build:mac:legacy": "electron-builder --mac --config electron-builder.legacy-mac.cjs"
+    "build:mac:legacy": "electron-builder --mac --config electron-builder.legacy-mac.cjs",
+    "test:capture": "playwright test tests/e2e/capture-recording.spec.js",
+    "test:capture:headed": "playwright test tests/e2e/capture-recording.spec.js --headed",
+    "test:capture:agent": "node scripts/capture-test-agent.js --fix"
   },
   "devDependencies": {
     "electron": "^34.5.8",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "^25.1.8",
+    "@playwright/test": "^1.53.0"
   },
   "dependencies": {
     "ffmpeg-static": "5.2.0",

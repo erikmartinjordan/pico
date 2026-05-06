@@ -27,3 +27,8 @@ Thumbs.db
 *.dmg
 *.exe
 *.AppImage
+
+# Test artifacts
+.pico-agent/
+playwright-report/
+test-results/

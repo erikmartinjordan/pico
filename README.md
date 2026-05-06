@@ -65,6 +65,45 @@ npm run build:all    # macOS and Windows
 
 Builds are written to `dist/`.
 
+
+## Automated capture testing
+
+pico includes an Electron end-to-end suite for the manual flows that are easiest to regress:
+
+- rectangle/region capture
+- window capture
+- fullscreen capture
+- MP4 recording export
+- GIF recording export
+
+Run the suite locally:
+
+```bash
+npm run test:capture
+```
+
+Run with visible windows for debugging:
+
+```bash
+npm run test:capture:headed
+```
+
+On Linux CI or headless Linux machines, run the same command through `xvfb-run` so Electron has a desktop to capture:
+
+```bash
+xvfb-run -a npm run test:capture
+```
+
+The suite launches the real Electron app, clicks the capture and recording buttons, interacts with the capture overlays, and verifies that the canvas or exported recording file exists. During tests only, `PICO_E2E=1` enables non-production helpers that avoid save dialogs, automatically choose a recording source, and provide a window-capture fallback when the OS cannot enumerate normal windows in CI.
+
+If you want an automated fixing agent to run after a failure, use:
+
+```bash
+npm run test:capture:agent
+```
+
+That command runs `npm run test:capture`, writes failures to `.pico-agent/capture-e2e-failure.log`, invokes the installed `codex exec` CLI by default, then reruns the suite. If `codex` is not on your `PATH`, or to use a different local agent command, set `PICO_FIX_AGENT_COMMAND`; the failure prompt is sent to the command on stdin.
+
 ## License
 
 MIT

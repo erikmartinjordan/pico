@@ -17,6 +17,20 @@ let recordingIndicatorWindows = [];
 let recordingSourceSelection = null;
 let lastRecordingSourceId = null;
 
+const isE2E = process.env.PICO_E2E === '1';
+
+function getE2EOutputDir() {
+  if (!isE2E) return '';
+  return process.env.PICO_E2E_OUTPUT_DIR || path.join(app.getPath('temp'), 'pico-e2e');
+}
+
+function e2eOutputPath(prefix, extension) {
+  const dir = getE2EOutputDir();
+  if (!dir) return '';
+  fs.mkdirSync(dir, { recursive: true });
+  return path.join(dir, `${prefix}-${Date.now()}.${extension}`);
+}
+
 async function getDefaultRecordingSource() {
   const primaryDisplay = screen.getPrimaryDisplay();
   const sources = await desktopCapturer.getSources({
@@ -639,6 +653,25 @@ ipcMain.handle('start-capture-window', async () => {
       fetchWindowIcons: false,
     });
     windowPickerSources = windowSources.filter(s => s && s.name && !isPicoWindowSource(s));
+
+    if (isE2E && winBounds.length === 0) {
+      const fallbackSources = windowPickerSources.length > 0
+        ? windowPickerSources
+        : await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1920, height: 1200 } });
+      const fallbackSource = fallbackSources.find(s => s && s.name && s.thumbnail && !s.thumbnail.isEmpty());
+      if (fallbackSource) {
+        windowPickerSources = [fallbackSource];
+        const primaryDisplay = screen.getPrimaryDisplay();
+        winBounds.push({
+          name: fallbackSource.name,
+          x: 0,
+          y: 0,
+          width: Math.max(1, primaryDisplay.bounds.width),
+          height: Math.max(1, primaryDisplay.bounds.height),
+        });
+      }
+    }
+
     createCaptureOverlays(captureData, 'window', winBounds);
     return { success: true };
   } catch (err) {
@@ -858,6 +891,13 @@ function chooseRecordingWindowSource() {
 }
 
 ipcMain.handle('pro-recording-source', async () => {
+  if (isE2E && process.env.PICO_E2E_AUTO_RECORDING_SOURCE !== '0') {
+    const source = await getDefaultRecordingSource();
+    if (!source) return null;
+    lastRecordingSourceId = source.id;
+    return { id: source.id, name: source.name };
+  }
+
   const source = await chooseRecordingWindowSource();
   if (!source) return null;
   lastRecordingSourceId = source.id;
@@ -870,14 +910,17 @@ ipcMain.handle('pro-save-recording', async (event, payload) => {
 
   const format = payload?.format === 'gif' || payload?.gif ? 'gif' : 'mp4';
   const extension = format === 'gif' ? 'gif' : 'mp4';
-  const saveResult = await dialog.showSaveDialog(mainWindow, {
-    title: 'Save screen recording',
-    defaultPath: path.join(app.getPath('videos'), `pico-recording-${Date.now()}.${extension}`),
-    buttonLabel: 'Save Recording',
-    filters: format === 'gif'
-      ? [{ name: 'GIF Animation', extensions: ['gif'] }]
-      : [{ name: 'MP4 Video', extensions: ['mp4'] }],
-  });
+  const e2ePath = e2eOutputPath('pico-recording', extension);
+  const saveResult = e2ePath
+    ? { canceled: false, filePath: e2ePath }
+    : await dialog.showSaveDialog(mainWindow, {
+      title: 'Save screen recording',
+      defaultPath: path.join(app.getPath('videos'), `pico-recording-${Date.now()}.${extension}`),
+      buttonLabel: 'Save Recording',
+      filters: format === 'gif'
+        ? [{ name: 'GIF Animation', extensions: ['gif'] }]
+        : [{ name: 'MP4 Video', extensions: ['mp4'] }],
+    });
   if (saveResult.canceled || !saveResult.filePath) return { canceled: true };
 
   const webmPath = tempRecordingPath('webm');
