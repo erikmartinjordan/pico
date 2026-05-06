@@ -104,6 +104,9 @@ npm run build
 # Build for macOS
 npm run build:mac
 
+# Build a legacy Intel DMG for macOS 10.13+ without changing the default Electron build
+npm run build:mac:legacy
+
 # Build for Windows  
 npm run build:win
 
