@@ -73,6 +73,15 @@
           ]
         }
       ]
-    }
+    },
+    "extraResources": [
+      {
+        "from": "src/bin",
+        "to": "bin",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ]
   }
 }
