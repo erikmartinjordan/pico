@@ -7,7 +7,7 @@ const { app, BrowserWindow, ipcMain, desktopCapturer, dialog, screen, globalShor
 const { execSync, exec } = require('child_process');
 const path = require('path');
 const fs = require('fs');
-const { tempRecordingPath, saveWebmFallback, convertWebmToMp4, convertMp4ToGif } = require('./pro/recording');
+const { tempRecordingPath, convertWebmToMp4, convertMp4ToGif } = require('./pro/recording');
 
 let mainWindow = null;
 let captureWindows = [];
@@ -318,14 +318,13 @@ function showRecordingIndicator() {
           }
           .recording-glow {
             position: fixed;
-            inset: 7px;
-            border: 3px solid rgba(239, 68, 68, 0.95);
-            border-radius: 18px;
+            inset: 0;
+            border: 3px solid rgba(239, 68, 68, 0.92);
+            border-radius: 0;
             box-shadow:
-              inset 0 0 20px rgba(248, 113, 113, 0.78),
-              inset 0 0 44px rgba(220, 38, 38, 0.35),
-              0 0 26px rgba(239, 68, 68, 0.82),
-              0 0 62px rgba(127, 29, 29, 0.62);
+              inset 0 0 30px rgba(248, 113, 113, 0.6),
+              inset 0 0 60px rgba(220, 38, 38, 0.25),
+              0 0 20px rgba(239, 68, 68, 0.7);
             animation: glowPulse 1.25s ease-in-out infinite;
             pointer-events: none;
           }
@@ -339,28 +338,45 @@ function showRecordingIndicator() {
             align-items: center;
             justify-content: space-between;
             gap: 12px;
-            padding: 8px 10px 8px 14px;
-            border: 1px solid rgba(248, 113, 113, 0.45);
-            border-radius: 999px;
-            background: rgba(20, 20, 24, 0.90);
-            color: #fee2e2;
-            box-shadow: 0 18px 42px rgba(0,0,0,0.38), 0 0 24px rgba(239,68,68,0.35);
-            backdrop-filter: blur(18px);
+            padding: 8px 12px 8px 14px;
+            border: 1px solid rgba(255, 255, 255, 0.10);
+            border-radius: 12px;
+            background: rgba(14, 14, 17, 0.92);
+            color: #f5f0eb;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 1px 0 rgba(255,255,255,0.04) inset;
+            backdrop-filter: blur(20px);
             pointer-events: auto;
           }
-          .status { display: flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 800; }
+          .status { display: flex; align-items: center; gap: 9px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: rgba(255,255,255,0.7); }
           .dot { width: 10px; height: 10px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.85); animation: dotPulse 1.1s ease-out infinite; }
           button {
-            border: 0;
-            border-radius: 999px;
-            padding: 10px 16px;
-            background: linear-gradient(135deg, #ef4444, #b91c1c);
-            color: white;
-            font-size: 13px;
-            font-weight: 900;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 8px;
+            padding: 8px 14px;
+            background: rgba(30, 31, 36, 0.95);
+            color: #fecaca;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
             cursor: pointer;
+            transition: background 0.12s, border-color 0.12s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
           }
-          button:hover { filter: brightness(1.08); }
+          button::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            border-radius: 2px;
+            background: #ef4444;
+            flex-shrink: 0;
+          }
+          button:hover {
+            background: rgba(239, 68, 68, 0.15);
+            border-color: rgba(239, 68, 68, 0.5);
+          }
           @keyframes glowPulse { 0%, 100% { opacity: 0.72; } 50% { opacity: 1; } }
           @keyframes dotPulse { 0% { box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.85); } 80%, 100% { box-shadow: 0 0 0 10px rgba(248, 113, 113, 0); } }
         </style>
@@ -380,12 +396,23 @@ function showRecordingIndicator() {
     </html>
   `)}`);
   recordingIndicatorWindow.on('closed', () => { recordingIndicatorWindow = null; });
+
+  // Minimize pico main window so user can navigate other apps while recording
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.minimize();
+  }
 }
 function hideRecordingIndicator() {
   if (recordingIndicatorWindow && !recordingIndicatorWindow.isDestroyed()) {
     recordingIndicatorWindow.close();
   }
   recordingIndicatorWindow = null;
+
+  // Restore pico main window when recording ends
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.restore();
+    mainWindow.show();
+  }
 }
 
 function createMainWindow() {
@@ -831,11 +858,11 @@ ipcMain.handle('pro-save-recording', async (event, payload) => {
     try {
       mp4 = await convertWebmToMp4(webmPath, mp4Path);
     } catch (conversionError) {
-      const webm = saveWebmFallback(webmPath, saveResult.filePath);
-      return {
-        webm,
-        warning: `${format.toUpperCase()} conversion skipped: ${conversionError.message}`.slice(0, 240),
-      };
+      throw new Error(
+        `Could not convert recording to ${format.toUpperCase()}. ` +
+        `Make sure ffmpeg is installed and available in your PATH or bundled in resources/bin. ` +
+        `(${conversionError.message})`
+      );
     }
 
     if (format === 'gif') {
