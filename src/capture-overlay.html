@@ -199,12 +199,12 @@
     // well-centered within the highlight, even with coordinate misalignment
     // between the screenshot and the window enumeration (DWM frame, DPI, etc.)
     const HIGHLIGHT_PADDING = 14;
-    // On Windows, UIAutomation BoundingRectangle includes asymmetric invisible
-    // DWM frame (~7px on sides/bottom, ~0-1px on top). The screenshot however
-    // renders the visible window slightly higher than the reported top edge.
-    // This shift moves the highlight/clip UP to compensate, preventing the top
-    // of the window from being "cut off" by the dark overlay.
-    const HIGHLIGHT_Y_SHIFT = -8;
+    // On Windows, UIAutomation BoundingRectangle is offset from where the window
+    // visually renders in the screenshot (due to DWM invisible frame + DPI rounding).
+    // These shifts re-center the highlight so padding is symmetric on all sides.
+    // (The actual window capture uses desktopCapturer by name, so this is cosmetic only.)
+    const HIGHLIGHT_Y_SHIFT = -20;
+    const HIGHLIGHT_X_SHIFT = -8;
     // Extra tolerance for hit detection so hovering near a window is forgiving
     const HIT_TOLERANCE = 16;
 
@@ -237,8 +237,8 @@
       const rawW = win.width * boundsScaleX;
       const rawH = win.height * boundsScaleY;
 
-      // Apply padding and vertical shift for well-centered highlight
-      const x = Math.round(rawX - HIGHLIGHT_PADDING);
+      // Apply padding and shifts for well-centered highlight
+      const x = Math.round(rawX - HIGHLIGHT_PADDING + HIGHLIGHT_X_SHIFT);
       const y = Math.round(rawY - HIGHLIGHT_PADDING + HIGHLIGHT_Y_SHIFT);
       const w = Math.round(rawW + HIGHLIGHT_PADDING * 2);
       const h = Math.round(rawH + HIGHLIGHT_PADDING * 2);
