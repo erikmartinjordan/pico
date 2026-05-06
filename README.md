@@ -104,6 +104,18 @@ npm run test:capture:agent
 
 That command runs `npm run test:capture`, writes failures to `.pico-agent/capture-e2e-failure.log`, invokes the installed `codex exec` CLI by default, then reruns the suite. If `codex` is not on your `PATH`, or to use a different local agent command, set `PICO_FIX_AGENT_COMMAND`; the failure prompt is sent to the command on stdin.
 
+### GitHub automatic fixes
+
+The `Capture E2E Autofix` workflow can automatically repair failing capture E2E tests on pull-request branches in this repository. It runs only after the `Capture E2E` workflow fails and only when all of these safeguards are true:
+
+- the run came from a pull request, not a direct push to `main`
+- the pull-request branch is in this repository, not a fork
+- repository variable `CAPTURE_E2E_AUTOFIX` is set to `true`
+- repository secret `OPENAI_API_KEY` is available
+- the failing commit message does not contain `[skip-autofix]`
+
+To enable it in GitHub, add `OPENAI_API_KEY` under **Settings → Secrets and variables → Actions → Secrets**, then add `CAPTURE_E2E_AUTOFIX=true` under **Variables**. When enabled, GitHub Actions checks out the failing PR branch, runs `xvfb-run -a npm run test:capture:agent`, and pushes any generated fix commit back to that branch. The auto-fix commit includes `[skip-autofix]` so a bad generated fix cannot create an infinite auto-fix loop.
+
 ## License
 
 MIT
