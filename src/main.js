@@ -13,7 +13,7 @@ let mainWindow = null;
 let captureWindows = [];
 let windowPickerWindow = null;
 let windowPickerSources = [];
-let recordingIndicatorWindow = null;
+let recordingIndicatorWindows = [];
 let recordingSourceSelection = null;
 let lastRecordingSourceId = null;
 
@@ -268,57 +268,65 @@ except Exception as ex:
 
 
 function showRecordingIndicator() {
-  if (recordingIndicatorWindow && !recordingIndicatorWindow.isDestroyed()) {
-    recordingIndicatorWindow.showInactive();
+  if (recordingIndicatorWindows.length > 0) {
+    recordingIndicatorWindows.forEach(w => { if (!w.isDestroyed()) w.showInactive(); });
     return;
   }
 
-  // Determine which display to show the glow on based on the selected recording source
+  // Determine which display should show the stop controls
   let targetDisplay = screen.getPrimaryDisplay();
   if (lastRecordingSourceId) {
     const sourceIdStr = String(lastRecordingSourceId);
     if (sourceIdStr.startsWith('screen:')) {
-      // Screen source: parse display id from "screen:DISPLAY_ID:0"
       const parts = sourceIdStr.split(':');
       const displayId = parts[1];
       const allDisplays = screen.getAllDisplays();
       const matched = allDisplays.find(d => String(d.id) === displayId);
       if (matched) targetDisplay = matched;
     } else {
-      // Window source: use cursor position to find the display (cursor is on the picker screen)
       const cursorPoint = screen.getCursorScreenPoint();
       targetDisplay = screen.getDisplayNearestPoint(cursorPoint);
     }
   }
-  const { bounds, workArea } = targetDisplay;
+
   const controlWidth = 276;
   const controlHeight = 54;
-  recordingIndicatorWindow = new BrowserWindow({
-    width: bounds.width,
-    height: bounds.height,
-    x: bounds.x,
-    y: bounds.y,
-    frame: false,
-    transparent: true,
-    resizable: false,
-    movable: false,
-    alwaysOnTop: true,
-    skipTaskbar: true,
-    focusable: true,
-    hasShadow: false,
-    autoHideMenuBar: true,
-    type: process.platform === 'darwin' ? 'panel' : undefined,
-    webPreferences: {
-      contextIsolation: false,
-      nodeIntegration: true,
-      sandbox: false,
-    },
-  });
+  const allDisplays = screen.getAllDisplays();
 
-  recordingIndicatorWindow.setAlwaysOnTop(true, 'screen-saver');
-  recordingIndicatorWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  recordingIndicatorWindow.setContentProtection(true);
-  recordingIndicatorWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`
+  for (const display of allDisplays) {
+    const { bounds, workArea } = display;
+    const isTarget = display.id === targetDisplay.id;
+
+    const indicatorWindow = new BrowserWindow({
+      width: bounds.width,
+      height: bounds.height,
+      x: bounds.x,
+      y: bounds.y,
+      frame: false,
+      transparent: true,
+      resizable: false,
+      movable: false,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      focusable: isTarget,
+      hasShadow: false,
+      autoHideMenuBar: true,
+      type: process.platform === 'darwin' ? 'panel' : undefined,
+      webPreferences: {
+        contextIsolation: false,
+        nodeIntegration: true,
+        sandbox: false,
+      },
+    });
+
+    indicatorWindow.setAlwaysOnTop(true, 'screen-saver');
+    indicatorWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    indicatorWindow.setContentProtection(true);
+
+    const controlsLeft = Math.round(workArea.x - bounds.x + (workArea.width - controlWidth) / 2);
+    const controlsBottom = Math.max(12, Math.round(bounds.y + bounds.height - workArea.y - workArea.height + 16));
+
+    indicatorWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`
     <!DOCTYPE html>
     <html>
       <head>
@@ -347,11 +355,11 @@ function showRecordingIndicator() {
           }
           .recording-controls {
             position: fixed;
-            left: ${Math.round(workArea.x - bounds.x + (workArea.width - controlWidth) / 2)}px;
-            bottom: ${Math.max(12, Math.round(bounds.y + bounds.height - workArea.y - workArea.height + 16))}px;
+            left: ${controlsLeft}px;
+            bottom: ${controlsBottom}px;
             width: ${controlWidth}px;
             height: ${controlHeight}px;
-            display: flex;
+            display: ${isTarget ? 'flex' : 'none'};
             align-items: center;
             justify-content: space-between;
             gap: 12px;
@@ -407,23 +415,30 @@ function showRecordingIndicator() {
         <script>
           const { ipcRenderer } = require('electron');
           const stop = document.getElementById('stop');
-          stop.addEventListener('click', () => ipcRenderer.send('pro-recording-stop-clicked'));
+          if (stop) stop.addEventListener('click', () => ipcRenderer.send('pro-recording-stop-clicked'));
         </script>
       </body>
     </html>
   `)}`);
-  recordingIndicatorWindow.on('closed', () => { recordingIndicatorWindow = null; });
+
+    indicatorWindow.on('closed', () => {
+      recordingIndicatorWindows = recordingIndicatorWindows.filter(w => w !== indicatorWindow);
+    });
+
+    recordingIndicatorWindows.push(indicatorWindow);
+  }
 
   // Minimize pico main window so user can navigate other apps while recording
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.minimize();
   }
 }
+
 function hideRecordingIndicator() {
-  if (recordingIndicatorWindow && !recordingIndicatorWindow.isDestroyed()) {
-    recordingIndicatorWindow.close();
+  for (const w of recordingIndicatorWindows) {
+    if (!w.isDestroyed()) w.close();
   }
-  recordingIndicatorWindow = null;
+  recordingIndicatorWindows = [];
   lastRecordingSourceId = null;
 
   // Restore pico main window when recording ends
