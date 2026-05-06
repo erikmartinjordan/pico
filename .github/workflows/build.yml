@@ -94,18 +94,23 @@ jobs:
           echo "=== Files to release ==="
           ls -lh release/
 
-      - name: Delete previous latest release
-        run: gh release delete latest --cleanup-tag --yes || true
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Prepare release metadata
+        id: release_meta
+        run: |
+          short_sha="${GITHUB_SHA::7}"
+          echo "tag=latest-${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}-${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "title=pico latest (${short_sha})" >> "$GITHUB_OUTPUT"
 
       - name: Create latest release
         run: |
-          gh release create latest release/* \
-            --title "pico (latest)" \
+          gh release create "${{ steps.release_meta.outputs.tag }}" release/* \
+            --target "$GITHUB_SHA" \
+            --title "${{ steps.release_meta.outputs.title }}" \
             --notes "🚀 **Latest build** from \`main\` — updated automatically on every push.
 
           Built from [\`${GITHUB_SHA::7}\`](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}) on $(date -u '+%Y-%m-%d %H:%M UTC').
+
+          Keeping each automatic release preserves historical GitHub asset download counts, so the README total-downloads badge can continue to aggregate downloads across all retained releases.
 
           **Download:**
           - **macOS** — \`.dmg\` and \`.zip\` (Universal: Intel + Apple Silicon)

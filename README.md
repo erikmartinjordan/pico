@@ -12,6 +12,12 @@
   <img src="https://img.shields.io/github/downloads/erikmartinjordan/pico/total?label=Total%20downloads&style=flat-square" alt="Total downloads" />
 </p>
 
+<!--
+  This badge uses GitHub's repository-wide release-asset download total.
+  The release workflow keeps every automatic release instead of deleting and recreating
+  a single `latest` release, so historical downloads remain available to the badge.
+-->
+
 Lightweight screen-capture & annotation app for **macOS** and **Windows**. Modern, fast, and portable.
 
 
