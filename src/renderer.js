@@ -51,6 +51,7 @@ const state = {
   cropDragStartY: 0,
   cropOrigRect: null,
   isRecording: false,
+  recordingFormat: 'mp4',
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -70,8 +71,8 @@ const elements = {
   btnUndo: $('#btn-undo'),
   btnRedo: $('#btn-redo'),
   btnClear: $('#btn-clear'),
-  btnScrollCapture: $('#btn-scroll-capture'),
   btnRecordScreen: $('#btn-record-screen'),
+  recordingFormatMenu: $('#recording-format-menu'),
   emptyCapture: $('#empty-capture'),
   emptyOpen: $('#empty-open'),
   toolBtns: $$('.tool-btn'),
@@ -122,8 +123,15 @@ function bindToolbar() {
   on($('#btn-capture-region'), 'click', startCapture);
   on($('#btn-capture-window'), 'click', startCaptureWindow);
   on($('#btn-capture-fullscreen'), 'click', startCaptureFullscreen);
-  on(elements.btnScrollCapture, 'click', startScrollCapture);
-  on(elements.btnRecordScreen, 'click', toggleRecording);
+  on(elements.btnRecordScreen, 'click', onRecordButtonClick);
+  elements.recordingFormatMenu?.querySelectorAll('[data-format]').forEach((button) => {
+    button.addEventListener('click', () => startRecordingWithFormat(button.dataset.format));
+  });
+  document.addEventListener('click', (event) => {
+    if (!elements.recordingFormatMenu?.classList.contains('visible')) return;
+    if (elements.recordingFormatMenu.contains(event.target) || elements.btnRecordScreen?.contains(event.target)) return;
+    hideRecordingFormatMenu();
+  });
   
   on(elements.btnCopy, 'click', copyToClipboard);
   on(elements.btnCrop, 'click', toggleCrop);
@@ -210,6 +218,9 @@ function bindIPC() {
     });
   });
   window.pico.onLoadCaptureData((captureData) => loadCaptureData(captureData, { autoSelectRect: true }));
+  window.pico.onRecordingStopRequested(() => {
+    if (state.isRecording) toggleRecording();
+  });
 }
 
 function bindInlineText() {
@@ -447,68 +458,63 @@ function updateCropUI() {
 // ══════════════════════════════════════════════════════════════════════════════
 
 
-async function bytesToDataUrl(bytes, mime = 'image/png') {
-  const blob = new Blob([bytes], { type: mime });
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(blob);
-  });
+function showRecordingFormatMenu() {
+  elements.recordingFormatMenu?.classList.add('visible');
 }
 
-async function chooseProWindowSource() {
-  const sources = await window.pico.getProWindowSources();
-  if (!sources.length) throw new Error('No capturable windows found');
-  const sourceList = sources
-    .map((source, index) => `${index + 1}. ${source.name}`)
-    .join('\n');
-  const choice = window.prompt(`Pro scrolling capture: choose a window to auto-scroll.\n\n${sourceList}`);
-  if (!choice) return null;
-  const selectedIndex = Number.parseInt(choice, 10) - 1;
-  if (!Number.isInteger(selectedIndex) || !sources[selectedIndex]) {
-    throw new Error('Invalid window selection');
+function hideRecordingFormatMenu() {
+  elements.recordingFormatMenu?.classList.remove('visible');
+}
+
+function onRecordButtonClick(event) {
+  if (state.isRecording) {
+    toggleRecording(event);
+    return;
   }
-  return sources[selectedIndex];
+  event?.stopPropagation();
+  showRecordingFormatMenu();
 }
 
-async function startScrollCapture() {
-  if (state.cropActive) cancelCrop();
-
+async function startRecordingWithFormat(format = 'mp4') {
+  hideRecordingFormatMenu();
   try {
-    const selected = await chooseProWindowSource();
-    if (!selected) return;
-    showToast(`Scrolling ${selected.name}…`, 'info');
-    const pngBytes = await window.pico.scrollCapture(selected.id);
-    const dataUrl = await bytesToDataUrl(pngBytes, 'image/png');
-    loadImage(dataUrl, { showPreview: true, captureMode: 'scrolling' });
-    await window.pico.copyToClipboard(dataUrl);
-    showToast('Scrolling capture stitched and copied', 'success');
+    const started = await window.pico.startRecording({ format });
+    state.isRecording = true;
+    state.recordingFormat = format;
+    setRecordingIndicator(true);
+    showToast(started.systemAudio ? `Recording ${started.source?.name || 'window'} as ${format.toUpperCase()}` : `Recording ${started.source?.name || 'window'} as ${format.toUpperCase()} without system audio`, started.systemAudio ? 'success' : 'info');
   } catch (err) {
-    showToast(`Scrolling capture failed: ${err.message}`, 'error');
+    state.isRecording = false;
+    setRecordingIndicator(false);
+    if (err.message === 'Recording canceled') {
+      showToast('Recording canceled', 'info');
+      return;
+    }
+    showToast(`Recording failed: ${err.message}`, 'error');
   }
 }
 
 async function toggleRecording(event) {
   try {
     if (!state.isRecording) {
-      const started = await window.pico.startRecording();
-      state.isRecording = true;
-      elements.btnRecordScreen?.classList.add('recording');
-      showToast(started.systemAudio ? 'Pro recording started' : 'Pro recording started without system audio', started.systemAudio ? 'success' : 'info');
+      showRecordingFormatMenu();
       return;
     }
 
     showToast('Finalizing recording…', 'info');
-    const result = await window.pico.stopRecording({ gif: Boolean(event?.shiftKey) });
+    const result = await window.pico.stopRecording({ format: state.recordingFormat || (event?.shiftKey ? 'gif' : 'mp4') });
     state.isRecording = false;
-    elements.btnRecordScreen?.classList.remove('recording');
-    const gifNote = result.gif ? ` and GIF: ${result.gif}` : '';
+    setRecordingIndicator(false);
+    if (result.canceled) {
+      showToast('Recording discarded', 'info');
+      return;
+    }
+    const savedPath = result.gif || result.mp4 || result.webm;
     const warning = result.warning ? ` (${result.warning})` : '';
-    showToast(`Saved MP4: ${result.mp4}${gifNote}${warning}`, result.warning ? 'info' : 'success');
+    showToast(`Saved recording: ${savedPath}${warning}`, result.warning ? 'info' : 'success');
   } catch (err) {
     state.isRecording = false;
-    elements.btnRecordScreen?.classList.remove('recording');
+    setRecordingIndicator(false);
     showToast(`Recording failed: ${err.message}`, 'error');
   }
 }
@@ -1338,13 +1344,21 @@ function updateStatus() {
   elements.statusZoom.textContent = `${Math.round(state.zoom * 100)}%`;
 }
 
+function setRecordingIndicator(isRecording) {
+  elements.btnRecordScreen?.classList.toggle('recording', isRecording);
+  if (elements.btnRecordScreen) {
+    elements.btnRecordScreen.title = isRecording ? 'Stop recording and choose save location' : 'Record a window';
+    elements.btnRecordScreen.setAttribute('aria-pressed', String(isRecording));
+  }
+}
+
 function updateToolbarState() {
   elements.btnCopy.disabled = !state.image;
   elements.btnCrop.disabled = !state.image;
   elements.btnUndo.disabled = state.historyIndex < 0;
   elements.btnRedo.disabled = state.historyIndex >= state.history.length - 1;
   elements.btnClear.disabled = !state.image;
-  if (elements.btnRecordScreen) elements.btnRecordScreen.classList.toggle('recording', state.isRecording);
+  setRecordingIndicator(state.isRecording);
 }
 
 

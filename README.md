@@ -12,40 +12,26 @@
   <img src="https://img.shields.io/github/downloads/erikmartinjordan/pico/total?label=Total%20downloads&style=flat-square" alt="Total downloads" />
 </p>
 
-<!--
-  This badge uses GitHub's repository-wide release-asset download total.
-  The release workflow keeps every automatic release instead of deleting and recreating
-  a single `latest` release, so historical downloads remain available to the badge.
--->
+Minimal screen-capture and annotation app for macOS and Windows.
 
-Lightweight screen-capture & annotation app for **macOS** and **Windows**. Modern, fast, and portable.
+## Download
 
+[Download the latest release](../../releases/latest)
+
+- macOS: universal DMG, arm64 ZIP, or x64 ZIP
+- Windows: portable EXE
+
+> Windows may show a SmartScreen warning on first launch because releases are not yet signed.
 
 ## Features
 
-- **Cross-platform** — Native apps for macOS (Intel & Apple Silicon) and Windows
-- **Multi-monitor capture** — Seamlessly capture across all connected displays
-- **Region selection** — Drag to crop the exact area you need
-- **Window container** — Wrap screenshots in a macOS-style window chrome
-- **Annotation tools**
-  - Rectangle & Ellipse
-  - Arrow & Line
-  - Text labels
-  - Highlighter
-  - Blur/pixelate sensitive info
-- **Color palette** — 9 preset colors + custom color picker
-- **Adjustable stroke width** — 4 thickness options
-- **Undo/Redo** — Full history support
-- **Zoom & pan** — Navigate large screenshots with ease
-- **Export options** — Save to PNG or copy directly to clipboard
-- **Portable** — Single executable, no installation required (Windows)
+- Capture a region, window, or display
+- Annotate with shapes, arrows, text, highlight, and blur
+- Undo, redo, zoom, and pan
+- Save as PNG or copy to clipboard
+- Optional Pro tools for scrolling capture and screen recording
 
-### Pro features
-
-- **Scrolling capture (Pro)** — `scrollCapture(windowId: string): Promise<Buffer>` auto-scrolls a selected desktopCapturer window source and stitches frames with a 20px overlap plus seam diff check. The toolbar flow now lets you choose a window instead of manually pasting a source id.
-- **Screen recording (Pro)** — `startRecording()` records screen video plus system audio as `video/webm;codecs=vp9` when available; `stopRecording({ gif?: boolean })` converts the result to MP4 through bundled `ffmpeg` and can export a GIF through bundled `gifski`. If system audio or local converters are unavailable, pico falls back gracefully and reports the limitation.
-
-## Keyboard Shortcuts
+## Shortcuts
 
 | Shortcut | Action |
 | --- | --- |
@@ -166,9 +152,7 @@ Typography: DM Mono / system monospace at 10–13px.
 
 ## Tech Stack
 
-- **Electron** — Cross-platform desktop framework
-- **Canvas API** — Hardware-accelerated drawing
-- **desktopCapturer** — Native screen capture
+Built apps are generated in `dist/`.
 
 ## License
 

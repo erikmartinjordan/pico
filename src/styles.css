@@ -112,10 +112,65 @@ body {
 }
 
 .toolbar-btn.pro-feature.recording {
-  background: rgba(239, 68, 68, 0.18);
-  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.55);
-  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.24);
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.70), 0 0 18px rgba(239, 68, 68, 0.35);
+  color: #fecaca;
+  animation: recordPulse 1.2s ease-in-out infinite;
 }
+
+
+@keyframes recordPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+.recording-format-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.recording-format-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  min-width: 148px;
+  padding: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: rgba(24, 24, 27, 0.96);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.38), 0 0 24px rgba(249, 115, 22, 0.18);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -6px) scale(0.98);
+  transition: opacity 0.14s ease, transform 0.14s ease;
+  z-index: 60;
+}
+
+.recording-format-menu.visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, 0) scale(1);
+}
+
+.recording-format-menu button {
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  padding: 9px 10px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.86);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+  text-align: left;
+  cursor: pointer;
+}
+
+.recording-format-menu button:hover {
+  background: rgba(249, 115, 22, 0.16);
+  color: #fff7ed;
+}
+
 
 .pro-badge {
   position: absolute;

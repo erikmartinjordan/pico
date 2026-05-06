@@ -7,59 +7,14 @@ const { app, BrowserWindow, ipcMain, desktopCapturer, dialog, screen, globalShor
 const { execSync, exec } = require('child_process');
 const path = require('path');
 const fs = require('fs');
-const { scrollCapture } = require('./pro/scroll-capture');
 const { tempRecordingPath, saveWebmFallback, convertWebmToMp4, convertMp4ToGif } = require('./pro/recording');
 
 let mainWindow = null;
 let captureWindows = [];
 let windowPickerWindow = null;
 let windowPickerSources = [];
-
-async function composeImageParts(parts, width, height) {
-  const compositor = new BrowserWindow({
-    width: 1,
-    height: 1,
-    show: false,
-    webPreferences: {
-      offscreen: true,
-      contextIsolation: false,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  });
-
-  try {
-    await compositor.loadURL('data:text/html,<html><body></body></html>');
-    const payload = parts.map((part) => ({
-      dataUrl: part.image.toDataURL(),
-      sourceY: part.sourceY,
-      height: part.height,
-    }));
-    const dataUrl = await compositor.webContents.executeJavaScript(`
-      (async () => {
-        const parts = ${JSON.stringify(payload)};
-        const canvas = document.createElement('canvas');
-        canvas.width = ${Math.max(1, Math.round(width))};
-        canvas.height = ${Math.max(1, Math.round(height))};
-        const ctx = canvas.getContext('2d');
-        let y = 0;
-        for (const part of parts) {
-          const img = new Image();
-          img.src = part.dataUrl;
-          await img.decode();
-          ctx.drawImage(img, 0, part.sourceY, img.naturalWidth, part.height, 0, y, img.naturalWidth, part.height);
-          y += part.height;
-        }
-        return canvas.toDataURL('image/png');
-      })()
-    `);
-    return Buffer.from(dataUrl.replace(/^data:image\/png;base64,/, ''), 'base64');
-  } finally {
-    if (!compositor.isDestroyed()) compositor.destroy();
-  }
-}
-
-global.picoComposeImageParts = composeImageParts;
+let recordingIndicatorWindow = null;
+let recordingSourceSelection = null;
 
 async function getDefaultRecordingSource() {
   const primaryDisplay = screen.getPrimaryDisplay();
@@ -71,41 +26,52 @@ async function getDefaultRecordingSource() {
 }
 
 
-function findBoundsForSource(source, boundsList) {
-  if (!source || !Array.isArray(boundsList)) return null;
-  const normalized = source.name.toLowerCase();
-  return boundsList.find((bounds) => bounds.name === source.name) ||
-    boundsList.find((bounds) => normalized.includes(bounds.name.toLowerCase()) || bounds.name.toLowerCase().includes(normalized)) ||
-    null;
+
+function isPicoWindowSource(source) {
+  const id = String(source?.id || '');
+  const name = String(source?.name || '').toLowerCase();
+  return id.startsWith('window:') && name.includes('pico');
 }
 
-async function getProWindowSources() {
-  const sources = await desktopCapturer.getSources({
-    types: ['window'],
-    thumbnailSize: { width: 480, height: 300 },
-    fetchWindowIcons: false,
-  });
-  const boundsList = getVisibleWindowBounds();
-  return sources
-    .filter((source) => source && source.id && source.name && !source.name.toLowerCase().includes('pico'))
-    .map((source) => ({
-      id: source.id,
-      name: source.name,
-      thumbnail: source.thumbnail?.isEmpty() ? null : source.thumbnail.toDataURL(),
-      bounds: findBoundsForSource(source, boundsList),
-    }));
+function toPickerSource(source) {
+  const id = String(source?.id || '');
+  const type = id.startsWith('screen:') ? 'screen' : 'window';
+  const thumbnail = source?.thumbnail && !source.thumbnail.isEmpty()
+    ? source.thumbnail.toDataURL()
+    : '';
+  return { id: source.id, name: source.name, type, thumbnail };
 }
 
-async function getWindowSourcesForPicker() {
-  const sources = await desktopCapturer.getSources({
-    types: ['window'],
+async function getDesktopSourcesForPicker(types = ['window']) {
+  return desktopCapturer.getSources({
+    types,
     thumbnailSize: { width: 1920, height: 1200 },
     fetchWindowIcons: false,
   });
-  const filtered = sources.filter((source) => source && source.name && !source.name.toLowerCase().includes('pico'));
-  // Store full NativeImage references for later use on selection
-  windowPickerSources = filtered;
-  return filtered.map((source) => ({ id: source.id, name: source.name, thumbnail: source.thumbnail.toDataURL() }));
+}
+
+async function getWindowSourcesForPicker() {
+  const windowSources = (await getDesktopSourcesForPicker(['window']))
+    .filter((source) => source && source.name && !isPicoWindowSource(source));
+
+  let pickerSources = windowSources;
+  let fallbackReason = '';
+
+  if (pickerSources.length === 0) {
+    // Some Windows/GPU combinations can fail to enumerate individual window
+    // sources even though screen capture still works. Keep recording usable by
+    // falling back to capturable screens instead of showing an empty picker.
+    const screenSources = (await getDesktopSourcesForPicker(['screen']))
+      .filter((source) => source && source.name);
+    pickerSources = screenSources;
+    fallbackReason = screenSources.length > 0
+      ? 'No capturable windows were found. Select a screen to record instead.'
+      : 'No capturable windows or screens were found.';
+  }
+
+  // Store full NativeImage references for later use on selection.
+  windowPickerSources = pickerSources;
+  return { sources: pickerSources.map(toPickerSource), fallbackReason };
 }
 
 async function openWindowPickerFallback() {
@@ -129,11 +95,14 @@ async function openWindowPickerFallback() {
   });
 
   windowPickerWindow.loadFile(path.join(__dirname, 'window-picker.html'));
-  windowPickerWindow.on('closed', () => { windowPickerWindow = null; if (mainWindow) mainWindow.show(); });
+  windowPickerWindow.on('closed', () => {
+    windowPickerWindow = null;
+    if (!recordingSourceSelection && mainWindow) mainWindow.show();
+  });
 
   windowPickerWindow.webContents.once('did-finish-load', async () => {
-    const sources = await getWindowSourcesForPicker();
-    windowPickerWindow?.webContents.send('window-sources', sources);
+    const payload = await getWindowSourcesForPicker();
+    windowPickerWindow?.webContents.send('window-sources', payload);
   });
 
   return { success: true, fallback: true };
@@ -295,6 +264,129 @@ except Exception as ex:
 }
 
 // ── Window Creation ─────────────────────────────────────────────────────────
+
+
+function showRecordingIndicator() {
+  if (recordingIndicatorWindow && !recordingIndicatorWindow.isDestroyed()) {
+    recordingIndicatorWindow.showInactive();
+    return;
+  }
+
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { bounds, workArea } = primaryDisplay;
+  const controlWidth = 276;
+  const controlHeight = 54;
+  recordingIndicatorWindow = new BrowserWindow({
+    width: bounds.width,
+    height: bounds.height,
+    x: bounds.x,
+    y: bounds.y,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    movable: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    focusable: true,
+    hasShadow: false,
+    autoHideMenuBar: true,
+    type: process.platform === 'darwin' ? 'panel' : undefined,
+    webPreferences: {
+      contextIsolation: false,
+      nodeIntegration: true,
+      sandbox: false,
+    },
+  });
+
+  recordingIndicatorWindow.setAlwaysOnTop(true, 'screen-saver');
+  recordingIndicatorWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  recordingIndicatorWindow.setContentProtection(true);
+  recordingIndicatorWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <style>
+          * { box-sizing: border-box; }
+          body {
+            margin: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background: transparent;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            user-select: none;
+          }
+          .recording-glow {
+            position: fixed;
+            inset: 7px;
+            border: 3px solid rgba(239, 68, 68, 0.95);
+            border-radius: 18px;
+            box-shadow:
+              inset 0 0 20px rgba(248, 113, 113, 0.78),
+              inset 0 0 44px rgba(220, 38, 38, 0.35),
+              0 0 26px rgba(239, 68, 68, 0.82),
+              0 0 62px rgba(127, 29, 29, 0.62);
+            animation: glowPulse 1.25s ease-in-out infinite;
+            pointer-events: none;
+          }
+          .recording-controls {
+            position: fixed;
+            left: ${Math.round(workArea.x - bounds.x + (workArea.width - controlWidth) / 2)}px;
+            bottom: ${Math.max(12, Math.round(bounds.y + bounds.height - workArea.y - workArea.height + 16))}px;
+            width: ${controlWidth}px;
+            height: ${controlHeight}px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 8px 10px 8px 14px;
+            border: 1px solid rgba(248, 113, 113, 0.45);
+            border-radius: 999px;
+            background: rgba(20, 20, 24, 0.90);
+            color: #fee2e2;
+            box-shadow: 0 18px 42px rgba(0,0,0,0.38), 0 0 24px rgba(239,68,68,0.35);
+            backdrop-filter: blur(18px);
+            pointer-events: auto;
+          }
+          .status { display: flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 800; }
+          .dot { width: 10px; height: 10px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.85); animation: dotPulse 1.1s ease-out infinite; }
+          button {
+            border: 0;
+            border-radius: 999px;
+            padding: 10px 16px;
+            background: linear-gradient(135deg, #ef4444, #b91c1c);
+            color: white;
+            font-size: 13px;
+            font-weight: 900;
+            cursor: pointer;
+          }
+          button:hover { filter: brightness(1.08); }
+          @keyframes glowPulse { 0%, 100% { opacity: 0.72; } 50% { opacity: 1; } }
+          @keyframes dotPulse { 0% { box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.85); } 80%, 100% { box-shadow: 0 0 0 10px rgba(248, 113, 113, 0); } }
+        </style>
+      </head>
+      <body>
+        <div class="recording-glow"></div>
+        <div class="recording-controls">
+          <div class="status"><span class="dot"></span><span>Recording</span></div>
+          <button id="stop">Stop</button>
+        </div>
+        <script>
+          const { ipcRenderer } = require('electron');
+          const stop = document.getElementById('stop');
+          stop.addEventListener('click', () => ipcRenderer.send('pro-recording-stop-clicked'));
+        </script>
+      </body>
+    </html>
+  `)}`);
+  recordingIndicatorWindow.on('closed', () => { recordingIndicatorWindow = null; });
+}
+function hideRecordingIndicator() {
+  if (recordingIndicatorWindow && !recordingIndicatorWindow.isDestroyed()) {
+    recordingIndicatorWindow.close();
+  }
+  recordingIndicatorWindow = null;
+}
 
 function createMainWindow() {
   Menu.setApplicationMenu(null);
@@ -486,7 +578,7 @@ ipcMain.handle('start-capture-window', async () => {
       thumbnailSize: { width: 1920, height: 1200 },
       fetchWindowIcons: false,
     });
-    windowPickerSources = windowSources.filter(s => s && s.name && !s.name.toLowerCase().includes('pico'));
+    windowPickerSources = windowSources.filter(s => s && s.name && !isPicoWindowSource(s));
     createCaptureOverlays(captureData, 'window', winBounds);
     return { success: true };
   } catch (err) {
@@ -574,20 +666,38 @@ ipcMain.on('capture-cancel', () => {
 
 ipcMain.on('window-source-select', async (event, sourceId) => {
   try {
-    // Use cached sources first (reliable), fall back to re-fetch
+    // Use cached sources first (reliable), fall back to re-fetch. For recording,
+    // a valid source id is enough; thumbnails are only required for screenshot
+    // capture after the picker selection.
     let selected = windowPickerSources.find((s) => s.id === sourceId);
-    if (!selected || selected.thumbnail.isEmpty()) {
-      const freshSources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 1920, height: 1200 } });
+    if (!selected) {
+      const sourceTypes = String(sourceId).startsWith('screen:') ? ['screen'] : ['window'];
+      const freshSources = await getDesktopSourcesForPicker(sourceTypes);
       selected = freshSources.find((s) => s.id === sourceId);
     }
-    if (!selected || selected.thumbnail.isEmpty()) {
+    if (!selected) {
       if (windowPickerWindow && !windowPickerWindow.isDestroyed()) windowPickerWindow.close();
+      windowPickerSources = [];
+      recordingSourceSelection?.resolve(null);
+      recordingSourceSelection = null;
       if (mainWindow) mainWindow.show();
       return;
     }
-    const dataUrl = selected.thumbnail.toDataURL();
     if (windowPickerWindow && !windowPickerWindow.isDestroyed()) windowPickerWindow.close();
     windowPickerSources = [];
+
+    if (recordingSourceSelection) {
+      recordingSourceSelection.resolve({ id: selected.id, name: selected.name });
+      recordingSourceSelection = null;
+      return;
+    }
+
+    if (!selected.thumbnail || selected.thumbnail.isEmpty()) {
+      if (mainWindow) mainWindow.show();
+      return;
+    }
+
+    const dataUrl = selected.thumbnail.toDataURL();
     copyDataUrlToClipboard(dataUrl);
     if (mainWindow) {
       mainWindow.show();
@@ -596,6 +706,8 @@ ipcMain.on('window-source-select', async (event, sourceId) => {
   } catch (err) {
     if (windowPickerWindow && !windowPickerWindow.isDestroyed()) windowPickerWindow.close();
     windowPickerSources = [];
+    recordingSourceSelection?.reject(err);
+    recordingSourceSelection = null;
     if (mainWindow) mainWindow.show();
   }
 });
@@ -603,6 +715,8 @@ ipcMain.on('window-source-select', async (event, sourceId) => {
 ipcMain.on('window-source-cancel', () => {
   if (windowPickerWindow && !windowPickerWindow.isDestroyed()) windowPickerWindow.close();
   windowPickerSources = [];
+  recordingSourceSelection?.resolve(null);
+  recordingSourceSelection = null;
   if (mainWindow) mainWindow.show();
 });
 ipcMain.handle('open-file', async () => {
@@ -655,52 +769,92 @@ ipcMain.handle('read-clipboard-image', async () => {
 ipcMain.handle('get-displays', () => screen.getAllDisplays());
 
 
-ipcMain.handle('pro-window-sources', async () => getProWindowSources());
-
-ipcMain.handle('pro-scroll-capture', async (event, windowId) => {
-  const sources = await getProWindowSources();
-  const selected = sources.find((source) => source.id === windowId);
-  const buffer = await scrollCapture(windowId, { bounds: selected?.bounds || null });
-  return buffer;
+ipcMain.handle('pro-recording-indicator-show', async () => {
+  showRecordingIndicator();
+  return { success: true };
 });
 
+ipcMain.handle('pro-recording-indicator-hide', async () => {
+  hideRecordingIndicator();
+  return { success: true };
+});
+
+function chooseRecordingWindowSource() {
+  if (recordingSourceSelection) return recordingSourceSelection.promise;
+
+  const promise = new Promise(async (resolve, reject) => {
+    recordingSourceSelection = { resolve, reject, promise: null };
+    try {
+      if (mainWindow) mainWindow.hide();
+      const opened = await openWindowPickerFallback();
+      if (!opened?.success) throw new Error('Unable to open the window picker');
+    } catch (error) {
+      recordingSourceSelection = null;
+      reject(error);
+    }
+  });
+  recordingSourceSelection.promise = promise;
+  return promise;
+}
+
 ipcMain.handle('pro-recording-source', async () => {
-  const source = await getDefaultRecordingSource();
-  if (!source) throw new Error('No screen source available for recording');
+  const source = await chooseRecordingWindowSource();
+  if (!source) return null;
   return { id: source.id, name: source.name };
 });
 
 ipcMain.handle('pro-save-recording', async (event, payload) => {
   const data = payload?.data;
   if (!data) throw new Error('Recording payload is empty');
+
+  const format = payload?.format === 'gif' || payload?.gif ? 'gif' : 'mp4';
+  const extension = format === 'gif' ? 'gif' : 'mp4';
+  const saveResult = await dialog.showSaveDialog(mainWindow, {
+    title: 'Save screen recording',
+    defaultPath: path.join(app.getPath('videos'), `pico-recording-${Date.now()}.${extension}`),
+    buttonLabel: 'Save Recording',
+    filters: format === 'gif'
+      ? [{ name: 'GIF Animation', extensions: ['gif'] }]
+      : [{ name: 'MP4 Video', extensions: ['mp4'] }],
+  });
+  if (saveResult.canceled || !saveResult.filePath) return { canceled: true };
+
   const webmPath = tempRecordingPath('webm');
   const bytes = Buffer.isBuffer(data) ? data : Buffer.from(data);
   fs.writeFileSync(webmPath, bytes);
 
   try {
+    let mp4Path = saveResult.filePath;
+    if (format === 'gif') mp4Path = tempRecordingPath('mp4');
+
     let mp4;
     try {
-      mp4 = await convertWebmToMp4(webmPath);
+      mp4 = await convertWebmToMp4(webmPath, mp4Path);
     } catch (conversionError) {
-      const webm = saveWebmFallback(webmPath);
+      const webm = saveWebmFallback(webmPath, saveResult.filePath);
       return {
-        mp4: webm,
-        warning: `MP4 conversion skipped: ${conversionError.message}`.slice(0, 240),
+        webm,
+        warning: `${format.toUpperCase()} conversion skipped: ${conversionError.message}`.slice(0, 240),
       };
     }
 
-    const result = { mp4 };
-    if (payload?.gif) {
+    if (format === 'gif') {
       try {
-        result.gif = await convertMp4ToGif(mp4);
-      } catch (gifError) {
-        result.warning = `GIF export skipped: ${gifError.message}`.slice(0, 240);
+        return { gif: await convertMp4ToGif(mp4, saveResult.filePath) };
+      } finally {
+        fs.rmSync(mp4, { force: true });
       }
     }
-    return result;
+
+    return { mp4 };
   } finally {
     fs.rmSync(webmPath, { force: true });
   }
+});
+
+
+ipcMain.on('pro-recording-stop-clicked', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('pro-recording-stop-requested');
 });
 
 // ── App Lifecycle ───────────────────────────────────────────────────────────

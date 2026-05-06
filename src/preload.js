@@ -8,6 +8,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 let proRecorder = null;
 let proRecordingStream = null;
 let proRecordingChunks = [];
+let proRecordingFormat = 'mp4';
 
 function getRecordingMimeType() {
   const preferred = 'video/webm;codecs=vp9';
@@ -33,12 +34,14 @@ async function getDesktopStream(sourceId, includeAudio) {
   return navigator.mediaDevices.getUserMedia({ audio, video });
 }
 
-async function startRecording() {
+async function startRecording(options = {}) {
   if (proRecorder && proRecorder.state !== 'inactive') {
     throw new Error('A screen recording is already in progress');
   }
 
+  proRecordingFormat = options?.format === 'gif' ? 'gif' : 'mp4';
   const source = await ipcRenderer.invoke('pro-recording-source');
+  if (!source) throw new Error('Recording canceled');
   if (!navigator.mediaDevices?.getUserMedia) {
     throw new Error('Screen recording is unavailable because media capture APIs are not available.');
   }
@@ -61,6 +64,7 @@ async function startRecording() {
     if (event.data && event.data.size > 0) proRecordingChunks.push(event.data);
   };
   proRecorder.start(1000);
+  ipcRenderer.invoke('pro-recording-indicator-show').catch(() => {});
   return { success: true, pro: true, source, systemAudio, mimeType };
 }
 
@@ -77,14 +81,17 @@ function stopRecording(options = {}) {
       try {
         const blob = new Blob(proRecordingChunks, { type: proRecorder.mimeType || 'video/webm' });
         const arrayBuffer = await blob.arrayBuffer();
+        await ipcRenderer.invoke('pro-recording-indicator-hide');
         const result = await ipcRenderer.invoke('pro-save-recording', {
           data: new Uint8Array(arrayBuffer),
           gif: shouldExportGif,
+          format: options?.format || proRecordingFormat,
         });
         resolve(result);
       } catch (error) {
         reject(error);
       } finally {
+        ipcRenderer.invoke('pro-recording-indicator-hide').catch(() => {});
         proRecordingStream?.getTracks().forEach((track) => track.stop());
         proRecordingStream = null;
         proRecorder = null;
@@ -100,11 +107,10 @@ contextBridge.exposeInMainWorld('pico', {
   startCapture: () => ipcRenderer.invoke('start-capture'),
   startCaptureWindow: () => ipcRenderer.invoke('start-capture-window'),
   startCaptureFullscreen: () => ipcRenderer.invoke('start-capture-fullscreen'),
-  scrollCapture: (windowId) => ipcRenderer.invoke('pro-scroll-capture', windowId),
-  getProWindowSources: () => ipcRenderer.invoke('pro-window-sources'),
   onLoadCapture: (callback) => ipcRenderer.on('load-capture', (_, data) => callback(data)),
   onTriggerCapture: (callback) => ipcRenderer.on('trigger-capture', () => callback()),
   onLoadCaptureData: (callback) => ipcRenderer.on('load-capture-data', (_, data) => callback(data)),
+  onRecordingStopRequested: (callback) => ipcRenderer.on('pro-recording-stop-requested', () => callback()),
 
   // Capture overlay communication
   onCaptureData: (callback) => ipcRenderer.on('capture-data', (_, data) => callback(data)),
