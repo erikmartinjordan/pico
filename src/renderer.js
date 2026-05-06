@@ -457,14 +457,29 @@ async function bytesToDataUrl(bytes, mime = 'image/png') {
   });
 }
 
+async function chooseProWindowSource() {
+  const sources = await window.pico.getProWindowSources();
+  if (!sources.length) throw new Error('No capturable windows found');
+  const sourceList = sources
+    .map((source, index) => `${index + 1}. ${source.name}`)
+    .join('\n');
+  const choice = window.prompt(`Pro scrolling capture: choose a window to auto-scroll.\n\n${sourceList}`);
+  if (!choice) return null;
+  const selectedIndex = Number.parseInt(choice, 10) - 1;
+  if (!Number.isInteger(selectedIndex) || !sources[selectedIndex]) {
+    throw new Error('Invalid window selection');
+  }
+  return sources[selectedIndex];
+}
+
 async function startScrollCapture() {
   if (state.cropActive) cancelCrop();
-  const windowId = window.prompt('Pro scrolling capture: paste a desktopCapturer window id to capture and stitch.');
-  if (!windowId) return;
 
   try {
-    showToast('Pro scrolling capture started…', 'info');
-    const pngBytes = await window.pico.scrollCapture(windowId.trim());
+    const selected = await chooseProWindowSource();
+    if (!selected) return;
+    showToast(`Scrolling ${selected.name}…`, 'info');
+    const pngBytes = await window.pico.scrollCapture(selected.id);
     const dataUrl = await bytesToDataUrl(pngBytes, 'image/png');
     loadImage(dataUrl, { showPreview: true, captureMode: 'scrolling' });
     await window.pico.copyToClipboard(dataUrl);
@@ -477,10 +492,10 @@ async function startScrollCapture() {
 async function toggleRecording(event) {
   try {
     if (!state.isRecording) {
-      await window.pico.startRecording();
+      const started = await window.pico.startRecording();
       state.isRecording = true;
       elements.btnRecordScreen?.classList.add('recording');
-      showToast('Pro recording started', 'success');
+      showToast(started.systemAudio ? 'Pro recording started' : 'Pro recording started without system audio', started.systemAudio ? 'success' : 'info');
       return;
     }
 
@@ -489,7 +504,8 @@ async function toggleRecording(event) {
     state.isRecording = false;
     elements.btnRecordScreen?.classList.remove('recording');
     const gifNote = result.gif ? ` and GIF: ${result.gif}` : '';
-    showToast(`Saved MP4: ${result.mp4}${gifNote}`, 'success');
+    const warning = result.warning ? ` (${result.warning})` : '';
+    showToast(`Saved MP4: ${result.mp4}${gifNote}${warning}`, result.warning ? 'info' : 'success');
   } catch (err) {
     state.isRecording = false;
     elements.btnRecordScreen?.classList.remove('recording');

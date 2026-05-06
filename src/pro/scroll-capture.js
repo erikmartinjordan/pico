@@ -30,7 +30,7 @@ async function captureWindowFrame(windowId) {
   if (!source || source.thumbnail.isEmpty()) {
     throw new Error(`Window source not found for id ${windowId}`);
   }
-  return source.thumbnail;
+  return { image: source.thumbnail, source };
 }
 
 function imageToRgba(image) {
@@ -139,23 +139,39 @@ function runCommand(command, args) {
   });
 }
 
-async function sendScrollNudge() {
+async function sendScrollNudge(bounds) {
+  const center = bounds ? {
+    x: Math.round(bounds.x + bounds.width / 2),
+    y: Math.round(bounds.y + Math.min(bounds.height - 12, Math.max(24, bounds.height / 2))),
+  } : null;
   if (process.platform === 'darwin') {
-    await runCommand('osascript', ['-e', 'tell application "System Events" to key code 125']);
-    await runCommand('osascript', ['-e', 'tell application "System Events" to key code 125']);
+    if (center) {
+      await runCommand('osascript', ['-e', `tell application "System Events" to click at {${center.x}, ${center.y}}`]);
+    }
+    await runCommand('osascript', ['-e', 'tell application "System Events" to key code 121']);
+    await runCommand('osascript', ['-e', 'tell application "System Events" to key code 121']);
     return;
   }
 
   if (process.platform === 'win32') {
+    const focusScript = center ? `
+      Add-Type -AssemblyName System.Windows.Forms;
+      Add-Type -TypeDefinition '[System.Runtime.InteropServices.DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y); [System.Runtime.InteropServices.DllImport("user32.dll")] public static extern void mouse_event(int flags, int dx, int dy, int data, int extra);' -Name NativeMouse -Namespace Pico;
+      [Pico.NativeMouse]::SetCursorPos(${center.x}, ${center.y}) | Out-Null;
+      [Pico.NativeMouse]::mouse_event(0x0002,0,0,0,0); [Pico.NativeMouse]::mouse_event(0x0004,0,0,0,0);
+    ` : '';
     await runCommand('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
-      '$wshell = New-Object -ComObject wscript.shell; $wshell.SendKeys("{PGDN}")']);
+      `${focusScript}$wshell = New-Object -ComObject wscript.shell; $wshell.SendKeys("{PGDN}")`]);
     return;
   }
 
+  if (center) {
+    await runCommand('xdotool', ['mousemove', String(center.x), String(center.y), 'click', '1']);
+  }
   await runCommand('xdotool', ['key', 'Page_Down']);
 }
 
-async function scrollCapture(windowId) {
+async function scrollCapture(windowId, options = {}) {
   if (!windowId || typeof windowId !== 'string') {
     throw new Error('scrollCapture(windowId) requires a desktopCapturer window id');
   }
@@ -163,7 +179,8 @@ async function scrollCapture(windowId) {
   const frames = [];
   let stalledFrames = 0;
   for (let index = 0; index < MAX_FRAMES; index += 1) {
-    const frame = await captureWindowFrame(windowId);
+    const frameCapture = await captureWindowFrame(windowId);
+    const frame = frameCapture.image;
     const previous = frames[frames.length - 1];
     if (!previous || !isDuplicateFrame(previous, frame)) {
       frames.push(frame);
@@ -173,7 +190,7 @@ async function scrollCapture(windowId) {
     }
 
     if (stalledFrames >= 2 || frame.getSize().height < MIN_FRAME_ADVANCE_PX) break;
-    await sendScrollNudge();
+    await sendScrollNudge(options.bounds);
     await delay(SCROLL_DELAY_MS);
   }
 

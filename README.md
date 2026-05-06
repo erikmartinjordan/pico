@@ -42,8 +42,8 @@ Lightweight screen-capture & annotation app for **macOS** and **Windows**. Moder
 
 ### Pro features
 
-- **Scrolling capture (Pro)** — `scrollCapture(windowId: string): Promise<Buffer>` auto-scrolls a selected desktopCapturer window source and stitches frames with a 20px overlap plus seam diff check.
-- **Screen recording (Pro)** — `startRecording()` records screen video plus system audio as `video/webm;codecs=vp9`; `stopRecording({ gif?: boolean })` converts the result to MP4 through bundled `ffmpeg` and can export a GIF through bundled `gifski`.
+- **Scrolling capture (Pro)** — `scrollCapture(windowId: string): Promise<Buffer>` auto-scrolls a selected desktopCapturer window source and stitches frames with a 20px overlap plus seam diff check. The toolbar flow now lets you choose a window instead of manually pasting a source id.
+- **Screen recording (Pro)** — `startRecording()` records screen video plus system audio as `video/webm;codecs=vp9` when available; `stopRecording({ gif?: boolean })` converts the result to MP4 through bundled `ffmpeg` and can export a GIF through bundled `gifski`. If system audio or local converters are unavailable, pico falls back gracefully and reports the limitation.
 
 ## Keyboard Shortcuts
 

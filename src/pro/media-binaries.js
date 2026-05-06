@@ -11,6 +11,7 @@
 const path = require('path');
 const fs = require('fs');
 const { app } = require('electron');
+const { spawnSync } = require('child_process');
 
 const isWindows = process.platform === 'win32';
 const extension = isWindows ? '.exe' : '';
@@ -30,6 +31,11 @@ function candidatePaths(name) {
   ];
 }
 
+function resolveFromPath(name) {
+  const probe = spawnSync(name, ['-version'], { windowsHide: true, stdio: 'ignore' });
+  return probe.error ? null : name;
+}
+
 function resolveBundledBinary(name) {
   const found = candidatePaths(name).find((candidate) => {
     try {
@@ -39,11 +45,12 @@ function resolveBundledBinary(name) {
     }
   });
 
-  if (!found) {
-    throw new Error(`${name} binary not found. Bundle ${name}${extension} in resources/bin or src/bin.`);
-  }
+  if (found) return found;
 
-  return found;
+  const fromPath = resolveFromPath(name);
+  if (fromPath) return fromPath;
+
+  throw new Error(`${name} binary not found. Bundle ${name}${extension} in resources/bin or src/bin.`);
 }
 
 module.exports = { resolveBundledBinary };

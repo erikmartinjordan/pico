@@ -31,6 +31,12 @@ function runBinary(binary, args) {
   });
 }
 
+function saveWebmFallback(webmPath) {
+  const webmOutputPath = path.join(recordingsDir(), `recording-${Date.now()}.webm`);
+  fs.copyFileSync(webmPath, webmOutputPath);
+  return webmOutputPath;
+}
+
 async function convertWebmToMp4(webmPath) {
   const ffmpeg = resolveBundledBinary('ffmpeg');
   const mp4Path = path.join(recordingsDir(), `recording-${Date.now()}.mp4`);
@@ -67,4 +73,4 @@ async function convertMp4ToGif(mp4Path) {
   }
 }
 
-module.exports = { tempRecordingPath, convertWebmToMp4, convertMp4ToGif };
+module.exports = { tempRecordingPath, saveWebmFallback, convertWebmToMp4, convertMp4ToGif };
