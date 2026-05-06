@@ -50,6 +50,7 @@ const state = {
   cropDragStartX: 0,
   cropDragStartY: 0,
   cropOrigRect: null,
+  isRecording: false,
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -69,6 +70,8 @@ const elements = {
   btnUndo: $('#btn-undo'),
   btnRedo: $('#btn-redo'),
   btnClear: $('#btn-clear'),
+  btnScrollCapture: $('#btn-scroll-capture'),
+  btnRecordScreen: $('#btn-record-screen'),
   emptyCapture: $('#empty-capture'),
   emptyOpen: $('#empty-open'),
   toolBtns: $$('.tool-btn'),
@@ -119,6 +122,8 @@ function bindToolbar() {
   on($('#btn-capture-region'), 'click', startCapture);
   on($('#btn-capture-window'), 'click', startCaptureWindow);
   on($('#btn-capture-fullscreen'), 'click', startCaptureFullscreen);
+  on(elements.btnScrollCapture, 'click', startScrollCapture);
+  on(elements.btnRecordScreen, 'click', toggleRecording);
   
   on(elements.btnCopy, 'click', copyToClipboard);
   on(elements.btnCrop, 'click', toggleCrop);
@@ -440,6 +445,73 @@ function updateCropUI() {
 // ══════════════════════════════════════════════════════════════════════════════
 // File Operations
 // ══════════════════════════════════════════════════════════════════════════════
+
+
+async function bytesToDataUrl(bytes, mime = 'image/png') {
+  const blob = new Blob([bytes], { type: mime });
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function chooseProWindowSource() {
+  const sources = await window.pico.getProWindowSources();
+  if (!sources.length) throw new Error('No capturable windows found');
+  const sourceList = sources
+    .map((source, index) => `${index + 1}. ${source.name}`)
+    .join('\n');
+  const choice = window.prompt(`Pro scrolling capture: choose a window to auto-scroll.\n\n${sourceList}`);
+  if (!choice) return null;
+  const selectedIndex = Number.parseInt(choice, 10) - 1;
+  if (!Number.isInteger(selectedIndex) || !sources[selectedIndex]) {
+    throw new Error('Invalid window selection');
+  }
+  return sources[selectedIndex];
+}
+
+async function startScrollCapture() {
+  if (state.cropActive) cancelCrop();
+
+  try {
+    const selected = await chooseProWindowSource();
+    if (!selected) return;
+    showToast(`Scrolling ${selected.name}…`, 'info');
+    const pngBytes = await window.pico.scrollCapture(selected.id);
+    const dataUrl = await bytesToDataUrl(pngBytes, 'image/png');
+    loadImage(dataUrl, { showPreview: true, captureMode: 'scrolling' });
+    await window.pico.copyToClipboard(dataUrl);
+    showToast('Scrolling capture stitched and copied', 'success');
+  } catch (err) {
+    showToast(`Scrolling capture failed: ${err.message}`, 'error');
+  }
+}
+
+async function toggleRecording(event) {
+  try {
+    if (!state.isRecording) {
+      const started = await window.pico.startRecording();
+      state.isRecording = true;
+      elements.btnRecordScreen?.classList.add('recording');
+      showToast(started.systemAudio ? 'Pro recording started' : 'Pro recording started without system audio', started.systemAudio ? 'success' : 'info');
+      return;
+    }
+
+    showToast('Finalizing recording…', 'info');
+    const result = await window.pico.stopRecording({ gif: Boolean(event?.shiftKey) });
+    state.isRecording = false;
+    elements.btnRecordScreen?.classList.remove('recording');
+    const gifNote = result.gif ? ` and GIF: ${result.gif}` : '';
+    const warning = result.warning ? ` (${result.warning})` : '';
+    showToast(`Saved MP4: ${result.mp4}${gifNote}${warning}`, result.warning ? 'info' : 'success');
+  } catch (err) {
+    state.isRecording = false;
+    elements.btnRecordScreen?.classList.remove('recording');
+    showToast(`Recording failed: ${err.message}`, 'error');
+  }
+}
 
 async function startCapture() {
   if (state.cropActive) cancelCrop();
@@ -1272,6 +1344,7 @@ function updateToolbarState() {
   elements.btnUndo.disabled = state.historyIndex < 0;
   elements.btnRedo.disabled = state.historyIndex >= state.history.length - 1;
   elements.btnClear.disabled = !state.image;
+  if (elements.btnRecordScreen) elements.btnRecordScreen.classList.toggle('recording', state.isRecording);
 }
 
 
