@@ -7,11 +7,68 @@ const { app, BrowserWindow, ipcMain, desktopCapturer, dialog, screen, globalShor
 const { execSync, exec } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const { scrollCapture } = require('./pro/scroll-capture');
+const { tempRecordingPath, convertWebmToMp4, convertMp4ToGif } = require('./pro/recording');
 
 let mainWindow = null;
 let captureWindows = [];
 let windowPickerWindow = null;
 let windowPickerSources = [];
+
+async function composeImageParts(parts, width, height) {
+  const compositor = new BrowserWindow({
+    width: 1,
+    height: 1,
+    show: false,
+    webPreferences: {
+      offscreen: true,
+      contextIsolation: false,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+
+  try {
+    await compositor.loadURL('data:text/html,<html><body></body></html>');
+    const payload = parts.map((part) => ({
+      dataUrl: part.image.toDataURL(),
+      sourceY: part.sourceY,
+      height: part.height,
+    }));
+    const dataUrl = await compositor.webContents.executeJavaScript(`
+      (async () => {
+        const parts = ${JSON.stringify(payload)};
+        const canvas = document.createElement('canvas');
+        canvas.width = ${Math.max(1, Math.round(width))};
+        canvas.height = ${Math.max(1, Math.round(height))};
+        const ctx = canvas.getContext('2d');
+        let y = 0;
+        for (const part of parts) {
+          const img = new Image();
+          img.src = part.dataUrl;
+          await img.decode();
+          ctx.drawImage(img, 0, part.sourceY, img.naturalWidth, part.height, 0, y, img.naturalWidth, part.height);
+          y += part.height;
+        }
+        return canvas.toDataURL('image/png');
+      })()
+    `);
+    return Buffer.from(dataUrl.replace(/^data:image\/png;base64,/, ''), 'base64');
+  } finally {
+    if (!compositor.isDestroyed()) compositor.destroy();
+  }
+}
+
+global.picoComposeImageParts = composeImageParts;
+
+async function getDefaultRecordingSource() {
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const sources = await desktopCapturer.getSources({
+    types: ['screen'],
+    thumbnailSize: { width: 1, height: 1 },
+  });
+  return sources.find((source) => String(source.display_id) === String(primaryDisplay.id)) || sources[0];
+}
 
 async function getWindowSourcesForPicker() {
   const sources = await desktopCapturer.getSources({
@@ -570,6 +627,35 @@ ipcMain.handle('read-clipboard-image', async () => {
 });
 
 ipcMain.handle('get-displays', () => screen.getAllDisplays());
+
+
+ipcMain.handle('pro-scroll-capture', async (event, windowId) => {
+  const buffer = await scrollCapture(windowId);
+  return buffer;
+});
+
+ipcMain.handle('pro-recording-source', async () => {
+  const source = await getDefaultRecordingSource();
+  if (!source) throw new Error('No screen source available for recording');
+  return { id: source.id, name: source.name };
+});
+
+ipcMain.handle('pro-save-recording', async (event, payload) => {
+  const data = payload?.data;
+  if (!data) throw new Error('Recording payload is empty');
+  const webmPath = tempRecordingPath('webm');
+  const bytes = Buffer.isBuffer(data) ? data : Buffer.from(data);
+  fs.writeFileSync(webmPath, bytes);
+
+  try {
+    const mp4 = await convertWebmToMp4(webmPath);
+    const result = { mp4 };
+    if (payload?.gif) result.gif = await convertMp4ToGif(mp4);
+    return result;
+  } finally {
+    fs.rmSync(webmPath, { force: true });
+  }
+});
 
 // ── App Lifecycle ───────────────────────────────────────────────────────────
 

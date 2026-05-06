@@ -105,6 +105,32 @@ body {
 
 .toolbar-btn:disabled { opacity: 0.3; cursor: default; }
 
+.toolbar-btn.pro-feature {
+  position: relative;
+  width: 42px;
+  color: var(--accent-soft);
+}
+
+.toolbar-btn.pro-feature.recording {
+  background: rgba(239, 68, 68, 0.18);
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.55);
+  color: #fca5a5;
+}
+
+.pro-badge {
+  position: absolute;
+  right: 2px;
+  bottom: 1px;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: linear-gradient(135deg, #f97316, #facc15);
+  color: #160b02;
+  font-size: 6px;
+  font-weight: 800;
+  line-height: 9px;
+  letter-spacing: 0.04em;
+}
+
 /* ── Color Swatches (rounded squares) ── */
 .color-swatch {
   width: 14px;

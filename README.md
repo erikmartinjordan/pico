@@ -40,6 +40,11 @@ Lightweight screen-capture & annotation app for **macOS** and **Windows**. Moder
 - **Export options** — Save to PNG or copy directly to clipboard
 - **Portable** — Single executable, no installation required (Windows)
 
+### Pro features
+
+- **Scrolling capture (Pro)** — `scrollCapture(windowId: string): Promise<Buffer>` auto-scrolls a selected desktopCapturer window source and stitches frames with a 20px overlap plus seam diff check.
+- **Screen recording (Pro)** — `startRecording()` records screen video plus system audio as `video/webm;codecs=vp9`; `stopRecording({ gif?: boolean })` converts the result to MP4 through bundled `ffmpeg` and can export a GIF through bundled `gifski`.
+
 ## Keyboard Shortcuts
 
 | Shortcut | Action |
@@ -60,6 +65,7 @@ Lightweight screen-capture & annotation app for **macOS** and **Windows**. Moder
 | `W` | Window container |
 | `+` / `-` | Zoom in/out |
 | `0` | Fit to window |
+| Shift-click Record (Pro) stop | Export MP4 and GIF |
 
 ## Download
 
