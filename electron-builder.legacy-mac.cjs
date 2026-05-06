@@ -2,7 +2,7 @@ const { build } = require('./package.json');
 
 const legacyMacBuild = {
   ...build,
-  artifactName: '${productName}-legacy-macos-${arch}.${ext}',
+  artifactName: '${productName}_legacy.${ext}',
   electronVersion: '22.3.27',
   mac: {
     ...build.mac,
