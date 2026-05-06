@@ -27,16 +27,51 @@ async function getDefaultRecordingSource() {
 
 
 
-async function getWindowSourcesForPicker() {
-  const sources = await desktopCapturer.getSources({
-    types: ['window'],
+function isPicoWindowSource(source) {
+  const id = String(source?.id || '');
+  const name = String(source?.name || '').toLowerCase();
+  return id.startsWith('window:') && name.includes('pico');
+}
+
+function toPickerSource(source) {
+  const id = String(source?.id || '');
+  const type = id.startsWith('screen:') ? 'screen' : 'window';
+  const thumbnail = source?.thumbnail && !source.thumbnail.isEmpty()
+    ? source.thumbnail.toDataURL()
+    : '';
+  return { id: source.id, name: source.name, type, thumbnail };
+}
+
+async function getDesktopSourcesForPicker(types = ['window']) {
+  return desktopCapturer.getSources({
+    types,
     thumbnailSize: { width: 1920, height: 1200 },
     fetchWindowIcons: false,
   });
-  const filtered = sources.filter((source) => source && source.name && !source.name.toLowerCase().includes('pico'));
-  // Store full NativeImage references for later use on selection
-  windowPickerSources = filtered;
-  return filtered.map((source) => ({ id: source.id, name: source.name, thumbnail: source.thumbnail.toDataURL() }));
+}
+
+async function getWindowSourcesForPicker() {
+  const windowSources = (await getDesktopSourcesForPicker(['window']))
+    .filter((source) => source && source.name && !isPicoWindowSource(source));
+
+  let pickerSources = windowSources;
+  let fallbackReason = '';
+
+  if (pickerSources.length === 0) {
+    // Some Windows/GPU combinations can fail to enumerate individual window
+    // sources even though screen capture still works. Keep recording usable by
+    // falling back to capturable screens instead of showing an empty picker.
+    const screenSources = (await getDesktopSourcesForPicker(['screen']))
+      .filter((source) => source && source.name);
+    pickerSources = screenSources;
+    fallbackReason = screenSources.length > 0
+      ? 'No capturable windows were found. Select a screen to record instead.'
+      : 'No capturable windows or screens were found.';
+  }
+
+  // Store full NativeImage references for later use on selection.
+  windowPickerSources = pickerSources;
+  return { sources: pickerSources.map(toPickerSource), fallbackReason };
 }
 
 async function openWindowPickerFallback() {
@@ -66,8 +101,8 @@ async function openWindowPickerFallback() {
   });
 
   windowPickerWindow.webContents.once('did-finish-load', async () => {
-    const sources = await getWindowSourcesForPicker();
-    windowPickerWindow?.webContents.send('window-sources', sources);
+    const payload = await getWindowSourcesForPicker();
+    windowPickerWindow?.webContents.send('window-sources', payload);
   });
 
   return { success: true, fallback: true };
@@ -543,7 +578,7 @@ ipcMain.handle('start-capture-window', async () => {
       thumbnailSize: { width: 1920, height: 1200 },
       fetchWindowIcons: false,
     });
-    windowPickerSources = windowSources.filter(s => s && s.name && !s.name.toLowerCase().includes('pico'));
+    windowPickerSources = windowSources.filter(s => s && s.name && !isPicoWindowSource(s));
     createCaptureOverlays(captureData, 'window', winBounds);
     return { success: true };
   } catch (err) {
@@ -631,13 +666,16 @@ ipcMain.on('capture-cancel', () => {
 
 ipcMain.on('window-source-select', async (event, sourceId) => {
   try {
-    // Use cached sources first (reliable), fall back to re-fetch
+    // Use cached sources first (reliable), fall back to re-fetch. For recording,
+    // a valid source id is enough; thumbnails are only required for screenshot
+    // capture after the picker selection.
     let selected = windowPickerSources.find((s) => s.id === sourceId);
-    if (!selected || selected.thumbnail.isEmpty()) {
-      const freshSources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 1920, height: 1200 } });
+    if (!selected) {
+      const sourceTypes = String(sourceId).startsWith('screen:') ? ['screen'] : ['window'];
+      const freshSources = await getDesktopSourcesForPicker(sourceTypes);
       selected = freshSources.find((s) => s.id === sourceId);
     }
-    if (!selected || selected.thumbnail.isEmpty()) {
+    if (!selected) {
       if (windowPickerWindow && !windowPickerWindow.isDestroyed()) windowPickerWindow.close();
       windowPickerSources = [];
       recordingSourceSelection?.resolve(null);
@@ -651,6 +689,11 @@ ipcMain.on('window-source-select', async (event, sourceId) => {
     if (recordingSourceSelection) {
       recordingSourceSelection.resolve({ id: selected.id, name: selected.name });
       recordingSourceSelection = null;
+      return;
+    }
+
+    if (!selected.thumbnail || selected.thumbnail.isEmpty()) {
+      if (mainWindow) mainWindow.show();
       return;
     }
 
