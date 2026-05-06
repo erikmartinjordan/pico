@@ -61,6 +61,7 @@ async function startRecording() {
     if (event.data && event.data.size > 0) proRecordingChunks.push(event.data);
   };
   proRecorder.start(1000);
+  ipcRenderer.invoke('pro-recording-indicator-show').catch(() => {});
   return { success: true, pro: true, source, systemAudio, mimeType };
 }
 
@@ -77,6 +78,7 @@ function stopRecording(options = {}) {
       try {
         const blob = new Blob(proRecordingChunks, { type: proRecorder.mimeType || 'video/webm' });
         const arrayBuffer = await blob.arrayBuffer();
+        await ipcRenderer.invoke('pro-recording-indicator-hide');
         const result = await ipcRenderer.invoke('pro-save-recording', {
           data: new Uint8Array(arrayBuffer),
           gif: shouldExportGif,
@@ -85,6 +87,7 @@ function stopRecording(options = {}) {
       } catch (error) {
         reject(error);
       } finally {
+        ipcRenderer.invoke('pro-recording-indicator-hide').catch(() => {});
         proRecordingStream?.getTracks().forEach((track) => track.stop());
         proRecordingStream = null;
         proRecorder = null;
@@ -100,8 +103,6 @@ contextBridge.exposeInMainWorld('pico', {
   startCapture: () => ipcRenderer.invoke('start-capture'),
   startCaptureWindow: () => ipcRenderer.invoke('start-capture-window'),
   startCaptureFullscreen: () => ipcRenderer.invoke('start-capture-fullscreen'),
-  scrollCapture: (windowId) => ipcRenderer.invoke('pro-scroll-capture', windowId),
-  getProWindowSources: () => ipcRenderer.invoke('pro-window-sources'),
   onLoadCapture: (callback) => ipcRenderer.on('load-capture', (_, data) => callback(data)),
   onTriggerCapture: (callback) => ipcRenderer.on('trigger-capture', () => callback()),
   onLoadCaptureData: (callback) => ipcRenderer.on('load-capture-data', (_, data) => callback(data)),
