@@ -51,6 +51,7 @@ const state = {
   cropDragStartY: 0,
   cropOrigRect: null,
   isRecording: false,
+  recordingFormat: 'mp4',
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -70,8 +71,8 @@ const elements = {
   btnUndo: $('#btn-undo'),
   btnRedo: $('#btn-redo'),
   btnClear: $('#btn-clear'),
-  recordingBanner: $('#recording-banner'),
   btnRecordScreen: $('#btn-record-screen'),
+  recordingFormatMenu: $('#recording-format-menu'),
   emptyCapture: $('#empty-capture'),
   emptyOpen: $('#empty-open'),
   toolBtns: $$('.tool-btn'),
@@ -122,7 +123,15 @@ function bindToolbar() {
   on($('#btn-capture-region'), 'click', startCapture);
   on($('#btn-capture-window'), 'click', startCaptureWindow);
   on($('#btn-capture-fullscreen'), 'click', startCaptureFullscreen);
-  on(elements.btnRecordScreen, 'click', toggleRecording);
+  on(elements.btnRecordScreen, 'click', onRecordButtonClick);
+  elements.recordingFormatMenu?.querySelectorAll('[data-format]').forEach((button) => {
+    button.addEventListener('click', () => startRecordingWithFormat(button.dataset.format));
+  });
+  document.addEventListener('click', (event) => {
+    if (!elements.recordingFormatMenu?.classList.contains('visible')) return;
+    if (elements.recordingFormatMenu.contains(event.target) || elements.btnRecordScreen?.contains(event.target)) return;
+    hideRecordingFormatMenu();
+  });
   
   on(elements.btnCopy, 'click', copyToClipboard);
   on(elements.btnCrop, 'click', toggleCrop);
@@ -209,6 +218,9 @@ function bindIPC() {
     });
   });
   window.pico.onLoadCaptureData((captureData) => loadCaptureData(captureData, { autoSelectRect: true }));
+  window.pico.onRecordingStopRequested(() => {
+    if (state.isRecording) toggleRecording();
+  });
 }
 
 function bindInlineText() {
@@ -446,27 +458,60 @@ function updateCropUI() {
 // ══════════════════════════════════════════════════════════════════════════════
 
 
+function showRecordingFormatMenu() {
+  elements.recordingFormatMenu?.classList.add('visible');
+}
+
+function hideRecordingFormatMenu() {
+  elements.recordingFormatMenu?.classList.remove('visible');
+}
+
+function onRecordButtonClick(event) {
+  if (state.isRecording) {
+    toggleRecording(event);
+    return;
+  }
+  event?.stopPropagation();
+  showRecordingFormatMenu();
+}
+
+async function startRecordingWithFormat(format = 'mp4') {
+  hideRecordingFormatMenu();
+  try {
+    const started = await window.pico.startRecording({ format });
+    state.isRecording = true;
+    state.recordingFormat = format;
+    setRecordingIndicator(true);
+    showToast(started.systemAudio ? `Recording ${started.source?.name || 'window'} as ${format.toUpperCase()}` : `Recording ${started.source?.name || 'window'} as ${format.toUpperCase()} without system audio`, started.systemAudio ? 'success' : 'info');
+  } catch (err) {
+    state.isRecording = false;
+    setRecordingIndicator(false);
+    if (err.message === 'Recording canceled') {
+      showToast('Recording canceled', 'info');
+      return;
+    }
+    showToast(`Recording failed: ${err.message}`, 'error');
+  }
+}
+
 async function toggleRecording(event) {
   try {
     if (!state.isRecording) {
-      const started = await window.pico.startRecording();
-      state.isRecording = true;
-      setRecordingIndicator(true);
-      showToast(started.systemAudio ? 'Pro recording started' : 'Pro recording started without system audio', started.systemAudio ? 'success' : 'info');
+      showRecordingFormatMenu();
       return;
     }
 
     showToast('Finalizing recording…', 'info');
-    const result = await window.pico.stopRecording({ gif: Boolean(event?.shiftKey) });
+    const result = await window.pico.stopRecording({ format: state.recordingFormat || (event?.shiftKey ? 'gif' : 'mp4') });
     state.isRecording = false;
     setRecordingIndicator(false);
     if (result.canceled) {
       showToast('Recording discarded', 'info');
       return;
     }
-    const gifNote = result.gif ? ` and GIF: ${result.gif}` : '';
+    const savedPath = result.gif || result.mp4 || result.webm;
     const warning = result.warning ? ` (${result.warning})` : '';
-    showToast(`Saved MP4: ${result.mp4}${gifNote}${warning}`, result.warning ? 'info' : 'success');
+    showToast(`Saved recording: ${savedPath}${warning}`, result.warning ? 'info' : 'success');
   } catch (err) {
     state.isRecording = false;
     setRecordingIndicator(false);
@@ -1301,9 +1346,8 @@ function updateStatus() {
 
 function setRecordingIndicator(isRecording) {
   elements.btnRecordScreen?.classList.toggle('recording', isRecording);
-  elements.recordingBanner?.classList.toggle('visible', isRecording);
   if (elements.btnRecordScreen) {
-    elements.btnRecordScreen.title = isRecording ? 'Stop recording and choose save location' : 'Pro: record screen + system audio';
+    elements.btnRecordScreen.title = isRecording ? 'Stop recording and choose save location' : 'Record a window';
     elements.btnRecordScreen.setAttribute('aria-pressed', String(isRecording));
   }
 }

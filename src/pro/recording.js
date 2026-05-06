@@ -61,9 +61,10 @@ async function convertWebmToMp4(webmPath, requestedOutputPath = null) {
   return mp4Path;
 }
 
-async function convertMp4ToGif(mp4Path) {
+async function convertMp4ToGif(mp4Path, requestedOutputPath = null) {
   const gifski = resolveBundledBinary('gifski');
-  const gifPath = mp4Path.replace(/\.mp4$/i, '.gif');
+  const gifPath = requestedOutputPath || mp4Path.replace(/\.mp4$/i, '.gif');
+  ensureOutputDir(gifPath);
   const frameDir = path.join(app.getPath('temp'), `pico-gif-frames-${Date.now()}`);
   fs.mkdirSync(frameDir, { recursive: true });
   try {
