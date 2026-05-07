@@ -172,6 +172,13 @@ body {
 }
 
 
+/* Hide unfinished Pro features until core capture is polished. */
+.recording-format-wrap[hidden],
+.pro-feature,
+.recording-format-menu {
+  display: none !important;
+}
+
 .pro-badge {
   position: absolute;
   right: 2px;

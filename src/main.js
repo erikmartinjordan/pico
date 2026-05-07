@@ -170,12 +170,20 @@ try {
         if ([string]::IsNullOrWhiteSpace($name)) { continue }
         if ($rect.Width -lt 50 -or $rect.Height -lt 30) { continue }
         if ($rect.IsEmpty) { continue }
+        $handle = [int64]$w.Current.NativeWindowHandle
+        $pid = [int]$w.Current.ProcessId
+        $sourceIds = @()
+        if ($handle -gt 0 -and $pid -gt 0) { $sourceIds += "window:$($handle):$($pid)" }
+        if ($handle -gt 0) { $sourceIds += "window:$($handle):0" }
         $results += @{
           name = $name
           x = [int]$rect.X
           y = [int]$rect.Y
           width = [int]$rect.Width
           height = [int]$rect.Height
+          windowId = $handle
+          processId = $pid
+          sourceIds = $sourceIds
         }
       }
     } catch { continue }
@@ -245,8 +253,25 @@ try:
         name = w.get('kCGWindowName', '')
         title = (owner + ' - ' + name) if name else owner
         width, height = int(b.get('Width', 0)), int(b.get('Height', 0))
+        window_id = int(w.get('kCGWindowNumber', 0) or 0)
+        owner_pid = int(w.get('kCGWindowOwnerPID', 0) or 0)
         if width < 50 or height < 30: continue
-        r.append({'name': title, 'x': int(b.get('X', 0)), 'y': int(b.get('Y', 0)), 'width': width, 'height': height})
+        if window_id <= 0: continue
+        source_ids = [f'window:{window_id}:0']
+        if owner_pid > 0:
+            source_ids.append(f'window:{window_id}:{owner_pid}')
+        r.append({
+            'name': title,
+            'owner': owner,
+            'title': name,
+            'x': int(b.get('X', 0)),
+            'y': int(b.get('Y', 0)),
+            'width': width,
+            'height': height,
+            'windowId': window_id,
+            'processId': owner_pid,
+            'sourceIds': source_ids,
+        })
     print(json.dumps(r))
 except Exception as ex:
     import sys
@@ -262,6 +287,57 @@ except Exception as ex:
     console.error('Mac window enum error:', e.message);
     return [];
   }
+}
+
+
+function normalizeWindowName(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function getDesktopCapturerWindowKey(source) {
+  const match = String(source?.id || '').match(/^window:(\d+):/);
+  return match ? match[1] : null;
+}
+
+function sourceNameMatchesWindow(sourceName, win) {
+  const source = normalizeWindowName(sourceName);
+  const full = normalizeWindowName(win.name);
+  const owner = normalizeWindowName(win.owner);
+  const title = normalizeWindowName(win.title);
+  if (!source) return false;
+  return source === full ||
+    (title && source === title) ||
+    (owner && source === owner) ||
+    (title && source.includes(title)) ||
+    (full && full.includes(source));
+}
+
+function attachCapturerSourcesToWindowBounds(windowBounds, capturerSources) {
+  const sources = (capturerSources || []).filter((source) => source && source.id && source.name && !isPicoWindowSource(source));
+  if (sources.length === 0) return windowBounds;
+
+  return windowBounds.map((win) => {
+    const sourceIds = Array.isArray(win.sourceIds) ? win.sourceIds : [win.sourceIds].filter(Boolean);
+    const candidateIds = new Set(sourceIds.map(String));
+    let source = sources.find((item) => candidateIds.has(String(item.id)));
+
+    if (!source && win.windowId) {
+      const windowId = String(win.windowId);
+      source = sources.find((item) => getDesktopCapturerWindowKey(item) === windowId);
+    }
+
+    if (!source) {
+      source = sources.find((item) => sourceNameMatchesWindow(item.name, win));
+    }
+
+    return source
+      ? { ...win, sourceId: source.id, sourceName: source.name }
+      : win;
+  });
 }
 
 // ── Window Creation ─────────────────────────────────────────────────────────
@@ -590,7 +666,13 @@ function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) 
           const iy2 = Math.min(wb.y + wb.height, dy2);
           if (ix2 - ix1 <= 0 || iy2 - iy1 <= 0) return null;
 
-          return { name: wb.name, x: ix1 - dx1, y: iy1 - dy1, width: ix2 - ix1, height: iy2 - iy1 };
+          return {
+            ...wb,
+            x: ix1 - dx1,
+            y: iy1 - dy1,
+            width: ix2 - ix1,
+            height: iy2 - iy1,
+          };
         })
         .filter(Boolean);
 
@@ -601,6 +683,7 @@ function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) 
         bounds: display.bounds,
         scaleFactor: display.scaleFactor || 1,
         windowBounds: displayWindowBounds,
+        platform: process.platform,
       });
     });
 
@@ -630,15 +713,22 @@ ipcMain.handle('start-capture-window', async () => {
   await new Promise(r => setTimeout(r, 80));
   try {
     const captureData = await captureAllScreens();
-    const winBounds = getVisibleWindowBounds();
-    // Also fetch desktopCapturer window sources for reliable capture on click.
-    // The overlay uses bounds for highlighting, but the actual capture uses the source thumbnail.
+    // Fetch capturer sources before showing the overlay. Native source ids let the
+    // overlay select the exact window on macOS/Windows instead of relying on names.
     const windowSources = await desktopCapturer.getSources({
       types: ['window'],
       thumbnailSize: { width: 1920, height: 1200 },
       fetchWindowIcons: false,
     });
     windowPickerSources = windowSources.filter(s => s && s.name && !isPicoWindowSource(s));
+
+    const winBounds = attachCapturerSourcesToWindowBounds(getVisibleWindowBounds(), windowPickerSources)
+      .filter((win) => win.sourceId || process.platform !== 'darwin');
+
+    if (winBounds.length === 0) {
+      return openWindowPickerFallback();
+    }
+
     createCaptureOverlays(captureData, 'window', winBounds);
     return { success: true };
   } catch (err) {
