@@ -1,4 +1,4 @@
-const { build } = require('./package.json');
+const { build } = require('../package.json');
 
 const legacyMacBuild = {
   ...build,
