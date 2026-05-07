@@ -3,7 +3,7 @@
  * Handles window creation, screen capture, and native dialogs
  */
 
-const { app, BrowserWindow, ipcMain, desktopCapturer, dialog, screen, globalShortcut, nativeImage, clipboard, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, desktopCapturer, dialog, screen, globalShortcut, nativeImage, clipboard, Menu, shell, systemPreferences } = require('electron');
 const { execSync, exec } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -16,6 +16,49 @@ let windowPickerSources = [];
 let recordingIndicatorWindows = [];
 let recordingSourceSelection = null;
 let lastRecordingSourceId = null;
+
+
+function getMacScreenRecordingStatus() {
+  if (process.platform !== 'darwin') return 'granted';
+  try {
+    return systemPreferences.getMediaAccessStatus('screen');
+  } catch (err) {
+    console.error('[pico] macOS screen recording permission check failed:', err.message);
+    return 'unknown';
+  }
+}
+
+async function openMacScreenRecordingSettings() {
+  if (process.platform !== 'darwin') return;
+  await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
+}
+
+async function explainMacScreenRecordingPermission() {
+  if (process.platform !== 'darwin') return;
+  const result = await dialog.showMessageBox(mainWindow, {
+    type: 'warning',
+    buttons: ['Open System Settings', 'Not Now'],
+    defaultId: 0,
+    cancelId: 1,
+    title: 'Screen Recording permission required',
+    message: 'pico needs macOS Screen Recording permission to capture the screen.',
+    detail: 'Open System Settings → Privacy & Security → Screen & System Audio Recording, enable pico, then quit and reopen the app before trying again.',
+  });
+  if (result.response === 0) await openMacScreenRecordingSettings();
+}
+
+async function ensureMacScreenRecordingPermission() {
+  if (process.platform !== 'darwin') return true;
+  const status = getMacScreenRecordingStatus();
+  if (status === 'granted') return true;
+
+  // Let a first capture attempt trigger Apple's TCC prompt when macOS still has
+  // not made a decision. For explicit denials, fail fast with useful guidance.
+  if (status === 'not-determined' || status === 'unknown') return true;
+
+  await explainMacScreenRecordingPermission();
+  return false;
+}
 
 async function getDefaultRecordingSource() {
   const primaryDisplay = screen.getPrimaryDisplay();
@@ -577,6 +620,11 @@ async function captureAllScreens() {
     },
   });
 
+  if (sources.length === 0 || sources.every((source) => !source.thumbnail || source.thumbnail.isEmpty())) {
+    if (process.platform === 'darwin') await explainMacScreenRecordingPermission();
+    throw new Error('No capturable screen sources were returned.');
+  }
+
   const sourceByDisplayId = new Map();
   for (const source of sources) {
     if (source.display_id) sourceByDisplayId.set(String(source.display_id), source);
@@ -699,6 +747,10 @@ ipcMain.handle('start-capture', async () => {
   await new Promise(r => setTimeout(r, 200));
 
   try {
+    if (!await ensureMacScreenRecordingPermission()) {
+      if (mainWindow) mainWindow.show();
+      return { success: false, error: 'Screen Recording permission is required.' };
+    }
     const captureData = await captureAllScreens();
     createCaptureOverlays(captureData, 'region', []);
     return { success: true };
@@ -712,6 +764,10 @@ ipcMain.handle('start-capture-window', async () => {
   if (mainWindow) mainWindow.hide();
   await new Promise(r => setTimeout(r, 80));
   try {
+    if (!await ensureMacScreenRecordingPermission()) {
+      if (mainWindow) mainWindow.show();
+      return { success: false, error: 'Screen Recording permission is required.' };
+    }
     const captureData = await captureAllScreens();
     // Fetch capturer sources before showing the overlay. Native source ids let the
     // overlay select the exact window on macOS/Windows instead of relying on names.
@@ -741,6 +797,10 @@ ipcMain.handle('start-capture-fullscreen', async () => {
   if (mainWindow) mainWindow.hide();
   await new Promise(r => setTimeout(r, 200));
   try {
+    if (!await ensureMacScreenRecordingPermission()) {
+      if (mainWindow) mainWindow.show();
+      return { success: false, error: 'Screen Recording permission is required.' };
+    }
     const captureData = await captureAllScreens();
     copyCaptureDataToClipboard(captureData);
     if (mainWindow) {
@@ -948,6 +1008,9 @@ function chooseRecordingWindowSource() {
 }
 
 ipcMain.handle('pro-recording-source', async () => {
+  if (!await ensureMacScreenRecordingPermission()) {
+    throw new Error('Screen Recording permission is required.');
+  }
   const source = await chooseRecordingWindowSource();
   if (!source) return null;
   lastRecordingSourceId = source.id;

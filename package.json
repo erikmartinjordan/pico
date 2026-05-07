@@ -1,17 +1,19 @@
 {
   "name": "pico",
   "version": "0.0.0",
-  "description": "Lightweight screen-capture & annotation tool for macOS and Windows",
+  "description": "Lightweight screen-capture & annotation tool for Windows, Linux, and experimental macOS builds",
   "main": "src/main.js",
-  "author": "Erik Mart\u00edn Jord\u00e1n",
+  "author": "Erik Martín Jordán",
   "license": "MIT",
   "scripts": {
     "start": "electron .",
     "build": "electron-builder",
     "build:mac": "electron-builder --mac",
     "build:win": "electron-builder --win",
-    "build:all": "electron-builder --mac --win",
-    "build:mac:legacy": "electron-builder --mac --config config/electron-builder.legacy-mac.cjs"
+    "build:all": "electron-builder --mac --win --linux",
+    "build:mac:legacy": "electron-builder --mac --config config/electron-builder.legacy-mac.cjs",
+    "build:linux": "electron-builder --linux",
+    "build:desktop": "electron-builder --win --linux"
   },
   "devDependencies": {
     "electron": "^34.5.8",
@@ -50,11 +52,12 @@
           ]
         }
       ],
-      "icon": "build/icon.icns"
+      "icon": "build/icon.icns",
+      "identity": null
     },
     "win": {
       "publisherName": [
-        "Erik Mart\u00edn Jord\u00e1n"
+        "Erik Martín Jordán"
       ],
       "target": [
         {

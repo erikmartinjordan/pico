@@ -522,13 +522,13 @@ async function toggleRecording(event) {
 async function startCapture() {
   if (state.cropActive) cancelCrop();
   const result = await window.pico.startCapture();
-  if (!result.success) showToast('Failed to start capture', 'error');
+  if (!result.success) showToast(result.error || 'Failed to start capture', 'error');
 }
 
 async function startCaptureWindow() {
   if (state.cropActive) cancelCrop();
   const result = await window.pico.startCaptureWindow();
-  if (!result.success) showToast('Failed to capture window', 'error');
+  if (!result.success) showToast(result.error || 'Failed to capture window', 'error');
 }
 
 async function startCaptureFullscreen() {
@@ -537,7 +537,7 @@ async function startCaptureFullscreen() {
   const result = await window.pico.startCaptureFullscreen();
   if (!result.success) {
     state.pendingFullscreenPreview = false;
-    showToast('Failed to capture screen', 'error');
+    showToast(result.error || 'Failed to capture screen', 'error');
   }
 }
 
