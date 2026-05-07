@@ -74,18 +74,17 @@
 
     #window-highlight {
       position: absolute;
-      border: 3px solid #f07d20;
-      background: transparent;
+      border: 2px solid #f07d20;
+      background: rgba(240, 125, 32, 0.06);
       pointer-events: none;
       display: none;
-      border-radius: 8px;
+      border-radius: var(--window-highlight-radius, 8px);
+      outline: 1px solid rgba(0, 0, 0, 0.45);
       box-shadow:
-        0 0 0 1px rgba(0, 0, 0, 0.3),
-        0 0 20px rgba(240, 125, 32, 0.7),
-        0 0 40px rgba(240, 125, 32, 0.4),
-        0 0 60px rgba(240, 125, 32, 0.15),
-        inset 0 0 12px rgba(240, 125, 32, 0.15);
-      transition: top 0.1s ease-out, left 0.1s ease-out, width 0.1s ease-out, height 0.1s ease-out;
+        0 0 0 1px rgba(240, 125, 32, 0.38),
+        0 0 14px rgba(240, 125, 32, 0.58),
+        0 0 28px rgba(240, 125, 32, 0.22);
+      transition: top 0.08s ease-out, left 0.08s ease-out, width 0.08s ease-out, height 0.08s ease-out;
     }
 
     #window-highlight.visible {
@@ -198,15 +197,13 @@
     // Generous padding around detected bounds ensures the window is always
     // well-centered within the highlight, even with coordinate misalignment
     // between the screenshot and the window enumeration (DWM frame, DPI, etc.)
-    const HIGHLIGHT_PADDING = 14;
-    // On Windows, UIAutomation BoundingRectangle is offset from where the window
-    // visually renders in the screenshot (due to DWM invisible frame + DPI rounding).
-    // These shifts re-center the highlight so padding is symmetric on all sides.
-    // (The actual window capture uses desktopCapturer by name, so this is cosmetic only.)
-    const HIGHLIGHT_Y_SHIFT = -20;
-    const HIGHLIGHT_X_SHIFT = -8;
-    // Extra tolerance for hit detection so hovering near a window is forgiving
-    const HIT_TOLERANCE = 16;
+    const PLATFORM_HIGHLIGHT = {
+      darwin: { padding: 0, xShift: 0, yShift: 0, radius: 10 },
+      win32: { padding: 0, xShift: 0, yShift: 0, radius: 6 },
+      default: { padding: 0, xShift: 0, yShift: 0, radius: 8 },
+    };
+    const HIT_TOLERANCE = 10;
+    let highlightMetrics = PLATFORM_HIGHLIGHT.default;
 
     let captureData = null;
     let captureMode = 'region';
@@ -237,11 +234,12 @@
       const rawW = win.width * boundsScaleX;
       const rawH = win.height * boundsScaleY;
 
-      // Apply padding and shifts for well-centered highlight
-      const x = Math.round(rawX - HIGHLIGHT_PADDING + HIGHLIGHT_X_SHIFT);
-      const y = Math.round(rawY - HIGHLIGHT_PADDING + HIGHLIGHT_Y_SHIFT);
-      const w = Math.round(rawW + HIGHLIGHT_PADDING * 2);
-      const h = Math.round(rawH + HIGHLIGHT_PADDING * 2);
+      // Keep the highlight on integer viewport pixels so the orange border
+      // stays visually locked to the bright unmasked screenshot region.
+      const x = Math.round(rawX - highlightMetrics.padding + highlightMetrics.xShift);
+      const y = Math.round(rawY - highlightMetrics.padding + highlightMetrics.yShift);
+      const w = Math.round(rawW + highlightMetrics.padding * 2);
+      const h = Math.round(rawH + highlightMetrics.padding * 2);
 
       // Clamp to viewport to avoid rendering outside visible area
       const cx = Math.max(0, x);
@@ -255,6 +253,8 @@
     window.pico.onCaptureData(async (data) => {
       captureData = data;
       captureMode = data.mode || 'region';
+      highlightMetrics = PLATFORM_HIGHLIGHT[data.platform] || PLATFORM_HIGHLIGHT.default;
+      document.documentElement.style.setProperty('--window-highlight-radius', `${highlightMetrics.radius}px`);
       windowBounds = (data.windowBounds || []).slice();
 
       canvas.width = window.innerWidth;
@@ -316,7 +316,7 @@
         ctx.save();
         ctx.beginPath();
         // Use rounded rect matching the highlight border-radius
-        roundedRect(ctx, rect.x, rect.y, rect.width, rect.height, 8);
+        roundedRect(ctx, rect.x, rect.y, rect.width, rect.height, highlightMetrics.radius);
         ctx.clip();
         ctx.drawImage(screenshotCanvas, 0, 0);
         ctx.restore();
@@ -504,8 +504,13 @@
     document.addEventListener('mousedown', (e) => {
       if (captureMode === 'window') {
         if (hoveredWindow) {
-          // Use native desktopCapturer for pixel-perfect window capture (no frame math needed)
-          window.pico.selectWindowByName(hoveredWindow.name);
+          // Use native desktopCapturer for pixel-perfect window capture (no frame math needed).
+          // Prefer exact source ids harvested from the OS window id; names are only a fallback.
+          if (hoveredWindow.sourceId) {
+            window.pico.selectWindowSource(hoveredWindow.sourceId);
+          } else {
+            window.pico.selectWindowByName(hoveredWindow.name);
+          }
         }
         return;
       }
