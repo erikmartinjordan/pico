@@ -11,7 +11,7 @@
     "build:mac": "electron-builder --mac",
     "build:win": "electron-builder --win",
     "build:all": "electron-builder --mac --win",
-    "build:mac:legacy": "electron-builder --mac --config electron-builder.legacy-mac.cjs"
+    "build:mac:legacy": "electron-builder --mac --config config/electron-builder.legacy-mac.cjs"
   },
   "devDependencies": {
     "electron": "^34.5.8",

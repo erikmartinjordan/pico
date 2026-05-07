@@ -95,7 +95,7 @@ async function openWindowPickerFallback() {
     },
   });
 
-  windowPickerWindow.loadFile(path.join(__dirname, 'window-picker.html'));
+  windowPickerWindow.loadFile(path.join(__dirname, 'renderer', 'window-picker.html'));
   windowPickerWindow.on('closed', () => {
     windowPickerWindow = null;
     if (!recordingSourceSelection && mainWindow) mainWindow.show();
@@ -543,11 +543,11 @@ function createMainWindow() {
       nodeIntegration: false,
       sandbox: true,
     },
-    icon: path.join(__dirname, 'assets', 'icons', 'icon_512x512.png'),
+    icon: path.join(__dirname, 'assets', 'icons', 'linux', 'icons', '512x512.png'),
     show: false,
   });
 
-  mainWindow.loadFile(path.join(__dirname, 'index.html'));
+  mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   mainWindow.once('ready-to-show', () => mainWindow.show());
   mainWindow.on('closed', () => { mainWindow = null; });
 }
@@ -630,7 +630,7 @@ function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) 
     });
 
     win.setAlwaysOnTop(true, 'screen-saver');
-    win.loadFile(path.join(__dirname, 'capture-overlay.html'));
+    win.loadFile(path.join(__dirname, 'renderer', 'capture-overlay.html'));
 
     win.webContents.once('did-finish-load', () => {
       win.setBounds({
