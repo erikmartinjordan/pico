@@ -12,7 +12,7 @@
   <img src="https://img.shields.io/github/downloads/erikmartinjordan/pico/total?label=Total%20downloads&style=flat-square" alt="Total downloads" />
 </p>
 
-pico is a minimal screen capture and annotation app for Windows, Linux, and experimental macOS builds.
+pico is a minimal screen capture and annotation app for Windows, Linux, experimental macOS builds, and browsers as an installable PWA.
 
 ## Download
 
@@ -39,7 +39,8 @@ If you test the macOS build, download it only from the official GitHub release, 
 
 ## Features
 
-- Capture a region, window, or display
+- Capture a region, window, or display in the desktop app
+- Install the browser PWA and capture browser-approved screen/window sources
 - Annotate with shapes, arrows, text, highlight, and blur
 - Undo, redo, zoom, and pan
 - Save as PNG or copy to clipboard
@@ -67,6 +68,14 @@ Requirements: Node.js 20+ and npm.
 npm install
 npm start
 ```
+
+Run the browser PWA locally:
+
+```bash
+npm run start:pwa
+```
+
+Then open http://localhost:4173. The PWA works offline after the first load and uses browser-native file, clipboard, and screen-capture APIs; exact capture choices depend on the browser's permission picker.
 
 Build the app:
 

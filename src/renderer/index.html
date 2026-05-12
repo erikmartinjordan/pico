@@ -3,8 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:;">
+  <meta name="theme-color" content="#f07d20">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="pico">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; worker-src 'self'; manifest-src 'self';">
   <title>pico</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="256x256" href="../assets/icons/macos/256x256.png">
+  <link rel="apple-touch-icon" href="../assets/icons/macos/256x256.png">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -83,7 +90,7 @@
         </svg>
       </div>
       <h2>No image loaded</h2>
-      <p>Capture your screen or open an image to begin</p>
+      <p>Capture your screen, paste, or open an image to begin</p>
       <div class="empty-actions">
         <button class="btn btn-primary" id="empty-capture"><span class="camera-dot"></span>Capture screen</button>
         <button class="btn btn-secondary" id="empty-open">Open image</button>
@@ -134,6 +141,7 @@
 
   <div class="toast-container" id="toast-container"></div>
 
+  <script src="browser-api.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>

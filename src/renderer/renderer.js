@@ -100,6 +100,7 @@ function on(el, event, handler) { if (el) el.addEventListener(event, handler); }
 
 function init() {
   document.body.classList.add(`platform-${window.pico.platform}`);
+  if (window.pico.isBrowserPwa) document.body.classList.add('browser-pwa');
   elements.ctx = elements.canvas.getContext('2d');
   bindToolbar();
   bindCanvas();
@@ -519,15 +520,27 @@ async function toggleRecording(event) {
   }
 }
 
+function loadCaptureResult(result, captureMode) {
+  if (result?.success && result.dataUrl) {
+    loadImage(result.dataUrl, {
+      showPreview: result.source === 'capture',
+      captureMode,
+      autoSelectRect: result.source === 'capture',
+    });
+  }
+}
+
 async function startCapture() {
   if (state.cropActive) cancelCrop();
   const result = await window.pico.startCapture();
+  loadCaptureResult(result, 'region');
   if (!result.success) showToast(result.error || 'Failed to start capture', 'error');
 }
 
 async function startCaptureWindow() {
   if (state.cropActive) cancelCrop();
   const result = await window.pico.startCaptureWindow();
+  loadCaptureResult(result, 'window');
   if (!result.success) showToast(result.error || 'Failed to capture window', 'error');
 }
 
@@ -535,6 +548,7 @@ async function startCaptureFullscreen() {
   if (state.cropActive) cancelCrop();
   state.pendingFullscreenPreview = true;
   const result = await window.pico.startCaptureFullscreen();
+  loadCaptureResult(result, 'fullscreen');
   if (!result.success) {
     state.pendingFullscreenPreview = false;
     showToast(result.error || 'Failed to capture screen', 'error');
