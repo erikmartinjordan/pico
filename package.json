@@ -13,7 +13,9 @@
     "build:all": "electron-builder --mac --win --linux",
     "build:mac:legacy": "electron-builder --mac --config config/electron-builder.legacy-mac.cjs",
     "build:linux": "electron-builder --linux",
-    "build:desktop": "electron-builder --win --linux"
+    "build:desktop": "electron-builder --win --linux",
+    "start:pwa": "node scripts/serve-pwa.js",
+    "start:web": "node scripts/serve-pwa.js"
   },
   "devDependencies": {
     "electron": "^34.5.8",
