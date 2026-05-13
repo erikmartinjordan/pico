@@ -4,7 +4,7 @@
  */
 
 const { app, BrowserWindow, ipcMain, desktopCapturer, dialog, screen, globalShortcut, nativeImage, clipboard, Menu, shell, systemPreferences } = require('electron');
-const { execSync, exec } = require('child_process');
+const { execSync, exec, execFile } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const { tempRecordingPath, convertWebmToMp4, convertMp4ToGif } = require('./pro/recording');
@@ -70,6 +70,61 @@ async function getDefaultRecordingSource() {
 }
 
 
+
+function nativeMacWindowCapturePath() {
+  return path.join(app.getPath('temp'), `pico-window-${process.pid}-${Date.now()}.png`);
+}
+
+function runNativeMacWindowCapture(filePath) {
+  return new Promise((resolve, reject) => {
+    execFile('/usr/sbin/screencapture', ['-i', '-w', '-x', '-t', 'png', filePath], (error, stdout, stderr) => {
+      if (error) {
+        error.stdout = stdout;
+        error.stderr = stderr;
+        reject(error);
+        return;
+      }
+      resolve({ stdout, stderr });
+    });
+  });
+}
+
+function readImageFileAsDataUrl(filePath) {
+  const buffer = fs.readFileSync(filePath);
+  return `data:image/png;base64,${buffer.toString('base64')}`;
+}
+
+async function captureNativeMacWindow() {
+  if (process.platform !== 'darwin') return null;
+  const filePath = nativeMacWindowCapturePath();
+  try {
+    await runNativeMacWindowCapture(filePath);
+    if (!fs.existsSync(filePath) || fs.statSync(filePath).size === 0) {
+      return { success: true, canceled: true };
+    }
+    const dataUrl = readImageFileAsDataUrl(filePath);
+    copyDataUrlToClipboard(dataUrl);
+    if (mainWindow) {
+      mainWindow.show();
+      mainWindow.focus();
+      mainWindow.webContents.send('load-capture', {
+        dataUrl,
+        source: 'capture',
+        captureMode: 'window',
+      });
+    }
+    return { success: true };
+  } catch (err) {
+    if (!fs.existsSync(filePath) || fs.statSync(filePath).size === 0) {
+      return { success: true, canceled: true };
+    }
+    console.error('[pico] native macOS window capture failed:', err.message, err.stderr || '');
+    throw err;
+  } finally {
+    try { fs.unlinkSync(filePath); } catch (e) {}
+    if (mainWindow && !mainWindow.isVisible()) mainWindow.show();
+  }
+}
 
 function getHighQualityThumbnailSize(minWidth = 1920, minHeight = 1200) {
   const displays = screen.getAllDisplays();
@@ -825,12 +880,12 @@ ipcMain.handle('start-capture', async () => {
 
 ipcMain.handle('start-capture-window', async () => {
   if (mainWindow) mainWindow.hide();
-  await new Promise(r => setTimeout(r, 80));
+  await new Promise(r => setTimeout(r, process.platform === 'darwin' ? 180 : 80));
   try {
-    if (!await ensureMacScreenRecordingPermission()) {
-      if (mainWindow) mainWindow.show();
-      return { success: false, error: 'Screen Recording permission is required.' };
+    if (process.platform === 'darwin') {
+      return await captureNativeMacWindow();
     }
+
     const captureData = await captureAllScreens();
     // Fetch capturer sources before showing the overlay. Native source ids let the
     // overlay select the exact window on macOS/Windows instead of relying on names.
