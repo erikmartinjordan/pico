@@ -418,28 +418,30 @@
       const viewH = window.innerHeight;
 
       if (captureData.type === 'single') {
-        const img = new Image();
-        img.src = captureData.dataUrl;
-        const scaleX = (captureData.bounds?.width || viewW) / viewW;
-        const scaleY = (captureData.bounds?.height || viewH) / viewH;
-        const out = document.createElement('canvas');
-        out.width = Math.max(1, Math.round(rect.width * scaleX));
-        out.height = Math.max(1, Math.round(rect.height * scaleY));
-        const octx = out.getContext('2d');
-        return new Promise((resolve) => {
-          img.onload = () => {
-            octx.drawImage(
-              img,
-              Math.round(rect.x * scaleX),
-              Math.round(rect.y * scaleY),
-              Math.round(rect.width * scaleX),
-              Math.round(rect.height * scaleY),
-              0, 0,
-              out.width,
-              out.height,
-            );
-            resolve(out.toDataURL('image/png'));
-          };
+        return loadImage(captureData.dataUrl).then((img) => {
+          const pixelWidth = captureData.pixelSize?.width || img.naturalWidth || img.width || viewW;
+          const pixelHeight = captureData.pixelSize?.height || img.naturalHeight || img.height || viewH;
+          const scaleX = pixelWidth / viewW;
+          const scaleY = pixelHeight / viewH;
+          const srcX = Math.round(rect.x * scaleX);
+          const srcY = Math.round(rect.y * scaleY);
+          const srcW = Math.round(rect.width * scaleX);
+          const srcH = Math.round(rect.height * scaleY);
+          const out = document.createElement('canvas');
+          out.width = Math.max(1, srcW);
+          out.height = Math.max(1, srcH);
+          const octx = out.getContext('2d');
+          octx.drawImage(
+            img,
+            srcX,
+            srcY,
+            srcW,
+            srcH,
+            0, 0,
+            out.width,
+            out.height,
+          );
+          return out.toDataURL('image/png');
         });
       }
 

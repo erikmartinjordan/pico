@@ -607,20 +607,31 @@ async function loadCaptureData(captureData, options = {}) {
     loadImage(captureData.dataUrl, options);
     return;
   }
-  // Sort screens left-to-right and align at top edge (y=0)
+  // Sort screens left-to-right and align at the top edge. Use each display's
+  // actual bitmap size so fullscreen capture stays sharp on Retina/HiDPI Macs
+  // instead of being downscaled to logical display bounds.
   const sorted = [...captureData.screens].sort((a, b) => a.bounds.x - b.bounds.x);
-  const totalWidth = sorted.reduce((sum, s) => sum + s.bounds.width, 0);
-  const maxHeight = Math.max(...sorted.map(s => s.bounds.height));
+  const images = await Promise.all(sorted.map((screen) => new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.src = screen.dataUrl;
+  })));
+  const pixelWidthFor = (screen, image) => screen.pixelSize?.width || image.naturalWidth || image.width || screen.bounds.width;
+  const pixelHeightFor = (screen, image) => screen.pixelSize?.height || image.naturalHeight || image.height || screen.bounds.height;
+  const totalWidth = sorted.reduce((sum, screen, index) => sum + pixelWidthFor(screen, images[index]), 0);
+  const maxHeight = Math.max(...sorted.map((screen, index) => pixelHeightFor(screen, images[index])));
   const canvas = document.createElement('canvas');
   canvas.width = totalWidth;
   canvas.height = maxHeight;
   const ctx = canvas.getContext('2d');
   let offsetX = 0;
-  for (const screen of sorted) {
-    const img = await new Promise((resolve) => { const i = new Image(); i.onload = () => resolve(i); i.src = screen.dataUrl; });
-    ctx.drawImage(img, offsetX, 0, screen.bounds.width, screen.bounds.height);
-    offsetX += screen.bounds.width;
-  }
+  sorted.forEach((screen, index) => {
+    const image = images[index];
+    const width = pixelWidthFor(screen, image);
+    const height = pixelHeightFor(screen, image);
+    ctx.drawImage(image, offsetX, 0, width, height);
+    offsetX += width;
+  });
   loadImage(canvas.toDataURL('image/png'), options);
 }
 
