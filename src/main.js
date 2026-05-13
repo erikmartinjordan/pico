@@ -71,6 +71,24 @@ async function getDefaultRecordingSource() {
 
 
 
+function getHighQualityThumbnailSize(minWidth = 1920, minHeight = 1200) {
+  const displays = screen.getAllDisplays();
+  if (!displays.length) return { width: minWidth, height: minHeight };
+  const maxScale = Math.max(...displays.map((display) => display.scaleFactor || 1));
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const display of displays) {
+    minX = Math.min(minX, display.bounds.x);
+    minY = Math.min(minY, display.bounds.y);
+    maxX = Math.max(maxX, display.bounds.x + display.bounds.width);
+    maxY = Math.max(maxY, display.bounds.y + display.bounds.height);
+  }
+  return {
+    width: Math.max(minWidth, Math.ceil((maxX - minX) * maxScale)),
+    height: Math.max(minHeight, Math.ceil((maxY - minY) * maxScale)),
+  };
+}
+
+
 function isPicoWindowSource(source) {
   const id = String(source?.id || '');
   const name = String(source?.name || '').toLowerCase();
@@ -89,7 +107,7 @@ function toPickerSource(source) {
 async function getDesktopSourcesForPicker(types = ['window']) {
   return desktopCapturer.getSources({
     types,
-    thumbnailSize: { width: 1920, height: 1200 },
+    thumbnailSize: getHighQualityThumbnailSize(),
     fetchWindowIcons: false,
   });
 }
@@ -282,9 +300,13 @@ try {
 }
 
 function getWindowBoundsMac() {
-  // Use Python3 with Quartz (pre-installed on macOS)
+  // Prefer Quartz CGWindow metadata because it matches desktopCapturer window ids.
+  // Run a Python 2/3 compatible script so the legacy Intel build works on older
+  // macOS installs that still expose PyObjC through /usr/bin/python, while new
+  // Apple Silicon Macs can use python3 when available.
   const script = `
 import json
+import sys
 try:
     from Quartz import CGWindowListCopyWindowInfo, kCGWindowListOptionOnScreenOnly, kCGWindowListExcludeDesktopElements, kCGNullWindowID
     wl = CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID)
@@ -292,17 +314,17 @@ try:
     for w in wl:
         b = w.get('kCGWindowBounds', {})
         if w.get('kCGWindowLayer', 0) != 0: continue
-        owner = w.get('kCGWindowOwnerName', '')
-        name = w.get('kCGWindowName', '')
+        owner = w.get('kCGWindowOwnerName', '') or ''
+        name = w.get('kCGWindowName', '') or ''
         title = (owner + ' - ' + name) if name else owner
         width, height = int(b.get('Width', 0)), int(b.get('Height', 0))
         window_id = int(w.get('kCGWindowNumber', 0) or 0)
         owner_pid = int(w.get('kCGWindowOwnerPID', 0) or 0)
         if width < 50 or height < 30: continue
         if window_id <= 0: continue
-        source_ids = [f'window:{window_id}:0']
+        source_ids = ['window:%s:0' % window_id]
         if owner_pid > 0:
-            source_ids.append(f'window:{window_id}:{owner_pid}')
+            source_ids.append('window:%s:%s' % (window_id, owner_pid))
         r.append({
             'name': title,
             'owner': owner,
@@ -315,23 +337,25 @@ try:
             'processId': owner_pid,
             'sourceIds': source_ids,
         })
-    print(json.dumps(r))
+    sys.stdout.write(json.dumps(r))
 except Exception as ex:
-    import sys
-    print('[]')
-    print(str(ex), file=sys.stderr)
+    sys.stdout.write('[]')
+    sys.stderr.write(str(ex))
 `;
-  try {
-    const output = execSync(`python3 -c ${JSON.stringify(script)}`, {
-      encoding: 'utf8', timeout: 5000
-    });
-    return JSON.parse(output.trim());
-  } catch (e) {
-    console.error('Mac window enum error:', e.message);
-    return [];
+  const interpreters = ['python3', '/usr/bin/python3', '/usr/bin/python'];
+  for (const interpreter of interpreters) {
+    try {
+      const output = execSync(`${interpreter} -c ${JSON.stringify(script)}`, {
+        encoding: 'utf8', timeout: 5000
+      });
+      const parsed = JSON.parse(output.trim() || '[]');
+      if (parsed.length > 0) return parsed;
+    } catch (e) {
+      console.error(`Mac window enum error via ${interpreter}:`, e.message);
+    }
   }
+  return [];
 }
-
 
 function normalizeWindowName(value) {
   return String(value || '')
@@ -597,6 +621,19 @@ function createMainWindow() {
 
 // ── Screen Capture ──────────────────────────────────────────────────────────
 
+function getNativeImagePixelSize(image) {
+  if (!image || image.isEmpty()) return { width: 0, height: 0 };
+  const bitmapSize = typeof image.getBitmapSize === 'function' ? image.getBitmapSize() : null;
+  const size = bitmapSize && bitmapSize.width > 0 && bitmapSize.height > 0
+    ? bitmapSize
+    : image.getSize();
+  return { width: Math.round(size.width), height: Math.round(size.height) };
+}
+
+function getSourceForDisplay(sourceByDisplayId, sources, display, index) {
+  return sourceByDisplayId.get(String(display.id)) || sources[index] || sources[0];
+}
+
 async function captureAllScreens() {
   const displays = screen.getAllDisplays();
   
@@ -610,13 +647,19 @@ async function captureAllScreens() {
   
   const totalWidth = maxX - minX;
   const totalHeight = maxY - minY;
-
   const maxScale = Math.max(...displays.map(d => d.scaleFactor || 1));
+  const maxDisplayWidth = Math.max(...displays.map(d => d.bounds.width * (d.scaleFactor || 1)));
+  const maxDisplayHeight = Math.max(...displays.map(d => d.bounds.height * (d.scaleFactor || 1)));
+
+  // Request a thumbnail large enough for the largest physical display and then
+  // keep Electron's returned bitmap size. Resizing to logical bounds breaks
+  // Retina/HiDPI captures on modern Macs, while this remains compatible with
+  // the legacy x64 macOS build where getBitmapSize may not exist.
   const sources = await desktopCapturer.getSources({
     types: ['screen'],
     thumbnailSize: {
-      width: Math.round(totalWidth * maxScale),
-      height: Math.round(totalHeight * maxScale),
+      width: Math.ceil(maxDisplayWidth),
+      height: Math.ceil(maxDisplayHeight),
     },
   });
 
@@ -630,24 +673,42 @@ async function captureAllScreens() {
     if (source.display_id) sourceByDisplayId.set(String(source.display_id), source);
   }
 
+  const screensData = displays.map((display, index) => {
+    const source = getSourceForDisplay(sourceByDisplayId, sources, display, index);
+    if (!source || !source.thumbnail || source.thumbnail.isEmpty()) {
+      throw new Error(`No source for display ${display.id}`);
+    }
+    const pixelSize = getNativeImagePixelSize(source.thumbnail);
+    const scaleFactor = pixelSize.width > 0 && display.bounds.width > 0
+      ? pixelSize.width / display.bounds.width
+      : (display.scaleFactor || 1);
+    return {
+      dataUrl: source.thumbnail.toDataURL(),
+      bounds: display.bounds,
+      scaleFactor,
+      pixelSize,
+      displayId: display.id,
+    };
+  });
+
   if (displays.length > 1) {
-    const screensData = await Promise.all(displays.map(async (display) => {
-      const source = sourceByDisplayId.get(String(display.id));
-      if (!source) throw new Error(`No source for display ${display.id}`);
-      const thumbnail = source.thumbnail.resize({
-        width: display.bounds.width, height: display.bounds.height, quality: 'best',
-      });
-      return { dataUrl: thumbnail.toDataURL(), bounds: display.bounds, scaleFactor: display.scaleFactor || 1 };
-    }));
-    return { type: 'multi', screens: screensData, virtualBounds: { x: minX, y: minY, width: totalWidth, height: totalHeight }, maxScale };
-  } else {
-    const display = displays[0];
-    const source = sourceByDisplayId.get(String(display.id)) || sources[0];
-    const thumbnail = source.thumbnail.resize({
-      width: display.bounds.width, height: display.bounds.height, quality: 'best',
-    });
-    return { type: 'single', dataUrl: thumbnail.toDataURL(), bounds: display.bounds, scaleFactor: display.scaleFactor || 1 };
+    return {
+      type: 'multi',
+      screens: screensData,
+      virtualBounds: { x: minX, y: minY, width: totalWidth, height: totalHeight },
+      maxScale,
+    };
   }
+
+  const screenData = screensData[0];
+  return {
+    type: 'single',
+    dataUrl: screenData.dataUrl,
+    bounds: screenData.bounds,
+    scaleFactor: screenData.scaleFactor,
+    pixelSize: screenData.pixelSize,
+    displayId: screenData.displayId,
+  };
 }
 
 function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) {
@@ -729,7 +790,9 @@ function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) 
         type: 'single',
         dataUrl: screenData ? screenData.dataUrl : captureData.dataUrl,
         bounds: display.bounds,
-        scaleFactor: display.scaleFactor || 1,
+        scaleFactor: screenData?.scaleFactor || display.scaleFactor || 1,
+        pixelSize: screenData?.pixelSize,
+        displayId: screenData?.displayId || display.id,
         windowBounds: displayWindowBounds,
         platform: process.platform,
       });
@@ -773,7 +836,7 @@ ipcMain.handle('start-capture-window', async () => {
     // overlay select the exact window on macOS/Windows instead of relying on names.
     const windowSources = await desktopCapturer.getSources({
       types: ['window'],
-      thumbnailSize: { width: 1920, height: 1200 },
+      thumbnailSize: getHighQualityThumbnailSize(),
       fetchWindowIcons: false,
     });
     windowPickerSources = windowSources.filter(s => s && s.name && !isPicoWindowSource(s));
@@ -831,7 +894,7 @@ ipcMain.on('window-overlay-select', async (event, windowName) => {
     }
     if (!selected) {
       // Re-fetch fresh sources as fallback
-      const fresh = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 1920, height: 1200 } });
+      const fresh = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: getHighQualityThumbnailSize() });
       selected = fresh.find(s => s.name === windowName) ||
                  fresh.find(s => s.name.includes(windowName) || windowName.includes(s.name));
     }
