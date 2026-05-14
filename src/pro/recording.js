@@ -50,12 +50,19 @@ async function convertWebmToMp4(webmPath, requestedOutputPath = null) {
   ensureOutputDir(mp4Path);
   await runBinary(ffmpeg, [
     '-y',
+    '-fflags', '+genpts',
     '-i', webmPath,
+    '-map', '0:v:0',
+    '-map', '0:a?',
+    '-vf', 'fps=30,scale=trunc(iw/2)*2:trunc(ih/2)*2:flags=lanczos,format=yuv420p',
     '-c:v', 'libx264',
     '-preset', 'veryfast',
-    '-pix_fmt', 'yuv420p',
+    '-profile:v', 'main',
+    '-crf', '23',
     '-c:a', 'aac',
+    '-b:a', '160k',
     '-movflags', '+faststart',
+    '-shortest',
     mp4Path,
   ]);
   return mp4Path;
