@@ -52,6 +52,7 @@ const state = {
   cropOrigRect: null,
   isRecording: false,
   recordingFormat: 'mp4',
+  recordingMode: 'region',
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -125,7 +126,7 @@ function bindToolbar() {
   on($('#btn-capture-fullscreen'), 'click', startCaptureFullscreen);
   on(elements.btnRecordScreen, 'click', onRecordButtonClick);
   elements.recordingFormatMenu?.querySelectorAll('[data-format]').forEach((button) => {
-    button.addEventListener('click', () => startRecordingWithFormat(button.dataset.format));
+    button.addEventListener('click', () => startRecordingWithFormat(button.dataset.format, button.dataset.mode));
   });
   document.addEventListener('click', (event) => {
     if (!elements.recordingFormatMenu?.classList.contains('visible')) return;
@@ -475,14 +476,16 @@ function onRecordButtonClick(event) {
   showRecordingFormatMenu();
 }
 
-async function startRecordingWithFormat(format = 'mp4') {
+async function startRecordingWithFormat(format = 'mp4', mode = 'region') {
   hideRecordingFormatMenu();
   try {
-    const started = await window.pico.startRecording({ format });
+    const started = await window.pico.startRecording({ format, mode, autoZoom: mode === 'region' });
     state.isRecording = true;
     state.recordingFormat = format;
+    state.recordingMode = mode;
     setRecordingIndicator(true);
-    showToast(started.systemAudio ? `Recording ${started.source?.name || 'window'} as ${format.toUpperCase()}` : `Recording ${started.source?.name || 'window'} as ${format.toUpperCase()} without system audio`, started.systemAudio ? 'success' : 'info');
+    const targetLabel = mode === 'region' ? 'selected region with autozoom' : (started.source?.name || 'window');
+    showToast(started.systemAudio ? `Recording ${targetLabel} as ${format.toUpperCase()}` : `Recording ${targetLabel} as ${format.toUpperCase()} without system audio`, started.systemAudio ? 'success' : 'info');
   } catch (err) {
     state.isRecording = false;
     setRecordingIndicator(false);
@@ -1358,7 +1361,7 @@ function updateStatus() {
 function setRecordingIndicator(isRecording) {
   elements.btnRecordScreen?.classList.toggle('recording', isRecording);
   if (elements.btnRecordScreen) {
-    elements.btnRecordScreen.title = isRecording ? 'Stop recording and choose save location' : 'Record a window';
+    elements.btnRecordScreen.title = isRecording ? 'Stop recording and choose save location' : 'Record screen video';
     elements.btnRecordScreen.setAttribute('aria-pressed', String(isRecording));
   }
 }

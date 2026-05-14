@@ -107,7 +107,7 @@ body {
 
 .toolbar-btn.pro-feature {
   position: relative;
-  width: 42px;
+  width: 32px;
   color: var(--accent-soft);
 }
 
@@ -133,7 +133,7 @@ body {
   position: absolute;
   top: calc(100% + 8px);
   left: 50%;
-  min-width: 148px;
+  min-width: 228px;
   padding: 6px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 12px;
@@ -171,13 +171,6 @@ body {
   color: #fff7ed;
 }
 
-
-/* Hide unfinished Pro features until core capture is polished. */
-.recording-format-wrap[hidden],
-.pro-feature,
-.recording-format-menu {
-  display: none !important;
-}
 
 .pro-badge {
   position: absolute;

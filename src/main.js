@@ -15,7 +15,9 @@ let windowPickerWindow = null;
 let windowPickerSources = [];
 let recordingIndicatorWindows = [];
 let recordingSourceSelection = null;
+let recordingRegionSelection = null;
 let lastRecordingSourceId = null;
+let lastRecordingRegion = null;
 
 
 function getMacScreenRecordingStatus() {
@@ -465,6 +467,15 @@ function attachCapturerSourcesToWindowBounds(windowBounds, capturerSources) {
 // ── Window Creation ─────────────────────────────────────────────────────────
 
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function showRecordingIndicator() {
   if (recordingIndicatorWindows.length > 0) {
     recordingIndicatorWindows.forEach(w => { if (!w.isDestroyed()) w.showInactive(); });
@@ -473,7 +484,11 @@ function showRecordingIndicator() {
 
   // Determine which display should show the stop controls
   let targetDisplay = screen.getPrimaryDisplay();
-  if (lastRecordingSourceId) {
+  if (lastRecordingRegion?.displayId) {
+    const allDisplays = screen.getAllDisplays();
+    const matched = allDisplays.find(d => String(d.id) === String(lastRecordingRegion.displayId));
+    if (matched) targetDisplay = matched;
+  } else if (lastRecordingSourceId) {
     const sourceIdStr = String(lastRecordingSourceId);
     if (sourceIdStr.startsWith('screen:')) {
       const parts = sourceIdStr.split(':');
@@ -523,6 +538,29 @@ function showRecordingIndicator() {
 
     const controlsLeft = Math.round(workArea.x - bounds.x + (workArea.width - controlWidth) / 2);
     const controlsBottom = Math.max(12, Math.round(bounds.y + bounds.height - workArea.y - workArea.height + 16));
+    const regionOnDisplay = lastRecordingRegion && String(lastRecordingRegion.displayId) === String(display.id)
+      ? {
+          left: Math.max(0, Math.round(lastRecordingRegion.x)),
+          top: Math.max(0, Math.round(lastRecordingRegion.y)),
+          width: Math.max(1, Math.round(lastRecordingRegion.width)),
+          height: Math.max(1, Math.round(lastRecordingRegion.height)),
+        }
+      : null;
+    if (regionOnDisplay) {
+      regionOnDisplay.right = Math.max(0, bounds.width - regionOnDisplay.left - regionOnDisplay.width);
+      regionOnDisplay.bottom = Math.max(0, bounds.height - regionOnDisplay.top - regionOnDisplay.height);
+    }
+    const dimOpacity = 'rgba(0, 0, 0, 0.52)';
+    const dimBlocks = regionOnDisplay ? `
+          <div class="recording-dim" style="left:0;top:0;width:100%;height:${regionOnDisplay.top}px"></div>
+          <div class="recording-dim" style="left:0;top:${regionOnDisplay.top}px;width:${regionOnDisplay.left}px;height:${regionOnDisplay.height}px"></div>
+          <div class="recording-dim" style="right:0;top:${regionOnDisplay.top}px;width:${regionOnDisplay.right}px;height:${regionOnDisplay.height}px"></div>
+          <div class="recording-dim" style="left:0;bottom:0;width:100%;height:${regionOnDisplay.bottom}px"></div>`
+      : (lastRecordingRegion ? '<div class="recording-dim full"></div>' : '');
+    const glowStyle = regionOnDisplay
+      ? `left:${regionOnDisplay.left}px;top:${regionOnDisplay.top}px;width:${regionOnDisplay.width}px;height:${regionOnDisplay.height}px;border-radius:14px;`
+      : 'inset:0;border-radius:0;';
+    const statusText = lastRecordingRegion ? 'Recording region' : 'Recording';
 
     indicatorWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`
     <!DOCTYPE html>
@@ -539,11 +577,17 @@ function showRecordingIndicator() {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             user-select: none;
           }
+          .recording-dim {
+            position: fixed;
+            background: ${dimOpacity};
+            backdrop-filter: blur(1px);
+            pointer-events: none;
+          }
+          .recording-dim.full { inset: 0; }
           .recording-glow {
             position: fixed;
-            inset: 0;
-            border: 3px solid rgba(239, 68, 68, 0.92);
-            border-radius: 0;
+            ${glowStyle}
+            border: 3px solid rgba(239, 68, 68, 0.96);
             box-shadow:
               inset 0 0 30px rgba(248, 113, 113, 0.6),
               inset 0 0 60px rgba(220, 38, 38, 0.25),
@@ -600,14 +644,15 @@ function showRecordingIndicator() {
             background: rgba(239, 68, 68, 0.15);
             border-color: rgba(239, 68, 68, 0.5);
           }
-          @keyframes glowPulse { 0%, 100% { opacity: 0.72; } 50% { opacity: 1; } }
+          @keyframes glowPulse { 0%, 100% { opacity: 0.78; } 50% { opacity: 1; } }
           @keyframes dotPulse { 0% { box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.85); } 80%, 100% { box-shadow: 0 0 0 10px rgba(248, 113, 113, 0); } }
         </style>
       </head>
       <body>
+        ${dimBlocks}
         <div class="recording-glow"></div>
         <div class="recording-controls">
-          <div class="status"><span class="dot"></span><span>Recording</span></div>
+          <div class="status"><span class="dot"></span><span>${escapeHtml(statusText)}</span></div>
           <button id="stop">Stop</button>
         </div>
         <script>
@@ -638,6 +683,7 @@ function hideRecordingIndicator() {
   }
   recordingIndicatorWindows = [];
   lastRecordingSourceId = null;
+  lastRecordingRegion = null;
 
   // Restore pico main window when recording ends
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -739,6 +785,7 @@ async function captureAllScreens() {
       : (display.scaleFactor || 1);
     return {
       dataUrl: source.thumbnail.toDataURL(),
+      sourceId: source.id,
       bounds: display.bounds,
       scaleFactor,
       pixelSize,
@@ -759,6 +806,7 @@ async function captureAllScreens() {
   return {
     type: 'single',
     dataUrl: screenData.dataUrl,
+    sourceId: screenData.sourceId,
     bounds: screenData.bounds,
     scaleFactor: screenData.scaleFactor,
     pixelSize: screenData.pixelSize,
@@ -848,6 +896,7 @@ function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) 
         scaleFactor: screenData?.scaleFactor || display.scaleFactor || 1,
         pixelSize: screenData?.pixelSize,
         displayId: screenData?.displayId || display.id,
+        sourceId: screenData?.sourceId,
         windowBounds: displayWindowBounds,
         platform: process.platform,
       });
@@ -988,7 +1037,22 @@ ipcMain.on('capture-complete', (event, imageDataUrl) => {
 ipcMain.on('capture-cancel', () => {
   captureWindows.forEach(w => { if (!w.isDestroyed()) w.close(); });
   captureWindows = [];
+  if (recordingRegionSelection) {
+    recordingRegionSelection.resolve(null);
+    recordingRegionSelection = null;
+    if (mainWindow) mainWindow.show();
+    return;
+  }
   if (mainWindow) mainWindow.show();
+});
+
+ipcMain.on('recording-region-complete', (event, region) => {
+  captureWindows.forEach(w => { if (!w.isDestroyed()) w.close(); });
+  captureWindows = [];
+  if (recordingRegionSelection) {
+    recordingRegionSelection.resolve(region);
+    recordingRegionSelection = null;
+  }
 });
 
 
@@ -1095,9 +1159,11 @@ ipcMain.handle('read-clipboard-image', async () => {
 });
 
 ipcMain.handle('get-displays', () => screen.getAllDisplays());
+ipcMain.handle('get-cursor-screen-point', () => screen.getCursorScreenPoint());
 
 
-ipcMain.handle('pro-recording-indicator-show', async () => {
+ipcMain.handle('pro-recording-indicator-show', async (event, payload = {}) => {
+  if (payload?.region) lastRecordingRegion = payload.region;
   showRecordingIndicator();
   return { success: true };
 });
@@ -1106,6 +1172,29 @@ ipcMain.handle('pro-recording-indicator-hide', async () => {
   hideRecordingIndicator();
   return { success: true };
 });
+
+async function chooseRecordingRegionSource() {
+  if (recordingRegionSelection) return recordingRegionSelection.promise;
+
+  const promise = new Promise(async (resolve, reject) => {
+    recordingRegionSelection = { resolve, reject, promise: null };
+    try {
+      if (mainWindow) mainWindow.hide();
+      await new Promise(r => setTimeout(r, 200));
+      if (!await ensureMacScreenRecordingPermission()) {
+        throw new Error('Screen Recording permission is required.');
+      }
+      const captureData = await captureAllScreens();
+      createCaptureOverlays(captureData, 'record-region', []);
+    } catch (error) {
+      recordingRegionSelection = null;
+      if (mainWindow) mainWindow.show();
+      reject(error);
+    }
+  });
+  recordingRegionSelection.promise = promise;
+  return promise;
+}
 
 function chooseRecordingWindowSource() {
   if (recordingSourceSelection) return recordingSourceSelection.promise;
@@ -1125,14 +1214,30 @@ function chooseRecordingWindowSource() {
   return promise;
 }
 
-ipcMain.handle('pro-recording-source', async () => {
+ipcMain.handle('pro-recording-source', async (event, options = {}) => {
   if (!await ensureMacScreenRecordingPermission()) {
     throw new Error('Screen Recording permission is required.');
   }
+
+  if (options?.mode === 'region') {
+    const region = await chooseRecordingRegionSource();
+    if (!region) return null;
+    lastRecordingSourceId = region.sourceId;
+    lastRecordingRegion = region;
+    return {
+      id: region.sourceId,
+      name: 'Selected region',
+      mode: 'region',
+      region,
+      autoZoom: options.autoZoom !== false,
+    };
+  }
+
   const source = await chooseRecordingWindowSource();
   if (!source) return null;
   lastRecordingSourceId = source.id;
-  return { id: source.id, name: source.name };
+  lastRecordingRegion = null;
+  return { id: source.id, name: source.name, mode: 'window' };
 });
 
 ipcMain.handle('pro-save-recording', async (event, payload) => {
@@ -1163,6 +1268,8 @@ ipcMain.handle('pro-save-recording', async (event, payload) => {
     try {
       mp4 = await convertWebmToMp4(webmPath, mp4Path);
     } catch (conversionError) {
+      fs.rmSync(mp4Path, { force: true });
+      if (format === 'mp4') fs.rmSync(saveResult.filePath, { force: true });
       // Save as webm so the recording is not lost, but inform the user clearly
       const webmOutputPath = saveResult.filePath.replace(/\.[^.]+$/i, '.webm');
       fs.mkdirSync(path.dirname(webmOutputPath), { recursive: true });
