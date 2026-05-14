@@ -9,6 +9,8 @@ let proRecorder = null;
 let proRecordingStream = null;
 let proRecordingChunks = [];
 let proRecordingFormat = 'mp4';
+let proRecordingRawStream = null;
+let proRecordingZoomStop = null;
 
 function getRecordingMimeType() {
   const preferred = 'video/webm;codecs=vp9';
@@ -16,6 +18,10 @@ function getRecordingMimeType() {
   const fallback = 'video/webm;codecs=vp8';
   if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(fallback)) return fallback;
   return 'video/webm';
+}
+
+async function getCursorScreenPoint() {
+  return ipcRenderer.invoke('get-cursor-screen-point');
 }
 
 async function getDesktopStream(sourceId, includeAudio) {
@@ -34,13 +40,159 @@ async function getDesktopStream(sourceId, includeAudio) {
   return navigator.mediaDevices.getUserMedia({ audio, video });
 }
 
+async function waitForVideoReady(video) {
+  if (video.readyState >= HTMLMediaElement.HAVE_METADATA && video.videoWidth > 0 && video.videoHeight > 0) return;
+  await new Promise((resolve, reject) => {
+    const cleanup = () => {
+      video.removeEventListener('loadedmetadata', onReady);
+      video.removeEventListener('resize', onReady);
+      video.removeEventListener('error', onError);
+    };
+    const onReady = () => {
+      if (video.videoWidth > 0 && video.videoHeight > 0) {
+        cleanup();
+        resolve();
+      }
+    };
+    const onError = () => {
+      cleanup();
+      reject(new Error('Screen recording video stream failed to load.'));
+    };
+    video.addEventListener('loadedmetadata', onReady);
+    video.addEventListener('resize', onReady);
+    video.addEventListener('error', onError);
+    onReady();
+  });
+}
+
+async function createAutoZoomStream(sourceStream, region) {
+  const video = document.createElement('video');
+  video.muted = true;
+  video.srcObject = sourceStream;
+  video.playsInline = true;
+  await video.play();
+  await waitForVideoReady(video);
+
+  const displayBounds = region.displayBounds || { x: 0, y: 0, width: region.width, height: region.height };
+  const trackSettings = sourceStream.getVideoTracks()[0]?.getSettings?.() || {};
+  const streamWidth = video.videoWidth || trackSettings.width || Math.round(displayBounds.width * (region.scaleFactor || 1));
+  const streamHeight = video.videoHeight || trackSettings.height || Math.round(displayBounds.height * (region.scaleFactor || 1));
+  const streamScaleX = streamWidth / displayBounds.width;
+  const streamScaleY = streamHeight / displayBounds.height;
+
+  const srcRegion = {
+    x: Math.round(region.x * streamScaleX),
+    y: Math.round(region.y * streamScaleY),
+    width: Math.max(2, Math.round(region.width * streamScaleX)),
+    height: Math.max(2, Math.round(region.height * streamScaleY)),
+  };
+  srcRegion.x = Math.max(0, Math.min(streamWidth - 2, srcRegion.x));
+  srcRegion.y = Math.max(0, Math.min(streamHeight - 2, srcRegion.y));
+  srcRegion.width = Math.max(2, Math.min(streamWidth - srcRegion.x, srcRegion.width));
+  srcRegion.height = Math.max(2, Math.min(streamHeight - srcRegion.y, srcRegion.height));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = srcRegion.width;
+  canvas.height = srcRegion.height;
+  const ctx = canvas.getContext('2d', { alpha: false });
+  const fps = 60;
+  const zoomLevel = 1.65;
+  let currentZoom = 1;
+  let targetZoom = 1;
+  let currentCenterX = srcRegion.x + srcRegion.width / 2;
+  let currentCenterY = srcRegion.y + srcRegion.height / 2;
+  let targetCenterX = currentCenterX;
+  let targetCenterY = currentCenterY;
+  let frameTimer = null;
+  let stopped = false;
+  let lastCursorPoll = 0;
+
+  function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  async function updateCursorTarget(now) {
+    if (now - lastCursorPoll < 80) return;
+    lastCursorPoll = now;
+    try {
+      const cursor = await getCursorScreenPoint();
+      const relLogicalX = cursor.x - displayBounds.x - region.x;
+      const relLogicalY = cursor.y - displayBounds.y - region.y;
+      const inside = relLogicalX >= 0 && relLogicalY >= 0 && relLogicalX <= region.width && relLogicalY <= region.height;
+      targetZoom = inside ? zoomLevel : 1;
+      if (inside) {
+        targetCenterX = srcRegion.x + relLogicalX * streamScaleX;
+        targetCenterY = srcRegion.y + relLogicalY * streamScaleY;
+      } else {
+        targetCenterX = srcRegion.x + srcRegion.width / 2;
+        targetCenterY = srcRegion.y + srcRegion.height / 2;
+      }
+    } catch (error) {
+      targetZoom = 1;
+    }
+  }
+
+  function draw(now = performance.now()) {
+    if (stopped) return;
+    updateCursorTarget(now);
+
+    currentZoom += (targetZoom - currentZoom) * 0.08;
+    currentCenterX += (targetCenterX - currentCenterX) * 0.10;
+    currentCenterY += (targetCenterY - currentCenterY) * 0.10;
+
+    const cropW = srcRegion.width / currentZoom;
+    const cropH = srcRegion.height / currentZoom;
+    const minX = srcRegion.x;
+    const minY = srcRegion.y;
+    const maxX = srcRegion.x + srcRegion.width - cropW;
+    const maxY = srcRegion.y + srcRegion.height - cropH;
+    const sx = clamp(currentCenterX - cropW / 2, minX, maxX);
+    const sy = clamp(currentCenterY - cropH / 2, minY, maxY);
+
+    ctx.fillStyle = '#09090b';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(video, sx, sy, cropW, cropH, 0, 0, canvas.width, canvas.height);
+
+      if (currentZoom > 1.04) {
+        const glow = Math.min(0.28, (currentZoom - 1) * 0.18);
+        ctx.save();
+        ctx.strokeStyle = `rgba(249, 115, 22, ${glow})`;
+        ctx.lineWidth = Math.max(3, Math.round(Math.min(canvas.width, canvas.height) * 0.006));
+        ctx.strokeRect(ctx.lineWidth / 2, ctx.lineWidth / 2, canvas.width - ctx.lineWidth, canvas.height - ctx.lineWidth);
+        ctx.restore();
+      }
+    }
+  }
+
+  const canvasStream = canvas.captureStream(fps);
+  sourceStream.getAudioTracks().forEach((track) => canvasStream.addTrack(track));
+  draw();
+  frameTimer = setInterval(() => draw(performance.now()), 1000 / fps);
+
+  const stop = () => {
+    stopped = true;
+    if (frameTimer) clearInterval(frameTimer);
+    video.pause();
+    video.srcObject = null;
+  };
+
+  return { stream: canvasStream, stop };
+}
+
 async function startRecording(options = {}) {
   if (proRecorder && proRecorder.state !== 'inactive') {
     throw new Error('A screen recording is already in progress');
   }
 
   proRecordingFormat = options?.format === 'gif' ? 'gif' : 'mp4';
-  const source = await ipcRenderer.invoke('pro-recording-source');
+  const mode = options?.mode === 'region' ? 'region' : 'window';
+  const source = await ipcRenderer.invoke('pro-recording-source', {
+    mode,
+    autoZoom: options?.autoZoom !== false,
+  });
   if (!source) throw new Error('Recording canceled');
   if (!navigator.mediaDevices?.getUserMedia) {
     throw new Error('Screen recording is unavailable because media capture APIs are not available.');
@@ -50,22 +202,55 @@ async function startRecording(options = {}) {
   }
 
   let systemAudio = true;
-  try {
-    proRecordingStream = await getDesktopStream(source.id, true);
-  } catch (audioError) {
-    systemAudio = false;
-    proRecordingStream = await getDesktopStream(source.id, false);
-  }
+  let rawStream = null;
+  let indicatorShown = false;
+  const keepRecorderVisible = source.mode === 'region';
 
-  const mimeType = getRecordingMimeType();
-  proRecordingChunks = [];
-  proRecorder = new MediaRecorder(proRecordingStream, { mimeType });
-  proRecorder.ondataavailable = (event) => {
-    if (event.data && event.data.size > 0) proRecordingChunks.push(event.data);
-  };
-  proRecorder.start(1000);
-  ipcRenderer.invoke('pro-recording-indicator-show').catch(() => {});
-  return { success: true, pro: true, source, systemAudio, mimeType };
+  try {
+    try {
+      rawStream = await getDesktopStream(source.id, true);
+    } catch (audioError) {
+      systemAudio = false;
+      rawStream = await getDesktopStream(source.id, false);
+    }
+
+    let zoomPipeline = null;
+    if (keepRecorderVisible && source.region) {
+      await ipcRenderer.invoke('pro-recording-indicator-show', { keepRecorderVisible: true });
+      indicatorShown = true;
+      zoomPipeline = await createAutoZoomStream(rawStream, source.region);
+      proRecordingStream = zoomPipeline.stream;
+      proRecordingRawStream = rawStream;
+      proRecordingZoomStop = zoomPipeline.stop;
+    } else {
+      proRecordingStream = rawStream;
+      proRecordingRawStream = null;
+      proRecordingZoomStop = null;
+    }
+
+    const mimeType = getRecordingMimeType();
+    proRecordingChunks = [];
+    proRecorder = new MediaRecorder(proRecordingStream, { mimeType });
+    proRecorder.ondataavailable = (event) => {
+      if (event.data && event.data.size > 0) proRecordingChunks.push(event.data);
+    };
+    proRecorder.start(1000);
+    if (!indicatorShown) {
+      ipcRenderer.invoke('pro-recording-indicator-show', { keepRecorderVisible: false }).catch(() => {});
+    }
+    return { success: true, pro: true, source, systemAudio, mimeType };
+  } catch (error) {
+    if (indicatorShown) ipcRenderer.invoke('pro-recording-indicator-hide').catch(() => {});
+    proRecordingZoomStop?.();
+    rawStream?.getTracks().forEach((track) => track.stop());
+    proRecordingStream?.getTracks().forEach((track) => track.stop());
+    proRecordingStream = null;
+    proRecordingRawStream = null;
+    proRecordingZoomStop = null;
+    proRecorder = null;
+    proRecordingChunks = [];
+    throw error;
+  }
 }
 
 function stopRecording(options = {}) {
@@ -92,8 +277,12 @@ function stopRecording(options = {}) {
         reject(error);
       } finally {
         ipcRenderer.invoke('pro-recording-indicator-hide').catch(() => {});
+        proRecordingZoomStop?.();
+        proRecordingRawStream?.getTracks().forEach((track) => track.stop());
         proRecordingStream?.getTracks().forEach((track) => track.stop());
         proRecordingStream = null;
+        proRecordingRawStream = null;
+        proRecordingZoomStop = null;
         proRecorder = null;
         proRecordingChunks = [];
       }
@@ -117,6 +306,7 @@ contextBridge.exposeInMainWorld('pico', {
   captureComplete: (imageDataUrl) => ipcRenderer.send('capture-complete', imageDataUrl),
   selectWindowByName: (name) => ipcRenderer.send('window-overlay-select', name),
   captureCancel: () => ipcRenderer.send('capture-cancel'),
+  recordingRegionComplete: (region) => ipcRenderer.send('recording-region-complete', region),
 
   // Window picker fallback
   onWindowSources: (callback) => ipcRenderer.on('window-sources', (_, data) => callback(data)),
