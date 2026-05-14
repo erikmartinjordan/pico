@@ -505,39 +505,11 @@ function showRecordingIndicator() {
   const controlWidth = 276;
   const controlHeight = 54;
   const allDisplays = screen.getAllDisplays();
+  const dimOpacity = 'rgba(0, 0, 0, 0.52)';
+  const statusText = lastRecordingRegion ? 'Recording region' : 'Recording';
 
   for (const display of allDisplays) {
-    const { bounds, workArea } = display;
-    const isTarget = display.id === targetDisplay.id;
-
-    const indicatorWindow = new BrowserWindow({
-      width: bounds.width,
-      height: bounds.height,
-      x: bounds.x,
-      y: bounds.y,
-      frame: false,
-      transparent: true,
-      resizable: false,
-      movable: false,
-      alwaysOnTop: true,
-      skipTaskbar: true,
-      focusable: isTarget,
-      hasShadow: false,
-      autoHideMenuBar: true,
-      type: process.platform === 'darwin' ? 'panel' : undefined,
-      webPreferences: {
-        contextIsolation: false,
-        nodeIntegration: true,
-        sandbox: false,
-      },
-    });
-
-    indicatorWindow.setAlwaysOnTop(true, 'screen-saver');
-    indicatorWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-    indicatorWindow.setContentProtection(true);
-
-    const controlsLeft = Math.round(workArea.x - bounds.x + (workArea.width - controlWidth) / 2);
-    const controlsBottom = Math.max(12, Math.round(bounds.y + bounds.height - workArea.y - workArea.height + 16));
+    const { bounds } = display;
     const regionOnDisplay = lastRecordingRegion && String(lastRecordingRegion.displayId) === String(display.id)
       ? {
           left: Math.max(0, Math.round(lastRecordingRegion.x)),
@@ -550,7 +522,6 @@ function showRecordingIndicator() {
       regionOnDisplay.right = Math.max(0, bounds.width - regionOnDisplay.left - regionOnDisplay.width);
       regionOnDisplay.bottom = Math.max(0, bounds.height - regionOnDisplay.top - regionOnDisplay.height);
     }
-    const dimOpacity = 'rgba(0, 0, 0, 0.52)';
     const dimBlocks = regionOnDisplay ? `
           <div class="recording-dim" style="left:0;top:0;width:100%;height:${regionOnDisplay.top}px"></div>
           <div class="recording-dim" style="left:0;top:${regionOnDisplay.top}px;width:${regionOnDisplay.left}px;height:${regionOnDisplay.height}px"></div>
@@ -560,116 +531,198 @@ function showRecordingIndicator() {
     const glowStyle = regionOnDisplay
       ? `left:${regionOnDisplay.left}px;top:${regionOnDisplay.top}px;width:${regionOnDisplay.width}px;height:${regionOnDisplay.height}px;border-radius:14px;`
       : 'inset:0;border-radius:0;';
-    const statusText = lastRecordingRegion ? 'Recording region' : 'Recording';
 
-    indicatorWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <style>
-          * { box-sizing: border-box; }
-          body {
-            margin: 0;
-            width: 100vw;
-            height: 100vh;
-            overflow: hidden;
-            background: transparent;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            user-select: none;
-          }
-          .recording-dim {
-            position: fixed;
-            background: ${dimOpacity};
-            backdrop-filter: blur(1px);
-            pointer-events: none;
-          }
-          .recording-dim.full { inset: 0; }
-          .recording-glow {
-            position: fixed;
-            ${glowStyle}
-            border: 3px solid rgba(239, 68, 68, 0.96);
-            box-shadow:
-              inset 0 0 30px rgba(248, 113, 113, 0.6),
-              inset 0 0 60px rgba(220, 38, 38, 0.25),
-              0 0 20px rgba(239, 68, 68, 0.7);
-            animation: glowPulse 1.25s ease-in-out infinite;
-            pointer-events: none;
-          }
-          .recording-controls {
-            position: fixed;
-            left: ${controlsLeft}px;
-            bottom: ${controlsBottom}px;
-            width: ${controlWidth}px;
-            height: ${controlHeight}px;
-            display: ${isTarget ? 'flex' : 'none'};
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            padding: 8px 12px 8px 14px;
-            border: 1px solid rgba(255, 255, 255, 0.10);
-            border-radius: 12px;
-            background: rgba(14, 14, 17, 0.92);
-            color: #f5f0eb;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 1px 0 rgba(255,255,255,0.04) inset;
-            backdrop-filter: blur(20px);
-            pointer-events: auto;
-          }
-          .status { display: flex; align-items: center; gap: 9px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: rgba(255,255,255,0.7); }
-          .dot { width: 10px; height: 10px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.85); animation: dotPulse 1.1s ease-out infinite; }
-          button {
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            border-radius: 8px;
-            padding: 8px 14px;
-            background: rgba(30, 31, 36, 0.95);
-            color: #fecaca;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: 0.04em;
-            cursor: pointer;
-            transition: background 0.12s, border-color 0.12s;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-          }
-          button::before {
-            content: '';
-            width: 8px;
-            height: 8px;
-            border-radius: 2px;
-            background: #ef4444;
-            flex-shrink: 0;
-          }
-          button:hover {
-            background: rgba(239, 68, 68, 0.15);
-            border-color: rgba(239, 68, 68, 0.5);
-          }
-          @keyframes glowPulse { 0%, 100% { opacity: 0.78; } 50% { opacity: 1; } }
-          @keyframes dotPulse { 0% { box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.85); } 80%, 100% { box-shadow: 0 0 0 10px rgba(248, 113, 113, 0); } }
-        </style>
-      </head>
-      <body>
-        ${dimBlocks}
-        <div class="recording-glow"></div>
-        <div class="recording-controls">
-          <div class="status"><span class="dot"></span><span>${escapeHtml(statusText)}</span></div>
-          <button id="stop">Stop</button>
-        </div>
-        <script>
-          const { ipcRenderer } = require('electron');
-          const stop = document.getElementById('stop');
-          if (stop) stop.addEventListener('click', () => ipcRenderer.send('pro-recording-stop-clicked'));
-        </script>
-      </body>
-    </html>
-  `)}`);
+    if (lastRecordingRegion) {
+      const overlayWindow = new BrowserWindow({
+        width: bounds.width,
+        height: bounds.height,
+        x: bounds.x,
+        y: bounds.y,
+        frame: false,
+        transparent: true,
+        resizable: false,
+        movable: false,
+        alwaysOnTop: true,
+        skipTaskbar: true,
+        focusable: false,
+        hasShadow: false,
+        autoHideMenuBar: true,
+        type: process.platform === 'darwin' ? 'panel' : undefined,
+        webPreferences: {
+          contextIsolation: false,
+          nodeIntegration: true,
+          sandbox: false,
+        },
+      });
 
-    indicatorWindow.on('closed', () => {
-      recordingIndicatorWindows = recordingIndicatorWindows.filter(w => w !== indicatorWindow);
-    });
+      overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+      overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+      overlayWindow.setContentProtection(true);
+      overlayWindow.setIgnoreMouseEvents(true, { forward: true });
 
-    recordingIndicatorWindows.push(indicatorWindow);
+      overlayWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            * { box-sizing: border-box; }
+            body {
+              margin: 0;
+              width: 100vw;
+              height: 100vh;
+              overflow: hidden;
+              background: transparent;
+              user-select: none;
+              pointer-events: none;
+            }
+            .recording-dim {
+              position: fixed;
+              background: ${dimOpacity};
+              backdrop-filter: blur(1px);
+              pointer-events: none;
+            }
+            .recording-dim.full { inset: 0; }
+            .recording-glow {
+              position: fixed;
+              ${glowStyle}
+              border: 3px solid rgba(239, 68, 68, 0.96);
+              box-shadow:
+                inset 0 0 30px rgba(248, 113, 113, 0.6),
+                inset 0 0 60px rgba(220, 38, 38, 0.25),
+                0 0 20px rgba(239, 68, 68, 0.7);
+              animation: glowPulse 1.25s ease-in-out infinite;
+              pointer-events: none;
+            }
+            @keyframes glowPulse { 0%, 100% { opacity: 0.78; } 50% { opacity: 1; } }
+          </style>
+        </head>
+        <body>
+          ${dimBlocks}
+          <div class="recording-glow"></div>
+        </body>
+      </html>
+    `)}`);
+
+      overlayWindow.on('closed', () => {
+        recordingIndicatorWindows = recordingIndicatorWindows.filter(w => w !== overlayWindow);
+      });
+
+      recordingIndicatorWindows.push(overlayWindow);
+    }
   }
+
+  const { workArea } = targetDisplay;
+  const controlsX = Math.round(workArea.x + (workArea.width - controlWidth) / 2);
+  const controlsY = Math.round(workArea.y + workArea.height - controlHeight - 16);
+  const controlsWindow = new BrowserWindow({
+    width: controlWidth,
+    height: controlHeight,
+    x: controlsX,
+    y: controlsY,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    movable: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    focusable: true,
+    hasShadow: false,
+    autoHideMenuBar: true,
+    type: process.platform === 'darwin' ? 'panel' : undefined,
+    webPreferences: {
+      contextIsolation: false,
+      nodeIntegration: true,
+      sandbox: false,
+    },
+  });
+
+  controlsWindow.setAlwaysOnTop(true, 'screen-saver');
+  controlsWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  controlsWindow.setContentProtection(true);
+
+  controlsWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`
+  <!DOCTYPE html>
+  <html>
+    <head>
+      <style>
+        * { box-sizing: border-box; }
+        body {
+          margin: 0;
+          width: 100vw;
+          height: 100vh;
+          overflow: hidden;
+          background: transparent;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          user-select: none;
+        }
+        .recording-controls {
+          width: 100vw;
+          height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          padding: 8px 12px 8px 14px;
+          border: 1px solid rgba(255, 255, 255, 0.10);
+          border-radius: 12px;
+          background: rgba(14, 14, 17, 0.92);
+          color: #f5f0eb;
+          box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 1px 0 rgba(255,255,255,0.04) inset;
+          backdrop-filter: blur(20px);
+          pointer-events: auto;
+        }
+        .status { display: flex; align-items: center; gap: 9px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: rgba(255,255,255,0.7); }
+        .dot { width: 10px; height: 10px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.85); animation: dotPulse 1.1s ease-out infinite; }
+        button {
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          border-radius: 8px;
+          padding: 8px 14px;
+          background: rgba(30, 31, 36, 0.95);
+          color: #fecaca;
+          font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.04em;
+          cursor: pointer;
+          transition: background 0.12s, border-color 0.12s;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+        button::before {
+          content: '';
+          width: 8px;
+          height: 8px;
+          border-radius: 2px;
+          background: #ef4444;
+          flex-shrink: 0;
+        }
+        button:hover {
+          background: rgba(239, 68, 68, 0.15);
+          border-color: rgba(239, 68, 68, 0.5);
+        }
+        @keyframes dotPulse { 0% { box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.85); } 80%, 100% { box-shadow: 0 0 0 10px rgba(248, 113, 113, 0); } }
+      </style>
+    </head>
+    <body>
+      <div class="recording-controls">
+        <div class="status"><span class="dot"></span><span>${escapeHtml(statusText)}</span></div>
+        <button id="stop">Stop</button>
+      </div>
+      <script>
+        const { ipcRenderer } = require('electron');
+        const stop = document.getElementById('stop');
+        if (stop) stop.addEventListener('click', () => ipcRenderer.send('pro-recording-stop-clicked'));
+      </script>
+    </body>
+  </html>
+`)}`);
+
+  controlsWindow.on('closed', () => {
+    recordingIndicatorWindows = recordingIndicatorWindows.filter(w => w !== controlsWindow);
+  });
+
+  recordingIndicatorWindows.push(controlsWindow);
 
   // Minimize pico main window so user can navigate other apps while recording
   if (mainWindow && !mainWindow.isDestroyed()) {
