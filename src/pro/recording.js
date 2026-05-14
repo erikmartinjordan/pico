@@ -51,10 +51,15 @@ async function convertWebmToMp4(webmPath, requestedOutputPath = null) {
   await runBinary(ffmpeg, [
     '-y',
     '-i', webmPath,
+    '-map', '0:v:0',
+    '-map', '0:a?',
+    '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2,setsar=1',
     '-c:v', 'libx264',
     '-preset', 'veryfast',
+    '-crf', '18',
     '-pix_fmt', 'yuv420p',
     '-c:a', 'aac',
+    '-b:a', '160k',
     '-movflags', '+faststart',
     mp4Path,
   ]);
@@ -62,23 +67,31 @@ async function convertWebmToMp4(webmPath, requestedOutputPath = null) {
 }
 
 async function convertMp4ToGif(mp4Path, requestedOutputPath = null) {
-  const gifski = resolveBundledBinary('gifski');
+  const ffmpeg = resolveBundledBinary('ffmpeg');
   const gifPath = requestedOutputPath || mp4Path.replace(/\.mp4$/i, '.gif');
   ensureOutputDir(gifPath);
-  const frameDir = path.join(app.getPath('temp'), `pico-gif-frames-${Date.now()}`);
-  fs.mkdirSync(frameDir, { recursive: true });
+  const palettePath = tempRecordingPath('png');
+  const gifFilter = 'fps=18,scale=min(1280\\,iw):-2:flags=lanczos';
   try {
-    const ffmpeg = resolveBundledBinary('ffmpeg');
-    const framePattern = path.join(frameDir, 'frame-%06d.png');
-    await runBinary(ffmpeg, ['-y', '-i', mp4Path, '-vf', 'fps=12,scale=960:-1:flags=lanczos', framePattern]);
-    const frames = fs.readdirSync(frameDir)
-      .filter((name) => name.endsWith('.png'))
-      .sort()
-      .map((name) => path.join(frameDir, name));
-    await runBinary(gifski, ['--fps', '12', '--quality', '85', '--output', gifPath, ...frames]);
+    await runBinary(ffmpeg, [
+      '-y',
+      '-i', mp4Path,
+      '-vf', `${gifFilter},palettegen=stats_mode=diff`,
+      '-frames:v', '1',
+      '-update', '1',
+      palettePath,
+    ]);
+    await runBinary(ffmpeg, [
+      '-y',
+      '-i', mp4Path,
+      '-i', palettePath,
+      '-lavfi', `${gifFilter} [x]; [x][1:v] paletteuse=dither=sierra2_4a:diff_mode=rectangle`,
+      '-loop', '0',
+      gifPath,
+    ]);
     return gifPath;
   } finally {
-    fs.rmSync(frameDir, { recursive: true, force: true });
+    fs.rmSync(palettePath, { force: true });
   }
 }
 
