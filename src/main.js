@@ -15,7 +15,9 @@ let windowPickerWindow = null;
 let windowPickerSources = [];
 let recordingIndicatorWindows = [];
 let recordingSourceSelection = null;
+let recordingRegionSelection = null;
 let lastRecordingSourceId = null;
+let recordingKeepsMainWindowVisible = false;
 
 
 function getMacScreenRecordingStatus() {
@@ -208,6 +210,7 @@ async function openWindowPickerFallback() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      backgroundThrottling: false,
     },
   });
 
@@ -465,7 +468,8 @@ function attachCapturerSourcesToWindowBounds(windowBounds, capturerSources) {
 // ── Window Creation ─────────────────────────────────────────────────────────
 
 
-function showRecordingIndicator() {
+function showRecordingIndicator(options = {}) {
+  recordingKeepsMainWindowVisible = Boolean(options.keepRecorderVisible);
   if (recordingIndicatorWindows.length > 0) {
     recordingIndicatorWindows.forEach(w => { if (!w.isDestroyed()) w.showInactive(); });
     return;
@@ -626,9 +630,19 @@ function showRecordingIndicator() {
     recordingIndicatorWindows.push(indicatorWindow);
   }
 
-  // Minimize pico main window so user can navigate other apps while recording
+  // Window recordings can safely minimize the app because MediaRecorder captures
+  // the desktop stream directly. Region autozoom is composited by the renderer
+  // into a canvas, so keep that renderer visible (but fully transparent and
+  // click-through) to avoid Chromium freezing canvas/timer updates.
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.minimize();
+    if (recordingKeepsMainWindowVisible) {
+      mainWindow.setContentProtection(true);
+      mainWindow.setIgnoreMouseEvents(true);
+      mainWindow.setOpacity(0);
+      mainWindow.showInactive();
+    } else {
+      mainWindow.minimize();
+    }
   }
 }
 
@@ -638,9 +652,13 @@ function hideRecordingIndicator() {
   }
   recordingIndicatorWindows = [];
   lastRecordingSourceId = null;
+  recordingKeepsMainWindowVisible = false;
 
   // Restore pico main window when recording ends
   if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.setOpacity(1);
+    mainWindow.setIgnoreMouseEvents(false);
+    mainWindow.setContentProtection(false);
     mainWindow.restore();
     mainWindow.show();
   }
@@ -664,6 +682,7 @@ function createMainWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      backgroundThrottling: false,
     },
     icon: path.join(__dirname, 'assets', 'icons', 'linux', 'icons', '512x512.png'),
     show: false,
@@ -739,6 +758,7 @@ async function captureAllScreens() {
       : (display.scaleFactor || 1);
     return {
       dataUrl: source.thumbnail.toDataURL(),
+      sourceId: source.id,
       bounds: display.bounds,
       scaleFactor,
       pixelSize,
@@ -759,6 +779,7 @@ async function captureAllScreens() {
   return {
     type: 'single',
     dataUrl: screenData.dataUrl,
+    sourceId: screenData.sourceId,
     bounds: screenData.bounds,
     scaleFactor: screenData.scaleFactor,
     pixelSize: screenData.pixelSize,
@@ -848,6 +869,7 @@ function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) 
         scaleFactor: screenData?.scaleFactor || display.scaleFactor || 1,
         pixelSize: screenData?.pixelSize,
         displayId: screenData?.displayId || display.id,
+        sourceId: screenData?.sourceId,
         windowBounds: displayWindowBounds,
         platform: process.platform,
       });
@@ -988,7 +1010,22 @@ ipcMain.on('capture-complete', (event, imageDataUrl) => {
 ipcMain.on('capture-cancel', () => {
   captureWindows.forEach(w => { if (!w.isDestroyed()) w.close(); });
   captureWindows = [];
+  if (recordingRegionSelection) {
+    recordingRegionSelection.resolve(null);
+    recordingRegionSelection = null;
+    if (mainWindow) mainWindow.show();
+    return;
+  }
   if (mainWindow) mainWindow.show();
+});
+
+ipcMain.on('recording-region-complete', (event, region) => {
+  captureWindows.forEach(w => { if (!w.isDestroyed()) w.close(); });
+  captureWindows = [];
+  if (recordingRegionSelection) {
+    recordingRegionSelection.resolve(region);
+    recordingRegionSelection = null;
+  }
 });
 
 
@@ -1095,10 +1132,11 @@ ipcMain.handle('read-clipboard-image', async () => {
 });
 
 ipcMain.handle('get-displays', () => screen.getAllDisplays());
+ipcMain.handle('get-cursor-screen-point', () => screen.getCursorScreenPoint());
 
 
-ipcMain.handle('pro-recording-indicator-show', async () => {
-  showRecordingIndicator();
+ipcMain.handle('pro-recording-indicator-show', async (event, options = {}) => {
+  showRecordingIndicator(options);
   return { success: true };
 });
 
@@ -1106,6 +1144,29 @@ ipcMain.handle('pro-recording-indicator-hide', async () => {
   hideRecordingIndicator();
   return { success: true };
 });
+
+async function chooseRecordingRegionSource() {
+  if (recordingRegionSelection) return recordingRegionSelection.promise;
+
+  const promise = new Promise(async (resolve, reject) => {
+    recordingRegionSelection = { resolve, reject, promise: null };
+    try {
+      if (mainWindow) mainWindow.hide();
+      await new Promise(r => setTimeout(r, 200));
+      if (!await ensureMacScreenRecordingPermission()) {
+        throw new Error('Screen Recording permission is required.');
+      }
+      const captureData = await captureAllScreens();
+      createCaptureOverlays(captureData, 'record-region', []);
+    } catch (error) {
+      recordingRegionSelection = null;
+      if (mainWindow) mainWindow.show();
+      reject(error);
+    }
+  });
+  recordingRegionSelection.promise = promise;
+  return promise;
+}
 
 function chooseRecordingWindowSource() {
   if (recordingSourceSelection) return recordingSourceSelection.promise;
@@ -1125,14 +1186,28 @@ function chooseRecordingWindowSource() {
   return promise;
 }
 
-ipcMain.handle('pro-recording-source', async () => {
+ipcMain.handle('pro-recording-source', async (event, options = {}) => {
   if (!await ensureMacScreenRecordingPermission()) {
     throw new Error('Screen Recording permission is required.');
   }
+
+  if (options?.mode === 'region') {
+    const region = await chooseRecordingRegionSource();
+    if (!region) return null;
+    lastRecordingSourceId = region.sourceId;
+    return {
+      id: region.sourceId,
+      name: 'Selected region',
+      mode: 'region',
+      region,
+      autoZoom: options.autoZoom !== false,
+    };
+  }
+
   const source = await chooseRecordingWindowSource();
   if (!source) return null;
   lastRecordingSourceId = source.id;
-  return { id: source.id, name: source.name };
+  return { id: source.id, name: source.name, mode: 'window' };
 });
 
 ipcMain.handle('pro-save-recording', async (event, payload) => {
