@@ -15,6 +15,7 @@ let windowPickerWindow = null;
 let windowPickerSources = [];
 let recordingIndicatorWindows = [];
 let recordingSourceSelection = null;
+let recordingRegionSelection = null;
 let lastRecordingSourceId = null;
 
 
@@ -739,6 +740,7 @@ async function captureAllScreens() {
       : (display.scaleFactor || 1);
     return {
       dataUrl: source.thumbnail.toDataURL(),
+      sourceId: source.id,
       bounds: display.bounds,
       scaleFactor,
       pixelSize,
@@ -759,6 +761,7 @@ async function captureAllScreens() {
   return {
     type: 'single',
     dataUrl: screenData.dataUrl,
+    sourceId: screenData.sourceId,
     bounds: screenData.bounds,
     scaleFactor: screenData.scaleFactor,
     pixelSize: screenData.pixelSize,
@@ -848,6 +851,7 @@ function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) 
         scaleFactor: screenData?.scaleFactor || display.scaleFactor || 1,
         pixelSize: screenData?.pixelSize,
         displayId: screenData?.displayId || display.id,
+        sourceId: screenData?.sourceId,
         windowBounds: displayWindowBounds,
         platform: process.platform,
       });
@@ -988,7 +992,22 @@ ipcMain.on('capture-complete', (event, imageDataUrl) => {
 ipcMain.on('capture-cancel', () => {
   captureWindows.forEach(w => { if (!w.isDestroyed()) w.close(); });
   captureWindows = [];
+  if (recordingRegionSelection) {
+    recordingRegionSelection.resolve(null);
+    recordingRegionSelection = null;
+    if (mainWindow) mainWindow.show();
+    return;
+  }
   if (mainWindow) mainWindow.show();
+});
+
+ipcMain.on('recording-region-complete', (event, region) => {
+  captureWindows.forEach(w => { if (!w.isDestroyed()) w.close(); });
+  captureWindows = [];
+  if (recordingRegionSelection) {
+    recordingRegionSelection.resolve(region);
+    recordingRegionSelection = null;
+  }
 });
 
 
@@ -1095,6 +1114,7 @@ ipcMain.handle('read-clipboard-image', async () => {
 });
 
 ipcMain.handle('get-displays', () => screen.getAllDisplays());
+ipcMain.handle('get-cursor-screen-point', () => screen.getCursorScreenPoint());
 
 
 ipcMain.handle('pro-recording-indicator-show', async () => {
@@ -1106,6 +1126,29 @@ ipcMain.handle('pro-recording-indicator-hide', async () => {
   hideRecordingIndicator();
   return { success: true };
 });
+
+async function chooseRecordingRegionSource() {
+  if (recordingRegionSelection) return recordingRegionSelection.promise;
+
+  const promise = new Promise(async (resolve, reject) => {
+    recordingRegionSelection = { resolve, reject, promise: null };
+    try {
+      if (mainWindow) mainWindow.hide();
+      await new Promise(r => setTimeout(r, 200));
+      if (!await ensureMacScreenRecordingPermission()) {
+        throw new Error('Screen Recording permission is required.');
+      }
+      const captureData = await captureAllScreens();
+      createCaptureOverlays(captureData, 'record-region', []);
+    } catch (error) {
+      recordingRegionSelection = null;
+      if (mainWindow) mainWindow.show();
+      reject(error);
+    }
+  });
+  recordingRegionSelection.promise = promise;
+  return promise;
+}
 
 function chooseRecordingWindowSource() {
   if (recordingSourceSelection) return recordingSourceSelection.promise;
@@ -1125,14 +1168,28 @@ function chooseRecordingWindowSource() {
   return promise;
 }
 
-ipcMain.handle('pro-recording-source', async () => {
+ipcMain.handle('pro-recording-source', async (event, options = {}) => {
   if (!await ensureMacScreenRecordingPermission()) {
     throw new Error('Screen Recording permission is required.');
   }
+
+  if (options?.mode === 'region') {
+    const region = await chooseRecordingRegionSource();
+    if (!region) return null;
+    lastRecordingSourceId = region.sourceId;
+    return {
+      id: region.sourceId,
+      name: 'Selected region',
+      mode: 'region',
+      region,
+      autoZoom: options.autoZoom !== false,
+    };
+  }
+
   const source = await chooseRecordingWindowSource();
   if (!source) return null;
   lastRecordingSourceId = source.id;
-  return { id: source.id, name: source.name };
+  return { id: source.id, name: source.name, mode: 'window' };
 });
 
 ipcMain.handle('pro-save-recording', async (event, payload) => {
@@ -1169,13 +1226,21 @@ ipcMain.handle('pro-save-recording', async (event, payload) => {
       fs.copyFileSync(webmPath, webmOutputPath);
       return {
         webm: webmOutputPath,
-        warning: `Saved as .webm (bundled ffmpeg/gifski conversion tools are unavailable for ${format.toUpperCase()} export).`,
+        warning: `Saved as .webm (bundled ffmpeg conversion tools are unavailable for ${format.toUpperCase()} export).`,
       };
     }
 
     if (format === 'gif') {
       try {
         return { gif: await convertMp4ToGif(mp4, saveResult.filePath) };
+      } catch (gifError) {
+        const mp4FallbackPath = saveResult.filePath.replace(/\.[^.]+$/i, '.mp4');
+        fs.mkdirSync(path.dirname(mp4FallbackPath), { recursive: true });
+        fs.copyFileSync(mp4, mp4FallbackPath);
+        return {
+          mp4: mp4FallbackPath,
+          warning: 'GIF export failed, so pico saved a high-quality MP4 instead.',
+        };
       } finally {
         fs.rmSync(mp4, { force: true });
       }
