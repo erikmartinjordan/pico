@@ -213,6 +213,9 @@ function stopRecording(options = {}) {
     proRecorder.onstop = async () => {
       try {
         const blob = new Blob(proRecordingChunks, { type: proRecorder.mimeType || 'video/webm' });
+        if (blob.size === 0) {
+          throw new Error('Recording did not capture any video data. Please try again.');
+        }
         const arrayBuffer = await blob.arrayBuffer();
         await ipcRenderer.invoke('pro-recording-indicator-hide');
         const result = await ipcRenderer.invoke('pro-save-recording', {
@@ -235,6 +238,9 @@ function stopRecording(options = {}) {
         proRecordingChunks = [];
       }
     };
+    if (proRecorder.state === 'recording' && typeof proRecorder.requestData === 'function') {
+      proRecorder.requestData();
+    }
     proRecorder.stop();
   });
 }

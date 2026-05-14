@@ -763,6 +763,10 @@ function createMainWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // Region recording composites the desktop stream through a canvas in this
+      // renderer while the main window is minimized. Keep timers and animation
+      // frames running so MediaRecorder receives actual video frames.
+      backgroundThrottling: false,
     },
     icon: path.join(__dirname, 'assets', 'icons', 'linux', 'icons', '512x512.png'),
     show: false,
