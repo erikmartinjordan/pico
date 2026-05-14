@@ -15,6 +15,7 @@ let windowPickerWindow = null;
 let windowPickerSources = [];
 let recordingIndicatorWindows = [];
 let recordingSourceSelection = null;
+let recordingRegionSelection = null;
 let lastRecordingSourceId = null;
 
 
@@ -465,13 +466,42 @@ function attachCapturerSourcesToWindowBounds(windowBounds, capturerSources) {
 // ── Window Creation ─────────────────────────────────────────────────────────
 
 
+function keepMainWindowRenderingDuringRecording() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  try {
+    // Region autozoom is rendered from the main renderer via a canvas stream.
+    // A hidden/minimized renderer can be throttled on legacy macOS/Electron,
+    // producing static recordings. Keep it composited but fully transparent and
+    // click-through so users can keep interacting with the desktop underneath.
+    mainWindow.setOpacity(0);
+    mainWindow.setIgnoreMouseEvents(true, { forward: true });
+    if (typeof mainWindow.showInactive === 'function') mainWindow.showInactive();
+    else mainWindow.show();
+  } catch (err) {
+    console.error('[pico] failed to keep recording renderer active:', err.message);
+  }
+}
+
+function restoreMainWindowAfterRecording() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  try {
+    mainWindow.setIgnoreMouseEvents(false);
+    mainWindow.setOpacity(1);
+    mainWindow.restore();
+    mainWindow.show();
+  } catch (err) {
+    console.error('[pico] failed to restore recording renderer:', err.message);
+  }
+}
+
 function showRecordingIndicator() {
   if (recordingIndicatorWindows.length > 0) {
     recordingIndicatorWindows.forEach(w => { if (!w.isDestroyed()) w.showInactive(); });
+    keepMainWindowRenderingDuringRecording();
     return;
   }
 
-  // Determine which display should show the stop controls
+  // Determine which display should show the stop controls.
   let targetDisplay = screen.getPrimaryDisplay();
   if (lastRecordingSourceId) {
     const sourceIdStr = String(lastRecordingSourceId);
@@ -489,75 +519,57 @@ function showRecordingIndicator() {
 
   const controlWidth = 276;
   const controlHeight = 54;
-  const allDisplays = screen.getAllDisplays();
+  const { workArea } = targetDisplay;
+  const controlsLeft = Math.round(workArea.x + (workArea.width - controlWidth) / 2);
+  const controlsTop = Math.round(workArea.y + workArea.height - controlHeight - 16);
 
-  for (const display of allDisplays) {
-    const { bounds, workArea } = display;
-    const isTarget = display.id === targetDisplay.id;
+  const indicatorWindow = new BrowserWindow({
+    width: controlWidth,
+    height: controlHeight,
+    x: controlsLeft,
+    y: controlsTop,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    movable: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    focusable: true,
+    hasShadow: false,
+    autoHideMenuBar: true,
+    type: process.platform === 'darwin' ? 'panel' : undefined,
+    show: false,
+    webPreferences: {
+      contextIsolation: false,
+      nodeIntegration: true,
+      sandbox: false,
+      backgroundThrottling: false,
+    },
+  });
 
-    const indicatorWindow = new BrowserWindow({
-      width: bounds.width,
-      height: bounds.height,
-      x: bounds.x,
-      y: bounds.y,
-      frame: false,
-      transparent: true,
-      resizable: false,
-      movable: false,
-      alwaysOnTop: true,
-      skipTaskbar: true,
-      focusable: isTarget,
-      hasShadow: false,
-      autoHideMenuBar: true,
-      type: process.platform === 'darwin' ? 'panel' : undefined,
-      webPreferences: {
-        contextIsolation: false,
-        nodeIntegration: true,
-        sandbox: false,
-      },
-    });
+  indicatorWindow.setAlwaysOnTop(true, 'screen-saver');
+  indicatorWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  indicatorWindow.setContentProtection(true);
 
-    indicatorWindow.setAlwaysOnTop(true, 'screen-saver');
-    indicatorWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-    indicatorWindow.setContentProtection(true);
-
-    const controlsLeft = Math.round(workArea.x - bounds.x + (workArea.width - controlWidth) / 2);
-    const controlsBottom = Math.max(12, Math.round(bounds.y + bounds.height - workArea.y - workArea.height + 16));
-
-    indicatorWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`
+  indicatorWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`
     <!DOCTYPE html>
     <html>
       <head>
         <style>
           * { box-sizing: border-box; }
-          body {
+          html, body {
             margin: 0;
-            width: 100vw;
-            height: 100vh;
+            width: 100%;
+            height: 100%;
             overflow: hidden;
             background: transparent;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             user-select: none;
           }
-          .recording-glow {
-            position: fixed;
-            inset: 0;
-            border: 3px solid rgba(239, 68, 68, 0.92);
-            border-radius: 0;
-            box-shadow:
-              inset 0 0 30px rgba(248, 113, 113, 0.6),
-              inset 0 0 60px rgba(220, 38, 38, 0.25),
-              0 0 20px rgba(239, 68, 68, 0.7);
-            animation: glowPulse 1.25s ease-in-out infinite;
-            pointer-events: none;
-          }
           .recording-controls {
-            position: fixed;
-            left: ${controlsLeft}px;
-            bottom: ${controlsBottom}px;
-            width: ${controlWidth}px;
-            height: ${controlHeight}px;
-            display: ${isTarget ? 'flex' : 'none'};
+            width: 100vw;
+            height: 100vh;
+            display: flex;
             align-items: center;
             justify-content: space-between;
             gap: 12px;
@@ -568,7 +580,6 @@ function showRecordingIndicator() {
             color: #f5f0eb;
             box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 1px 0 rgba(255,255,255,0.04) inset;
             backdrop-filter: blur(20px);
-            pointer-events: auto;
           }
           .status { display: flex; align-items: center; gap: 9px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: rgba(255,255,255,0.7); }
           .dot { width: 10px; height: 10px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.85); animation: dotPulse 1.1s ease-out infinite; }
@@ -600,12 +611,10 @@ function showRecordingIndicator() {
             background: rgba(239, 68, 68, 0.15);
             border-color: rgba(239, 68, 68, 0.5);
           }
-          @keyframes glowPulse { 0%, 100% { opacity: 0.72; } 50% { opacity: 1; } }
           @keyframes dotPulse { 0% { box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.85); } 80%, 100% { box-shadow: 0 0 0 10px rgba(248, 113, 113, 0); } }
         </style>
       </head>
       <body>
-        <div class="recording-glow"></div>
         <div class="recording-controls">
           <div class="status"><span class="dot"></span><span>Recording</span></div>
           <button id="stop">Stop</button>
@@ -619,17 +628,16 @@ function showRecordingIndicator() {
     </html>
   `)}`);
 
-    indicatorWindow.on('closed', () => {
-      recordingIndicatorWindows = recordingIndicatorWindows.filter(w => w !== indicatorWindow);
-    });
+  indicatorWindow.once('ready-to-show', () => {
+    if (!indicatorWindow.isDestroyed()) indicatorWindow.showInactive();
+  });
 
-    recordingIndicatorWindows.push(indicatorWindow);
-  }
+  indicatorWindow.on('closed', () => {
+    recordingIndicatorWindows = recordingIndicatorWindows.filter(w => w !== indicatorWindow);
+  });
 
-  // Minimize pico main window so user can navigate other apps while recording
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.minimize();
-  }
+  recordingIndicatorWindows.push(indicatorWindow);
+  keepMainWindowRenderingDuringRecording();
 }
 
 function hideRecordingIndicator() {
@@ -638,12 +646,7 @@ function hideRecordingIndicator() {
   }
   recordingIndicatorWindows = [];
   lastRecordingSourceId = null;
-
-  // Restore pico main window when recording ends
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.restore();
-    mainWindow.show();
-  }
+  restoreMainWindowAfterRecording();
 }
 
 function createMainWindow() {
@@ -664,6 +667,7 @@ function createMainWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      backgroundThrottling: false,
     },
     icon: path.join(__dirname, 'assets', 'icons', 'linux', 'icons', '512x512.png'),
     show: false,
@@ -739,6 +743,7 @@ async function captureAllScreens() {
       : (display.scaleFactor || 1);
     return {
       dataUrl: source.thumbnail.toDataURL(),
+      sourceId: source.id,
       bounds: display.bounds,
       scaleFactor,
       pixelSize,
@@ -759,6 +764,7 @@ async function captureAllScreens() {
   return {
     type: 'single',
     dataUrl: screenData.dataUrl,
+    sourceId: screenData.sourceId,
     bounds: screenData.bounds,
     scaleFactor: screenData.scaleFactor,
     pixelSize: screenData.pixelSize,
@@ -848,6 +854,7 @@ function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) 
         scaleFactor: screenData?.scaleFactor || display.scaleFactor || 1,
         pixelSize: screenData?.pixelSize,
         displayId: screenData?.displayId || display.id,
+        sourceId: screenData?.sourceId,
         windowBounds: displayWindowBounds,
         platform: process.platform,
       });
@@ -988,7 +995,22 @@ ipcMain.on('capture-complete', (event, imageDataUrl) => {
 ipcMain.on('capture-cancel', () => {
   captureWindows.forEach(w => { if (!w.isDestroyed()) w.close(); });
   captureWindows = [];
+  if (recordingRegionSelection) {
+    recordingRegionSelection.resolve(null);
+    recordingRegionSelection = null;
+    if (mainWindow) mainWindow.show();
+    return;
+  }
   if (mainWindow) mainWindow.show();
+});
+
+ipcMain.on('recording-region-complete', (event, region) => {
+  captureWindows.forEach(w => { if (!w.isDestroyed()) w.close(); });
+  captureWindows = [];
+  if (recordingRegionSelection) {
+    recordingRegionSelection.resolve(region);
+    recordingRegionSelection = null;
+  }
 });
 
 
@@ -1095,6 +1117,7 @@ ipcMain.handle('read-clipboard-image', async () => {
 });
 
 ipcMain.handle('get-displays', () => screen.getAllDisplays());
+ipcMain.handle('get-cursor-screen-point', () => screen.getCursorScreenPoint());
 
 
 ipcMain.handle('pro-recording-indicator-show', async () => {
@@ -1106,6 +1129,29 @@ ipcMain.handle('pro-recording-indicator-hide', async () => {
   hideRecordingIndicator();
   return { success: true };
 });
+
+async function chooseRecordingRegionSource() {
+  if (recordingRegionSelection) return recordingRegionSelection.promise;
+
+  const promise = new Promise(async (resolve, reject) => {
+    recordingRegionSelection = { resolve, reject, promise: null };
+    try {
+      if (mainWindow) mainWindow.hide();
+      await new Promise(r => setTimeout(r, 200));
+      if (!await ensureMacScreenRecordingPermission()) {
+        throw new Error('Screen Recording permission is required.');
+      }
+      const captureData = await captureAllScreens();
+      createCaptureOverlays(captureData, 'record-region', []);
+    } catch (error) {
+      recordingRegionSelection = null;
+      if (mainWindow) mainWindow.show();
+      reject(error);
+    }
+  });
+  recordingRegionSelection.promise = promise;
+  return promise;
+}
 
 function chooseRecordingWindowSource() {
   if (recordingSourceSelection) return recordingSourceSelection.promise;
@@ -1125,14 +1171,28 @@ function chooseRecordingWindowSource() {
   return promise;
 }
 
-ipcMain.handle('pro-recording-source', async () => {
+ipcMain.handle('pro-recording-source', async (event, options = {}) => {
   if (!await ensureMacScreenRecordingPermission()) {
     throw new Error('Screen Recording permission is required.');
   }
+
+  if (options?.mode === 'region') {
+    const region = await chooseRecordingRegionSource();
+    if (!region) return null;
+    lastRecordingSourceId = region.sourceId;
+    return {
+      id: region.sourceId,
+      name: 'Selected region',
+      mode: 'region',
+      region,
+      autoZoom: options.autoZoom !== false,
+    };
+  }
+
   const source = await chooseRecordingWindowSource();
   if (!source) return null;
   lastRecordingSourceId = source.id;
-  return { id: source.id, name: source.name };
+  return { id: source.id, name: source.name, mode: 'window' };
 });
 
 ipcMain.handle('pro-save-recording', async (event, payload) => {
