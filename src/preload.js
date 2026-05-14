@@ -66,7 +66,7 @@ function createAutoZoomStream(sourceStream, region) {
   let currentCenterY = srcRegion.y + srcRegion.height / 2;
   let targetCenterX = currentCenterX;
   let targetCenterY = currentCenterY;
-  let rafId = null;
+  let frameTimer = null;
   let stopped = false;
   let lastCursorPoll = 0;
 
@@ -128,14 +128,14 @@ function createAutoZoomStream(sourceStream, region) {
         ctx.restore();
       }
     }
-    rafId = requestAnimationFrame(draw);
+    frameTimer = setTimeout(() => draw(performance.now()), Math.round(1000 / fps));
   }
 
   const canvasStream = canvas.captureStream(fps);
   sourceStream.getAudioTracks().forEach((track) => canvasStream.addTrack(track));
   const stop = () => {
     stopped = true;
-    if (rafId) cancelAnimationFrame(rafId);
+    if (frameTimer) clearTimeout(frameTimer);
   };
 
   const ready = video.play().then(() => {
