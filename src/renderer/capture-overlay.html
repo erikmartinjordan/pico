@@ -269,8 +269,11 @@
       await drawScreenshot(data);
       repaintOverlay();
 
-      if (captureMode === 'region') {
+      if (captureMode === 'region' || captureMode === 'record-region') {
         document.body.classList.add('region-mode');
+        if (captureMode === 'record-region') {
+          document.getElementById('instructions').innerHTML = 'Drag to select recording area with autozoom \u00b7 Press <kbd>Esc</kbd> to cancel';
+        }
       } else {
         document.getElementById('instructions').innerHTML = windowBounds.length
           ? 'Click on a window to capture \u00b7 Press <kbd>Esc</kbd> to cancel'
@@ -359,7 +362,8 @@
       selection.style.top = `${y}px`;
       selection.style.width = `${width}px`;
       selection.style.height = `${height}px`;
-      dimensions.textContent = `${width} \u00d7 ${height}`;
+      const label = captureMode === 'record-region' ? 'REC ' : '';
+      dimensions.textContent = `${label}${width} \u00d7 ${height}`;
       dimensions.style.left = `${x + 6}px`;
       dimensions.style.top = `${y > 28 ? y - 24 : y + height + 6}px`;
     }
@@ -543,11 +547,40 @@
       }
     });
 
+    function getRecordingRegionFromRect(rect) {
+      if (!captureData || captureData.type !== 'single') return null;
+      const viewW = window.innerWidth;
+      const viewH = window.innerHeight;
+      const logicalX = (rect.x / viewW) * captureData.bounds.width;
+      const logicalY = (rect.y / viewH) * captureData.bounds.height;
+      const logicalW = (rect.width / viewW) * captureData.bounds.width;
+      const logicalH = (rect.height / viewH) * captureData.bounds.height;
+      const scaleFactor = captureData.scaleFactor || 1;
+      return {
+        sourceId: captureData.sourceId,
+        displayId: captureData.displayId,
+        displayBounds: captureData.bounds,
+        scaleFactor,
+        x: Math.round(logicalX),
+        y: Math.round(logicalY),
+        width: Math.round(logicalW),
+        height: Math.round(logicalH),
+        pixelX: Math.round(logicalX * scaleFactor),
+        pixelY: Math.round(logicalY * scaleFactor),
+        pixelWidth: Math.max(1, Math.round(logicalW * scaleFactor)),
+        pixelHeight: Math.max(1, Math.round(logicalH * scaleFactor)),
+      };
+    }
+
     document.addEventListener('mouseup', () => {
       if (captureMode === 'window' || !isSelecting) return;
       isSelecting = false;
       const rect = getSelectionRect();
       if (rect.width < 4 || rect.height < 4) return window.pico.captureCancel();
+      if (captureMode === 'record-region') {
+        const region = getRecordingRegionFromRect(rect);
+        return region?.sourceId ? window.pico.recordingRegionComplete(region) : window.pico.captureCancel();
+      }
       cropFromScreenRect(rect).then((dataUrl) => window.pico.captureComplete(dataUrl));
     });
 
