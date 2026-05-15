@@ -54,6 +54,7 @@ const state = {
   recordingFormat: 'mp4',
   recordingMode: 'region',
   isSavingRecording: false,
+  recordingSettings: { format: 'mp4', autoZoom: true },
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -76,6 +77,9 @@ const elements = {
   btnRecordScreen: $('#btn-record-screen'),
   recordingFormatMenu: $('#recording-format-menu'),
   recordingSaveProgress: $('#recording-save-progress'),
+  preferencesDialog: $('#preferences-dialog'),
+  recordingFormatSetting: $('#recording-format-setting'),
+  recordingAutozoomSetting: $('#recording-autozoom-setting'),
   btnCaptureRegion: $('#btn-capture-region'),
   btnCaptureWindow: $('#btn-capture-window'),
   btnCaptureFullscreen: $('#btn-capture-fullscreen'),
@@ -119,6 +123,7 @@ function init() {
   bindTooltips();
   if (elements.textFontFamily) elements.textFontFamily.value = state.textFontFamily;
   if (elements.textFontSize) elements.textFontSize.value = String(state.textFontSize);
+  loadRecordingSettings();
   toggleTextStyleControls();
   updateStatus();
 }
@@ -144,6 +149,14 @@ function bindToolbar() {
   on(elements.btnCaptureWindow, 'click', () => { setCaptureModeButton('window'); startCaptureWindow(); });
   on(elements.btnCaptureFullscreen, 'click', () => { setCaptureModeButton('fullscreen'); startCaptureFullscreen(); });
   on(elements.btnRecordScreen, 'click', onRecordButtonClick);
+  on(elements.recordingFormatSetting, 'change', () => {
+    state.recordingSettings.format = elements.recordingFormatSetting.value === 'gif' ? 'gif' : 'mp4';
+    saveRecordingSettings();
+  });
+  on(elements.recordingAutozoomSetting, 'change', () => {
+    state.recordingSettings.autoZoom = Boolean(elements.recordingAutozoomSetting.checked);
+    saveRecordingSettings();
+  });
   elements.recordingFormatMenu?.querySelectorAll('[data-format]').forEach((button) => {
     button.addEventListener('click', () => startRecordingWithFormat(button.dataset.format, button.dataset.mode));
   });
@@ -261,13 +274,17 @@ function bindKeyboard() {
 }
 
 function bindIPC() {
-  window.pico.onTriggerCapture(() => startCapture());
+  window.pico.onTriggerCapture(() => {
+    console.log('[pico][renderer] received trigger-capture');
+    startCapture();
+  });
   window.pico.onTriggerCaptureWindow(() => startCaptureWindow());
   window.pico.onTriggerCaptureFullscreen(() => startCaptureFullscreen());
   window.pico.onShortcutCaptureReady(() => {
-    selectTool('rect');
     setCaptureModeButton('region');
+    showWindow();
   });
+  window.pico.onOpenPreferences(() => openPreferences());
   window.pico.onLoadCapture((payload) => {
     const capturePayload = typeof payload === 'string' ? { dataUrl: payload } : payload;
     loadImage(capturePayload?.dataUrl, {
@@ -537,13 +554,13 @@ function onRecordButtonClick(event) {
     return;
   }
   event?.stopPropagation();
-  showRecordingFormatMenu();
+  startRecordingWithFormat(state.recordingSettings.format, 'region');
 }
 
 async function startRecordingWithFormat(format = 'mp4', mode = 'region') {
   hideRecordingFormatMenu();
   try {
-    const started = await window.pico.startRecording({ format, mode, autoZoom: mode === 'region' });
+    const started = await window.pico.startRecording({ format, mode, autoZoom: mode === 'region' ? state.recordingSettings.autoZoom : false });
     state.isRecording = true;
     state.recordingFormat = format;
     state.recordingMode = mode;
@@ -560,6 +577,32 @@ async function startRecordingWithFormat(format = 'mp4', mode = 'region') {
     }
     showToast(`Recording failed: ${err.message}`, 'error');
   }
+}
+
+function loadRecordingSettings() {
+  try {
+    const raw = localStorage.getItem('pico-recording-settings');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      state.recordingSettings.format = parsed?.format === 'gif' ? 'gif' : 'mp4';
+      state.recordingSettings.autoZoom = parsed?.autoZoom !== false;
+    }
+  } catch (_) {}
+  if (elements.recordingFormatSetting) elements.recordingFormatSetting.value = state.recordingSettings.format;
+  if (elements.recordingAutozoomSetting) elements.recordingAutozoomSetting.checked = state.recordingSettings.autoZoom;
+}
+
+function saveRecordingSettings() {
+  localStorage.setItem('pico-recording-settings', JSON.stringify(state.recordingSettings));
+}
+
+function openPreferences() {
+  if (!elements.preferencesDialog) return;
+  elements.preferencesDialog.showModal();
+}
+
+function showWindow() {
+  window.focus();
 }
 
 async function toggleRecording(event) {

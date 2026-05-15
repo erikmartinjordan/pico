@@ -20,6 +20,22 @@ let lastRecordingSourceId = null;
 let lastRecordingRegion = null;
 let tray = null;
 
+function debugWindowState(tag) {
+  const win = mainWindow;
+  console.log('[pico][window-state]', {
+    tag,
+    appHidden: typeof app.isHidden === 'function' ? app.isHidden() : null,
+    appFocused: typeof app.focus === 'function' ? Boolean(BrowserWindow.getFocusedWindow()) : null,
+    hasFocusedWindow: Boolean(BrowserWindow.getFocusedWindow()),
+    winExists: Boolean(win),
+    winDestroyed: win ? win.isDestroyed() : null,
+    winVisible: win && !win.isDestroyed() ? win.isVisible() : null,
+    winMinimized: win && !win.isDestroyed() ? win.isMinimized() : null,
+    winFocused: win && !win.isDestroyed() ? win.isFocused() : null,
+    winLoading: win && !win.isDestroyed() ? win.webContents.isLoading() : null,
+  });
+}
+
 
 function getMacScreenRecordingStatus() {
   if (process.platform !== 'darwin') return 'granted';
@@ -747,7 +763,27 @@ function hideRecordingIndicator() {
 }
 
 function createMainWindow() {
-  Menu.setApplicationMenu(null);
+  const triggerCaptureRegion = () => {
+    if (!mainWindow || mainWindow.isDestroyed()) createMainWindow();
+    mainWindow.show();
+    mainWindow.focus();
+    mainWindow.webContents.send('trigger-capture');
+  };
+  const menu = Menu.buildFromTemplate([
+    {
+      label: 'File',
+      submenu: [
+        { label: 'Capture Region', click: triggerCaptureRegion },
+        { label: 'Capture Window', click: () => mainWindow?.webContents.send('trigger-capture-window') },
+        { label: 'Capture Fullscreen', click: () => mainWindow?.webContents.send('trigger-capture-fullscreen') },
+        { type: 'separator' },
+        { label: 'Preferences', accelerator: 'CommandOrControl+,', click: () => mainWindow?.webContents.send('open-preferences') },
+        { type: 'separator' },
+        { role: 'quit' },
+      ],
+    },
+  ]);
+  Menu.setApplicationMenu(menu);
 
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -774,6 +810,9 @@ function createMainWindow() {
 
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   mainWindow.once('ready-to-show', () => mainWindow.show());
+  mainWindow.webContents.on('did-finish-load', () => console.log('[pico][main] did-finish-load'));
+  mainWindow.webContents.on('render-process-gone', (_, details) => console.error('[pico][main] render-process-gone', details));
+  mainWindow.webContents.on('did-fail-load', (_, code, desc) => console.error('[pico][main] did-fail-load', code, desc));
   mainWindow.on('minimize', (event) => {
     if (process.platform === 'darwin') {
       event.preventDefault();
@@ -973,18 +1012,23 @@ function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) 
 // ── IPC Handlers ────────────────────────────────────────────────────────────
 
 ipcMain.handle('start-capture', async () => {
+  console.log('[pico][capture] start-capture invoked');
   if (mainWindow) mainWindow.hide();
   await new Promise(r => setTimeout(r, 200));
 
   try {
+    const status = process.platform === 'darwin' ? getMacScreenRecordingStatus() : 'granted';
+    console.log('[pico][capture] permission status:', status);
     if (!await ensureMacScreenRecordingPermission()) {
       if (mainWindow) mainWindow.show();
       return { success: false, error: 'Screen Recording permission is required.' };
     }
     const captureData = await captureAllScreens();
+    console.log('[pico][capture] capture data ready; creating overlays');
     createCaptureOverlays(captureData, 'region', []);
     return { success: true };
   } catch (err) {
+    console.error('[pico][capture] start-capture failed:', err.message);
     if (mainWindow) mainWindow.show();
     return { success: false, error: err.message };
   }
@@ -1399,11 +1443,58 @@ function setupTray() {
 app.whenReady().then(() => {
   createMainWindow();
   setupTray();
-  globalShortcut.register('CommandOrControl+Shift+S', () => {
+  const runWhenWindowReady = (callback) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (mainWindow.isVisible() && !mainWindow.webContents.isLoading()) {
+      callback();
+      return;
+    }
+    mainWindow.once('ready-to-show', callback);
+  };
+  const focusAndShowMainWindow = () => {
     if (!mainWindow || mainWindow.isDestroyed()) createMainWindow();
+    if (process.platform === 'darwin') {
+      app.show();
+      if (app.dock && typeof app.dock.show === 'function') app.dock.show();
+      app.focus({ steal: true });
+    }
+    if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.show();
+    mainWindow.moveTop();
     mainWindow.focus();
-    mainWindow.webContents.send('trigger-shortcut-capture-ready');
+  };
+  const triggerCaptureFromShortcut = () => {
+    const wasMissingWindow = !mainWindow || mainWindow.isDestroyed();
+    focusAndShowMainWindow();
+    const sendTrigger = () => {
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      mainWindow.webContents.send('trigger-capture');
+      console.log('[pico][shortcut] sent trigger-capture');
+    };
+    if (wasMissingWindow) {
+      runWhenWindowReady(() => setTimeout(sendTrigger, 40));
+      return;
+    }
+    if (mainWindow?.webContents?.isLoading()) {
+      mainWindow.webContents.once('did-finish-load', () => setTimeout(sendTrigger, 80));
+      return;
+    }
+    setTimeout(sendTrigger, 80);
+  };
+  // On macOS users may press either Cmd+Shift+S or Ctrl+Shift+S.
+  // Register both explicitly to improve reliability while minimized/hidden.
+  const globalShortcuts = process.platform === 'darwin'
+    ? ['Command+Shift+S', 'Control+Shift+S']
+    : ['CommandOrControl+Shift+S'];
+  globalShortcuts.forEach((accelerator) => {
+    const ok = globalShortcut.register(accelerator, () => {
+      console.log(`[pico][shortcut] fired: ${accelerator}`);
+      debugWindowState('before-shortcut');
+      triggerCaptureFromShortcut();
+      debugWindowState('after-focus-show');
+    });
+    console.log(`[pico][shortcut] register ${accelerator}: ${ok ? 'ok' : 'failed'}`);
+    if (!ok) console.warn(`[pico] Failed to register global shortcut: ${accelerator}`);
   });
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
@@ -1411,7 +1502,9 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  globalShortcut.unregisterAll();
+  // Keep global shortcuts active on macOS even when all windows are closed,
+  // so tray/background usage can still trigger capture and recreate the window.
+  if (process.platform !== 'darwin') globalShortcut.unregisterAll();
   if (process.platform !== 'darwin') app.quit();
 });
 
