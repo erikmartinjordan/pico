@@ -3,7 +3,7 @@
  * Handles window creation, screen capture, and native dialogs
  */
 
-const { app, BrowserWindow, ipcMain, desktopCapturer, dialog, screen, globalShortcut, nativeImage, clipboard, Menu, shell, systemPreferences } = require('electron');
+const { app, BrowserWindow, ipcMain, desktopCapturer, dialog, screen, globalShortcut, nativeImage, clipboard, Menu, Tray, shell, systemPreferences } = require('electron');
 const { execSync, exec, execFile } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -18,6 +18,7 @@ let recordingSourceSelection = null;
 let recordingRegionSelection = null;
 let lastRecordingSourceId = null;
 let lastRecordingRegion = null;
+let tray = null;
 
 
 function getMacScreenRecordingStatus() {
@@ -755,9 +756,8 @@ function createMainWindow() {
     minHeight: 600,
     backgroundColor: '#0a0a0b',
     autoHideMenuBar: true,
-    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
-    frame: process.platform !== 'darwin',
-    trafficLightPosition: { x: 16, y: 16 },
+    titleBarStyle: 'default',
+    frame: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -774,6 +774,12 @@ function createMainWindow() {
 
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   mainWindow.once('ready-to-show', () => mainWindow.show());
+  mainWindow.on('minimize', (event) => {
+    if (process.platform === 'darwin') {
+      event.preventDefault();
+      mainWindow.hide();
+    }
+  });
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
@@ -1358,8 +1364,41 @@ ipcMain.on('pro-recording-stop-clicked', () => {
 
 // ── App Lifecycle ───────────────────────────────────────────────────────────
 
+
+function setupTray() {
+  if (process.platform !== 'darwin' || tray) return;
+  const iconPath = path.join(__dirname, 'assets', 'icons', 'macos', '16x16.png');
+  tray = new Tray(iconPath);
+  tray.setToolTip('pico');
+
+  const trayMenu = Menu.buildFromTemplate([
+    {
+      label: 'Open pico',
+      click: () => {
+        if (!mainWindow || mainWindow.isDestroyed()) createMainWindow();
+        mainWindow.show();
+        mainWindow.focus();
+      },
+    },
+    { type: 'separator' },
+    { label: 'Capture Region', click: () => mainWindow?.webContents.send('trigger-capture') },
+    { label: 'Capture Window', click: () => mainWindow?.webContents.send('trigger-capture-window') },
+    { label: 'Capture Fullscreen', click: () => mainWindow?.webContents.send('trigger-capture-fullscreen') },
+    { type: 'separator' },
+    { label: 'Quit', role: 'quit' },
+  ]);
+
+  tray.setContextMenu(trayMenu);
+  tray.on('click', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) createMainWindow();
+    mainWindow.show();
+    mainWindow.focus();
+  });
+}
+
 app.whenReady().then(() => {
   createMainWindow();
+  setupTray();
   globalShortcut.register('CommandOrControl+Shift+S', () => {
     if (mainWindow) mainWindow.webContents.send('trigger-capture');
   });

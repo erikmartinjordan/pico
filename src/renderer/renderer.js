@@ -212,6 +212,8 @@ function bindKeyboard() {
 
 function bindIPC() {
   window.pico.onTriggerCapture(() => startCapture());
+  window.pico.onTriggerCaptureWindow(() => startCaptureWindow());
+  window.pico.onTriggerCaptureFullscreen(() => startCaptureFullscreen());
   window.pico.onLoadCapture((payload) => {
     const capturePayload = typeof payload === 'string' ? { dataUrl: payload } : payload;
     loadImage(capturePayload?.dataUrl, {
