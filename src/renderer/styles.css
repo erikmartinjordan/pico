@@ -170,11 +170,53 @@ body {
   color: #fff7ed;
 }
 
-.preferences-panel { min-width: 320px; border: 1px solid rgba(255,255,255,.12); border-radius: 12px; background:#111827; color:#fff; padding:16px; display:flex; flex-direction:column; gap:10px; }
-.preferences-panel label { display:flex; justify-content:space-between; align-items:center; font-size:13px; }
-.preferences-panel select { background:#1f2937; color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:8px; padding:6px 8px; }
-.preferences-actions { display:flex; justify-content:flex-end; margin-top:8px; }
-.preferences-actions button { background:#f97316; color:#111; border:0; border-radius:8px; padding:7px 12px; font-weight:700; }
+.preferences-dialog {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.preferences-dialog::backdrop {
+  background: rgba(9, 9, 11, 0.62);
+  backdrop-filter: blur(4px);
+}
+
+.preferences-panel {
+  min-width: 420px;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 16px;
+  background: rgba(30, 31, 36, 0.97);
+  color: #f5f0eb;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 22px 48px rgba(0,0,0,0.58), inset 0 1px 0 rgba(255,255,255,0.05);
+}
+
+.preferences-panel h3 { font-size: 15px; font-weight: 800; letter-spacing: .01em; }
+.preferences-subtitle { font-size: 11px; color: var(--text-sec); margin-top: -4px; }
+.preferences-panel label { display:flex; justify-content:space-between; align-items:center; font-size:12px; font-weight: 700; gap: 10px; }
+.preferences-panel select {
+  background: rgba(17, 24, 39, 0.85);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font: inherit;
+}
+.preferences-panel input[type="checkbox"] { accent-color: #f97316; width: 16px; height: 16px; }
+.preferences-actions { display:flex; justify-content:flex-end; margin-top:10px; }
+.preferences-actions button {
+  background:#f97316;
+  color:#1a0c02;
+  border:0;
+  border-radius:8px;
+  padding:8px 14px;
+  font-weight:800;
+  font-family: inherit;
+  cursor: pointer;
+}
 
 
 .pro-badge {

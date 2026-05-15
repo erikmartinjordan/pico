@@ -55,6 +55,7 @@ const state = {
   recordingMode: 'region',
   isSavingRecording: false,
   recordingSettings: { format: 'mp4', autoZoom: true },
+  captureSettings: { hideDesktopIcons: true },
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -80,6 +81,7 @@ const elements = {
   preferencesDialog: $('#preferences-dialog'),
   recordingFormatSetting: $('#recording-format-setting'),
   recordingAutozoomSetting: $('#recording-autozoom-setting'),
+  hideDesktopIconsSetting: $('#hide-desktop-icons-setting'),
   btnCaptureRegion: $('#btn-capture-region'),
   btnCaptureWindow: $('#btn-capture-window'),
   btnCaptureFullscreen: $('#btn-capture-fullscreen'),
@@ -155,6 +157,10 @@ function bindToolbar() {
   });
   on(elements.recordingAutozoomSetting, 'change', () => {
     state.recordingSettings.autoZoom = Boolean(elements.recordingAutozoomSetting.checked);
+    saveRecordingSettings();
+  });
+  on(elements.hideDesktopIconsSetting, 'change', () => {
+    state.captureSettings.hideDesktopIcons = Boolean(elements.hideDesktopIconsSetting.checked);
     saveRecordingSettings();
   });
   elements.recordingFormatMenu?.querySelectorAll('[data-format]').forEach((button) => {
@@ -586,15 +592,21 @@ function loadRecordingSettings() {
       const parsed = JSON.parse(raw);
       state.recordingSettings.format = parsed?.format === 'gif' ? 'gif' : 'mp4';
       state.recordingSettings.autoZoom = parsed?.autoZoom !== false;
+      state.captureSettings.hideDesktopIcons = parsed?.hideDesktopIcons !== false;
     }
   } catch (_) {}
   if (elements.recordingFormatSetting) elements.recordingFormatSetting.value = state.recordingSettings.format;
   if (elements.recordingAutozoomSetting) elements.recordingAutozoomSetting.checked = state.recordingSettings.autoZoom;
+  if (elements.hideDesktopIconsSetting) elements.hideDesktopIconsSetting.checked = state.captureSettings.hideDesktopIcons;
 }
 
 function saveRecordingSettings() {
-  localStorage.setItem('pico-recording-settings', JSON.stringify(state.recordingSettings));
+  localStorage.setItem('pico-recording-settings', JSON.stringify({
+    ...state.recordingSettings,
+    hideDesktopIcons: state.captureSettings.hideDesktopIcons,
+  }));
 }
+
 
 function openPreferences() {
   if (!elements.preferencesDialog) return;
@@ -635,20 +647,20 @@ async function toggleRecording(event) {
 
 async function startCapture() {
   if (state.cropActive) cancelCrop();
-  const result = await window.pico.startCapture();
+  const result = await window.pico.startCapture({ hideDesktopIcons: state.captureSettings.hideDesktopIcons });
   if (!result.success) showToast(result.error || 'Failed to start capture', 'error');
 }
 
 async function startCaptureWindow() {
   if (state.cropActive) cancelCrop();
-  const result = await window.pico.startCaptureWindow();
+  const result = await window.pico.startCaptureWindow({ hideDesktopIcons: state.captureSettings.hideDesktopIcons });
   if (!result.success) showToast(result.error || 'Failed to capture window', 'error');
 }
 
 async function startCaptureFullscreen() {
   if (state.cropActive) cancelCrop();
   state.pendingFullscreenPreview = true;
-  const result = await window.pico.startCaptureFullscreen();
+  const result = await window.pico.startCaptureFullscreen({ hideDesktopIcons: state.captureSettings.hideDesktopIcons });
   if (!result.success) {
     state.pendingFullscreenPreview = false;
     showToast(result.error || 'Failed to capture screen', 'error');

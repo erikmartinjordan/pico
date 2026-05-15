@@ -239,9 +239,9 @@ function stopRecording(options = {}) {
 
 contextBridge.exposeInMainWorld('pico', {
   // Screen capture
-  startCapture: () => ipcRenderer.invoke('start-capture'),
-  startCaptureWindow: () => ipcRenderer.invoke('start-capture-window'),
-  startCaptureFullscreen: () => ipcRenderer.invoke('start-capture-fullscreen'),
+  startCapture: (options = {}) => ipcRenderer.invoke('start-capture', options),
+  startCaptureWindow: (options = {}) => ipcRenderer.invoke('start-capture-window', options),
+  startCaptureFullscreen: (options = {}) => ipcRenderer.invoke('start-capture-fullscreen', options),
   onLoadCapture: (callback) => ipcRenderer.on('load-capture', (_, data) => callback(data)),
   onTriggerCapture: (callback) => ipcRenderer.on('trigger-capture', () => callback()),
   onTriggerCaptureWindow: (callback) => ipcRenderer.on('trigger-capture-window', () => callback()),
