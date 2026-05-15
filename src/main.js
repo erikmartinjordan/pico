@@ -1309,7 +1309,7 @@ ipcMain.handle('pro-recording-indicator-hide', async () => {
   return { success: true };
 });
 
-async function chooseRecordingRegionSource() {
+async function chooseRecordingRegionSource(options = {}) {
   if (recordingRegionSelection) return recordingRegionSelection.promise;
 
   const promise = new Promise(async (resolve, reject) => {
@@ -1356,7 +1356,7 @@ ipcMain.handle('pro-recording-source', async (event, options = {}) => {
   }
 
   if (options?.mode === 'region') {
-    const region = await chooseRecordingRegionSource();
+    const region = await chooseRecordingRegionSource(options);
     if (!region) return null;
     lastRecordingSourceId = region.sourceId;
     lastRecordingRegion = region;
