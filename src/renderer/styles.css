@@ -108,7 +108,7 @@ body {
 .toolbar-btn.pro-feature {
   position: relative;
   width: 32px;
-  color: var(--accent-soft);
+  color: #ef4444;
 }
 
 .toolbar-btn.pro-feature.recording {
@@ -483,7 +483,7 @@ body {
 
 .context-menu-item.active span:first-of-type::after {
   content: " ✓";
-  color: var(--accent-soft);
+  color: #ef4444;
 }
 
 .context-menu-separator {
@@ -699,4 +699,28 @@ body {
 @keyframes recordingSaveBar {
   0% { left: -35%; }
   100% { left: 100%; }
+}
+
+
+.app-tooltip {
+  position: fixed;
+  z-index: 120;
+  max-width: 260px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(10, 10, 11, 0.95);
+  color: rgba(255,255,255,0.92);
+  font-size: 12px;
+  line-height: 1.25;
+  pointer-events: none;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.45);
+  opacity: 0;
+  transform: translateY(3px) scale(0.98);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+.app-tooltip.visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
 }

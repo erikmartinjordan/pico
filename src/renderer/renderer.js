@@ -76,6 +76,9 @@ const elements = {
   btnRecordScreen: $('#btn-record-screen'),
   recordingFormatMenu: $('#recording-format-menu'),
   recordingSaveProgress: $('#recording-save-progress'),
+  btnCaptureRegion: $('#btn-capture-region'),
+  btnCaptureWindow: $('#btn-capture-window'),
+  btnCaptureFullscreen: $('#btn-capture-fullscreen'),
   emptyCapture: $('#empty-capture'),
   emptyOpen: $('#empty-open'),
   toolBtns: $$('.tool-btn'),
@@ -86,6 +89,7 @@ const elements = {
   textWrapper: $('#text-input-wrapper'),
   textInput: $('#inline-text-input'),
   toastContainer: $('#toast-container'),
+  tooltip: $('#app-tooltip'),
   textFontFamily: $('#text-font-family'),
   textFontSize: $('#text-font-size'),
   textStyleGroup: $('#text-style-group'),
@@ -112,6 +116,7 @@ function init() {
   bindContextMenu();
   bindPaste();
   bindCrop();
+  bindTooltips();
   if (elements.textFontFamily) elements.textFontFamily.value = state.textFontFamily;
   if (elements.textFontSize) elements.textFontSize.value = String(state.textFontSize);
   toggleTextStyleControls();
@@ -122,10 +127,22 @@ function init() {
 // Event Binding
 // ══════════════════════════════════════════════════════════════════════════════
 
+function setCaptureModeButton(mode = 'region') {
+  const selected = mode === 'window'
+    ? elements.btnCaptureWindow
+    : mode === 'fullscreen'
+      ? elements.btnCaptureFullscreen
+      : elements.btnCaptureRegion;
+  [elements.btnCaptureRegion, elements.btnCaptureWindow, elements.btnCaptureFullscreen].forEach((btn) => {
+    if (!btn) return;
+    btn.classList.toggle('active', btn === selected);
+  });
+}
+
 function bindToolbar() {
-  on($('#btn-capture-region'), 'click', startCapture);
-  on($('#btn-capture-window'), 'click', startCaptureWindow);
-  on($('#btn-capture-fullscreen'), 'click', startCaptureFullscreen);
+  on(elements.btnCaptureRegion, 'click', () => { setCaptureModeButton('region'); startCapture(); });
+  on(elements.btnCaptureWindow, 'click', () => { setCaptureModeButton('window'); startCaptureWindow(); });
+  on(elements.btnCaptureFullscreen, 'click', () => { setCaptureModeButton('fullscreen'); startCaptureFullscreen(); });
   on(elements.btnRecordScreen, 'click', onRecordButtonClick);
   elements.recordingFormatMenu?.querySelectorAll('[data-format]').forEach((button) => {
     button.addEventListener('click', () => startRecordingWithFormat(button.dataset.format, button.dataset.mode));
@@ -156,6 +173,39 @@ function bindToolbar() {
   });
   on(elements.textFontFamily, 'change', () => selectTextFontFamily(elements.textFontFamily.value));
   on(elements.textFontSize, 'change', () => selectTextFontSize(parseInt(elements.textFontSize.value)));
+}
+
+
+function bindTooltips() {
+  const tooltip = elements.tooltip;
+  if (!tooltip) return;
+
+  const hide = () => {
+    tooltip.classList.remove('visible');
+    tooltip.setAttribute('aria-hidden', 'true');
+  };
+
+  const show = (event) => {
+    const target = event.currentTarget;
+    const text = target?.dataset?.tooltip;
+    if (!text) return;
+    tooltip.textContent = text;
+    tooltip.classList.add('visible');
+    tooltip.setAttribute('aria-hidden', 'false');
+
+    const rect = target.getBoundingClientRect();
+    const tooltipRect = tooltip.getBoundingClientRect();
+    const x = Math.max(8, Math.min(window.innerWidth - tooltipRect.width - 8, rect.left + (rect.width - tooltipRect.width) / 2));
+    const y = Math.max(8, rect.bottom + 10);
+    tooltip.style.left = `${x}px`;
+    tooltip.style.top = `${y}px`;
+  };
+
+  document.querySelectorAll('[data-tooltip]').forEach((node) => {
+    node.addEventListener('mouseenter', show);
+    node.addEventListener('mouseleave', hide);
+    node.addEventListener('blur', hide);
+  });
 }
 
 function bindCanvas() {
@@ -212,6 +262,12 @@ function bindKeyboard() {
 
 function bindIPC() {
   window.pico.onTriggerCapture(() => startCapture());
+  window.pico.onTriggerCaptureWindow(() => startCaptureWindow());
+  window.pico.onTriggerCaptureFullscreen(() => startCaptureFullscreen());
+  window.pico.onShortcutCaptureReady(() => {
+    selectTool('rect');
+    setCaptureModeButton('region');
+  });
   window.pico.onLoadCapture((payload) => {
     const capturePayload = typeof payload === 'string' ? { dataUrl: payload } : payload;
     loadImage(capturePayload?.dataUrl, {
