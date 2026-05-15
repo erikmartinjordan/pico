@@ -747,11 +747,17 @@ function hideRecordingIndicator() {
 }
 
 function createMainWindow() {
+  const triggerCaptureRegion = () => {
+    if (!mainWindow || mainWindow.isDestroyed()) createMainWindow();
+    mainWindow.show();
+    mainWindow.focus();
+    mainWindow.webContents.send('trigger-capture');
+  };
   const menu = Menu.buildFromTemplate([
     {
       label: 'File',
       submenu: [
-        { label: 'Capture Region', accelerator: 'CommandOrControl+Shift+S', click: () => mainWindow?.webContents.send('trigger-capture') },
+        { label: 'Capture Region', click: triggerCaptureRegion },
         { label: 'Capture Window', click: () => mainWindow?.webContents.send('trigger-capture-window') },
         { label: 'Capture Fullscreen', click: () => mainWindow?.webContents.send('trigger-capture-fullscreen') },
         { type: 'separator' },
@@ -1424,7 +1430,10 @@ app.whenReady().then(() => {
     ? ['Command+Shift+S', 'Control+Shift+S']
     : ['CommandOrControl+Shift+S'];
   globalShortcuts.forEach((accelerator) => {
-    const ok = globalShortcut.register(accelerator, focusAndShowMainWindow);
+    const ok = globalShortcut.register(accelerator, () => {
+      focusAndShowMainWindow();
+      mainWindow?.webContents.send('trigger-capture');
+    });
     if (!ok) console.warn(`[pico] Failed to register global shortcut: ${accelerator}`);
   });
   app.on('activate', () => {
