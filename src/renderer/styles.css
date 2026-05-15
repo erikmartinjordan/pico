@@ -652,3 +652,51 @@ body {
 .platform-darwin .toolbar {
   top: 50px;
 }
+
+
+.recording-save-progress {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  min-width: 280px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 10px;
+  background: rgba(17,17,20,0.95);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .16s ease;
+  z-index: 45;
+}
+
+.recording-save-progress.visible { opacity: 1; }
+
+.recording-save-progress__label {
+  font-size: 12px;
+  color: rgba(255,255,255,0.82);
+  margin-bottom: 8px;
+}
+
+.recording-save-progress__track {
+  position: relative;
+  height: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.14);
+}
+
+.recording-save-progress__bar {
+  position: absolute;
+  inset: 0 auto 0 -35%;
+  width: 35%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(249,115,22,0.25), rgba(249,115,22,0.95));
+  animation: recordingSaveBar 1.1s ease-in-out infinite;
+}
+
+@keyframes recordingSaveBar {
+  0% { left: -35%; }
+  100% { left: 100%; }
+}

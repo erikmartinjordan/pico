@@ -53,6 +53,7 @@ const state = {
   isRecording: false,
   recordingFormat: 'mp4',
   recordingMode: 'region',
+  isSavingRecording: false,
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -74,6 +75,7 @@ const elements = {
   btnClear: $('#btn-clear'),
   btnRecordScreen: $('#btn-record-screen'),
   recordingFormatMenu: $('#recording-format-menu'),
+  recordingSaveProgress: $('#recording-save-progress'),
   emptyCapture: $('#empty-capture'),
   emptyOpen: $('#empty-open'),
   toolBtns: $$('.tool-btn'),
@@ -467,6 +469,12 @@ function hideRecordingFormatMenu() {
   elements.recordingFormatMenu?.classList.remove('visible');
 }
 
+function setRecordingSaveProgress(visible) {
+  state.isSavingRecording = Boolean(visible);
+  elements.recordingSaveProgress?.classList.toggle('visible', state.isSavingRecording);
+  elements.recordingSaveProgress?.setAttribute('aria-hidden', state.isSavingRecording ? 'false' : 'true');
+}
+
 function onRecordButtonClick(event) {
   if (state.isRecording) {
     toggleRecording(event);
@@ -488,6 +496,7 @@ async function startRecordingWithFormat(format = 'mp4', mode = 'region') {
     showToast(started.systemAudio ? `Recording ${targetLabel} as ${format.toUpperCase()}` : `Recording ${targetLabel} as ${format.toUpperCase()} without system audio`, started.systemAudio ? 'success' : 'info');
   } catch (err) {
     state.isRecording = false;
+    setRecordingSaveProgress(false);
     setRecordingIndicator(false);
     if (err.message === 'Recording canceled') {
       showToast('Recording canceled', 'info');
@@ -504,6 +513,7 @@ async function toggleRecording(event) {
       return;
     }
 
+    setRecordingSaveProgress(true);
     showToast('Finalizing recording…', 'info');
     const result = await window.pico.stopRecording({ format: state.recordingFormat || (event?.shiftKey ? 'gif' : 'mp4') });
     state.isRecording = false;
@@ -519,6 +529,8 @@ async function toggleRecording(event) {
     state.isRecording = false;
     setRecordingIndicator(false);
     showToast(`Recording failed: ${err.message}`, 'error');
+  } finally {
+    setRecordingSaveProgress(false);
   }
 }
 

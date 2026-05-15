@@ -123,14 +123,6 @@ function createAutoZoomStream(sourceStream, region) {
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(video, sx, sy, cropW, cropH, 0, 0, canvas.width, canvas.height);
 
-      if (currentZoom > 1.04) {
-        const glow = Math.min(0.28, (currentZoom - 1) * 0.18);
-        ctx.save();
-        ctx.strokeStyle = `rgba(249, 115, 22, ${glow})`;
-        ctx.lineWidth = Math.max(3, Math.round(Math.min(canvas.width, canvas.height) * 0.006));
-        ctx.strokeRect(ctx.lineWidth / 2, ctx.lineWidth / 2, canvas.width - ctx.lineWidth, canvas.height - ctx.lineWidth);
-        ctx.restore();
-      }
     }
     rafId = requestAnimationFrame(draw);
   }
