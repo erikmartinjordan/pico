@@ -1489,7 +1489,9 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  globalShortcut.unregisterAll();
+  // Keep global shortcuts active on macOS even when all windows are closed,
+  // so tray/background usage can still trigger capture and recreate the window.
+  if (process.platform !== 'darwin') globalShortcut.unregisterAll();
   if (process.platform !== 'darwin') app.quit();
 });
 
