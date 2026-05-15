@@ -40,6 +40,10 @@ async function getDesktopStream(sourceId, includeAudio) {
   return navigator.mediaDevices.getUserMedia({ audio, video });
 }
 
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
 function createAutoZoomStream(sourceStream, region) {
   const video = document.createElement('video');
   video.muted = true;
@@ -84,10 +88,6 @@ function createAutoZoomStream(sourceStream, region) {
   let stopped = false;
   let lastCursorPoll = 0;
   let cursorPollInFlight = false;
-
-  function clamp(value, min, max) {
-    return Math.max(min, Math.min(max, value));
-  }
 
   async function updateCursorTarget(now) {
     if (cursorPollInFlight || now - lastCursorPoll < cursorPollIntervalMs) return;
@@ -135,9 +135,14 @@ function createAutoZoomStream(sourceStream, region) {
     if (stopped) return;
     updateCursorTarget(now);
 
-    currentZoom += (targetZoom - currentZoom) * 0.08;
-    currentCenterX += (targetCenterX - currentCenterX) * 0.10;
-    currentCenterY += (targetCenterY - currentCenterY) * 0.10;
+    currentZoom += (targetZoom - currentZoom) * 0.14;
+    if (currentZoom > 1.01) {
+      currentCenterX += (targetCenterX - currentCenterX) * 0.16;
+      currentCenterY += (targetCenterY - currentCenterY) * 0.16;
+    } else {
+      currentCenterX = targetCenterX;
+      currentCenterY = targetCenterY;
+    }
 
     const cropW = srcRegion.width / currentZoom;
     const cropH = srcRegion.height / currentZoom;
@@ -212,15 +217,22 @@ async function getAutoZoomRegion(source = {}, requestedMode = source.mode) {
   if (sourceMode === 'region' && source.region) return source.region;
   if (sourceMode !== 'fullscreen') return null;
 
-  const sourceRegion = deriveFullscreenRegionFromSource(source);
+  let sourceRegion = deriveFullscreenRegionFromSource(source);
+  if (!sourceRegion) {
+    try {
+      const displays = await ipcRenderer.invoke('get-displays');
+      sourceRegion = deriveFullscreenRegionFromSource(source, Array.isArray(displays) ? displays : []);
+    } catch (error) {
+      sourceRegion = null;
+    }
+  }
+
+  const autoZoomRegion = sourceRegion;
+  console.log('[pico] autoZoomRegion', sourceMode, JSON.stringify(autoZoomRegion));
   if (sourceRegion) return sourceRegion;
 
-  try {
-    const displays = await ipcRenderer.invoke('get-displays');
-    return deriveFullscreenRegionFromSource(source, Array.isArray(displays) ? displays : []);
-  } catch (error) {
-    return null;
-  }
+  console.warn('[pico] autoZoom: could not derive fullscreen region from source', JSON.stringify(source));
+  return null;
 }
 
 async function startRecording(options = {}) {
