@@ -245,6 +245,35 @@ async function openWindowPickerFallback() {
 }
 
 
+
+async function setMacDesktopIconsVisible(visible) {
+  if (process.platform !== 'darwin') return;
+  const flag = visible ? 'true' : 'false';
+  await new Promise((resolve, reject) => {
+    exec(`defaults write com.apple.finder CreateDesktop -bool ${flag} && killall Finder`, (error) => {
+      if (error) { reject(error); return; }
+      setTimeout(resolve, 240);
+    });
+  });
+}
+
+async function withHiddenDesktopIcons(options = {}, action) {
+  const shouldHide = process.platform === 'darwin' && options?.hideDesktopIcons !== false;
+  if (!shouldHide) return action();
+  let hidden = false;
+  try {
+    await setMacDesktopIconsVisible(false);
+    hidden = true;
+    return await action();
+  } finally {
+    if (hidden) {
+      try { await setMacDesktopIconsVisible(true); } catch (restoreError) {
+        console.error('[pico][capture] failed to restore desktop icons:', restoreError.message);
+      }
+    }
+  }
+}
+
 function copyDataUrlToClipboard(dataUrl) {
   if (!dataUrl) return;
   const image = nativeImage.createFromDataURL(dataUrl);
@@ -1011,7 +1040,7 @@ function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) 
 
 // ── IPC Handlers ────────────────────────────────────────────────────────────
 
-ipcMain.handle('start-capture', async () => {
+ipcMain.handle('start-capture', async (event, options = {}) => {
   console.log('[pico][capture] start-capture invoked');
   if (mainWindow) mainWindow.hide();
   await new Promise(r => setTimeout(r, 200));
@@ -1023,7 +1052,7 @@ ipcMain.handle('start-capture', async () => {
       if (mainWindow) mainWindow.show();
       return { success: false, error: 'Screen Recording permission is required.' };
     }
-    const captureData = await captureAllScreens();
+    const captureData = await withHiddenDesktopIcons(options, async () => captureAllScreens());
     console.log('[pico][capture] capture data ready; creating overlays');
     createCaptureOverlays(captureData, 'region', []);
     return { success: true };
@@ -1034,7 +1063,7 @@ ipcMain.handle('start-capture', async () => {
   }
 });
 
-ipcMain.handle('start-capture-window', async () => {
+ipcMain.handle('start-capture-window', async (event, options = {}) => {
   if (mainWindow) mainWindow.hide();
   await new Promise(r => setTimeout(r, process.platform === 'darwin' ? 180 : 80));
   try {
@@ -1042,7 +1071,7 @@ ipcMain.handle('start-capture-window', async () => {
       return await captureNativeMacWindow();
     }
 
-    const captureData = await captureAllScreens();
+    const captureData = await withHiddenDesktopIcons(options, async () => captureAllScreens());
     // Fetch capturer sources before showing the overlay. Native source ids let the
     // overlay select the exact window on macOS/Windows instead of relying on names.
     const windowSources = await desktopCapturer.getSources({
@@ -1067,7 +1096,7 @@ ipcMain.handle('start-capture-window', async () => {
   }
 });
 
-ipcMain.handle('start-capture-fullscreen', async () => {
+ipcMain.handle('start-capture-fullscreen', async (event, options = {}) => {
   if (mainWindow) mainWindow.hide();
   await new Promise(r => setTimeout(r, 200));
   try {
@@ -1075,7 +1104,7 @@ ipcMain.handle('start-capture-fullscreen', async () => {
       if (mainWindow) mainWindow.show();
       return { success: false, error: 'Screen Recording permission is required.' };
     }
-    const captureData = await captureAllScreens();
+    const captureData = await withHiddenDesktopIcons(options, async () => captureAllScreens());
     copyCaptureDataToClipboard(captureData);
     if (mainWindow) {
       mainWindow.show();
@@ -1280,7 +1309,7 @@ ipcMain.handle('pro-recording-indicator-hide', async () => {
   return { success: true };
 });
 
-async function chooseRecordingRegionSource() {
+async function chooseRecordingRegionSource(options = {}) {
   if (recordingRegionSelection) return recordingRegionSelection.promise;
 
   const promise = new Promise(async (resolve, reject) => {
@@ -1291,7 +1320,7 @@ async function chooseRecordingRegionSource() {
       if (!await ensureMacScreenRecordingPermission()) {
         throw new Error('Screen Recording permission is required.');
       }
-      const captureData = await captureAllScreens();
+      const captureData = await withHiddenDesktopIcons(options, async () => captureAllScreens());
       createCaptureOverlays(captureData, 'record-region', []);
     } catch (error) {
       recordingRegionSelection = null;
@@ -1327,7 +1356,7 @@ ipcMain.handle('pro-recording-source', async (event, options = {}) => {
   }
 
   if (options?.mode === 'region') {
-    const region = await chooseRecordingRegionSource();
+    const region = await chooseRecordingRegionSource(options);
     if (!region) return null;
     lastRecordingSourceId = region.sourceId;
     lastRecordingRegion = region;
