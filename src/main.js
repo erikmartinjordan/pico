@@ -528,6 +528,9 @@ function showRecordingIndicator() {
           <div class="recording-dim" style="right:0;top:${regionOnDisplay.top}px;width:${regionOnDisplay.right}px;height:${regionOnDisplay.height}px"></div>
           <div class="recording-dim" style="left:0;bottom:0;width:100%;height:${regionOnDisplay.bottom}px"></div>`
       : (lastRecordingRegion ? '<div class="recording-dim full"></div>' : '');
+    const glowStyle = regionOnDisplay
+      ? `left:${regionOnDisplay.left}px;top:${regionOnDisplay.top}px;width:${regionOnDisplay.width}px;height:${regionOnDisplay.height}px;border-radius:14px;`
+      : 'inset:0;border-radius:0;';
     if (lastRecordingRegion) {
       const overlayWindow = new BrowserWindow({
         width: bounds.width,
@@ -578,10 +581,23 @@ function showRecordingIndicator() {
               pointer-events: none;
             }
             .recording-dim.full { inset: 0; }
+            .recording-glow {
+              position: fixed;
+              ${glowStyle}
+              border: 3px solid rgba(239, 68, 68, 0.94);
+              box-shadow:
+                inset 0 0 24px rgba(248, 113, 113, 0.52),
+                inset 0 0 44px rgba(220, 38, 38, 0.22),
+                0 0 18px rgba(239, 68, 68, 0.62);
+              animation: glowPulse 1.25s ease-in-out infinite;
+              pointer-events: none;
+            }
+            @keyframes glowPulse { 0%, 100% { opacity: 0.75; } 50% { opacity: 1; } }
           </style>
         </head>
         <body>
           ${dimBlocks}
+          <div class="recording-glow"></div>
         </body>
       </html>
     `)}`);
