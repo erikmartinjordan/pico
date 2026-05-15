@@ -528,6 +528,7 @@ function showRecordingIndicator() {
           <div class="recording-dim" style="right:0;top:${regionOnDisplay.top}px;width:${regionOnDisplay.right}px;height:${regionOnDisplay.height}px"></div>
           <div class="recording-dim" style="left:0;bottom:0;width:100%;height:${regionOnDisplay.bottom}px"></div>`
       : (lastRecordingRegion ? '<div class="recording-dim full"></div>' : '');
+    const showRecordingGlow = process.platform !== 'darwin';
     const glowStyle = regionOnDisplay
       ? `left:${regionOnDisplay.left}px;top:${regionOnDisplay.top}px;width:${regionOnDisplay.width}px;height:${regionOnDisplay.height}px;border-radius:14px;`
       : 'inset:0;border-radius:0;';
@@ -581,7 +582,7 @@ function showRecordingIndicator() {
               pointer-events: none;
             }
             .recording-dim.full { inset: 0; }
-            .recording-glow {
+            ${showRecordingGlow ? `.recording-glow {
               position: fixed;
               ${glowStyle}
               border: 3px solid rgba(239, 68, 68, 0.94);
@@ -592,12 +593,12 @@ function showRecordingIndicator() {
               animation: glowPulse 1.25s ease-in-out infinite;
               pointer-events: none;
             }
-            @keyframes glowPulse { 0%, 100% { opacity: 0.75; } 50% { opacity: 1; } }
+            @keyframes glowPulse { 0%, 100% { opacity: 0.75; } 50% { opacity: 1; } }` : ''}
           </style>
         </head>
         <body>
           ${dimBlocks}
-          <div class="recording-glow"></div>
+          ${showRecordingGlow ? '<div class="recording-glow"></div>' : ''}
         </body>
       </html>
     `)}`);
