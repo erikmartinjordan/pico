@@ -1443,6 +1443,14 @@ function setupTray() {
 app.whenReady().then(() => {
   createMainWindow();
   setupTray();
+  const runWhenWindowReady = (callback) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (mainWindow.isVisible() && !mainWindow.webContents.isLoading()) {
+      callback();
+      return;
+    }
+    mainWindow.once('ready-to-show', callback);
+  };
   const focusAndShowMainWindow = () => {
     if (!mainWindow || mainWindow.isDestroyed()) createMainWindow();
     if (process.platform === 'darwin') {
@@ -1456,12 +1464,17 @@ app.whenReady().then(() => {
     mainWindow.focus();
   };
   const triggerCaptureFromShortcut = () => {
+    const wasMissingWindow = !mainWindow || mainWindow.isDestroyed();
     focusAndShowMainWindow();
     const sendTrigger = () => {
       if (!mainWindow || mainWindow.isDestroyed()) return;
       mainWindow.webContents.send('trigger-capture');
       console.log('[pico][shortcut] sent trigger-capture');
     };
+    if (wasMissingWindow) {
+      runWhenWindowReady(() => setTimeout(sendTrigger, 40));
+      return;
+    }
     if (mainWindow?.webContents?.isLoading()) {
       mainWindow.webContents.once('did-finish-load', () => setTimeout(sendTrigger, 80));
       return;
