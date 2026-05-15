@@ -77,8 +77,7 @@ const elements = {
   btnRecordScreen: $('#btn-record-screen'),
   recordingFormatMenu: $('#recording-format-menu'),
   recordingSaveProgress: $('#recording-save-progress'),
-  btnRecordingSettings: $('#btn-recording-settings'),
-  recordingSettingsMenu: $('#recording-settings-menu'),
+  preferencesDialog: $('#preferences-dialog'),
   recordingFormatSetting: $('#recording-format-setting'),
   recordingAutozoomSetting: $('#recording-autozoom-setting'),
   btnCaptureRegion: $('#btn-capture-region'),
@@ -150,10 +149,6 @@ function bindToolbar() {
   on(elements.btnCaptureWindow, 'click', () => { setCaptureModeButton('window'); startCaptureWindow(); });
   on(elements.btnCaptureFullscreen, 'click', () => { setCaptureModeButton('fullscreen'); startCaptureFullscreen(); });
   on(elements.btnRecordScreen, 'click', onRecordButtonClick);
-  on(elements.btnRecordingSettings, 'click', (event) => {
-    event.stopPropagation();
-    elements.recordingSettingsMenu?.classList.toggle('visible');
-  });
   on(elements.recordingFormatSetting, 'change', () => {
     state.recordingSettings.format = elements.recordingFormatSetting.value === 'gif' ? 'gif' : 'mp4';
     saveRecordingSettings();
@@ -169,11 +164,6 @@ function bindToolbar() {
     if (!elements.recordingFormatMenu?.classList.contains('visible')) return;
     if (elements.recordingFormatMenu.contains(event.target) || elements.btnRecordScreen?.contains(event.target)) return;
     hideRecordingFormatMenu();
-  });
-  document.addEventListener('click', (event) => {
-    if (!elements.recordingSettingsMenu?.classList.contains('visible')) return;
-    if (elements.recordingSettingsMenu.contains(event.target) || elements.btnRecordingSettings?.contains(event.target)) return;
-    elements.recordingSettingsMenu.classList.remove('visible');
   });
   
   on(elements.btnCopy, 'click', copyToClipboard);
@@ -288,10 +278,10 @@ function bindIPC() {
   window.pico.onTriggerCaptureWindow(() => startCaptureWindow());
   window.pico.onTriggerCaptureFullscreen(() => startCaptureFullscreen());
   window.pico.onShortcutCaptureReady(() => {
-    selectTool('rect');
     setCaptureModeButton('region');
-    startCapture();
+    showWindow();
   });
+  window.pico.onOpenPreferences(() => openPreferences());
   window.pico.onLoadCapture((payload) => {
     const capturePayload = typeof payload === 'string' ? { dataUrl: payload } : payload;
     loadImage(capturePayload?.dataUrl, {
@@ -601,6 +591,15 @@ function loadRecordingSettings() {
 
 function saveRecordingSettings() {
   localStorage.setItem('pico-recording-settings', JSON.stringify(state.recordingSettings));
+}
+
+function openPreferences() {
+  if (!elements.preferencesDialog) return;
+  elements.preferencesDialog.showModal();
+}
+
+function showWindow() {
+  window.focus();
 }
 
 async function toggleRecording(event) {

@@ -747,7 +747,21 @@ function hideRecordingIndicator() {
 }
 
 function createMainWindow() {
-  Menu.setApplicationMenu(null);
+  const menu = Menu.buildFromTemplate([
+    {
+      label: 'File',
+      submenu: [
+        { label: 'Capture Region', accelerator: 'CommandOrControl+Shift+S', click: () => mainWindow?.webContents.send('trigger-capture') },
+        { label: 'Capture Window', click: () => mainWindow?.webContents.send('trigger-capture-window') },
+        { label: 'Capture Fullscreen', click: () => mainWindow?.webContents.send('trigger-capture-fullscreen') },
+        { type: 'separator' },
+        { label: 'Preferences', accelerator: 'CommandOrControl+,', click: () => mainWindow?.webContents.send('open-preferences') },
+        { type: 'separator' },
+        { role: 'quit' },
+      ],
+    },
+  ]);
+  Menu.setApplicationMenu(menu);
 
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -1403,7 +1417,6 @@ app.whenReady().then(() => {
     if (!mainWindow || mainWindow.isDestroyed()) createMainWindow();
     mainWindow.show();
     mainWindow.focus();
-    mainWindow.webContents.send('trigger-shortcut-capture-ready');
   });
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
