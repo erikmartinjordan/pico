@@ -1400,7 +1400,10 @@ app.whenReady().then(() => {
   createMainWindow();
   setupTray();
   globalShortcut.register('CommandOrControl+Shift+S', () => {
-    if (mainWindow) mainWindow.webContents.send('trigger-capture');
+    if (!mainWindow || mainWindow.isDestroyed()) createMainWindow();
+    mainWindow.show();
+    mainWindow.focus();
+    mainWindow.webContents.send('trigger-shortcut-capture-ready');
   });
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
