@@ -51,10 +51,12 @@ function createAutoZoomStream(sourceStream, region) {
     const rounded = Math.max(2, Math.round(value || 2));
     return rounded % 2 === 0 ? rounded : rounded - 1;
   };
-  canvas.width = evenDimension(region.pixelWidth || Math.round(region.width * (region.scaleFactor || 1)));
-  canvas.height = evenDimension(region.pixelHeight || Math.round(region.height * (region.scaleFactor || 1)));
-  const ctx = canvas.getContext('2d', { alpha: false });
   const scaleFactor = region.scaleFactor || 1;
+  const pixelWidth = region.pixelWidth || Math.round(region.width * scaleFactor);
+  const pixelHeight = region.pixelHeight || Math.round(region.height * scaleFactor);
+  canvas.width = evenDimension(pixelWidth);
+  canvas.height = evenDimension(pixelHeight);
+  const ctx = canvas.getContext('2d', { alpha: false });
   const srcRegion = {
     x: region.pixelX ?? Math.round(region.x * scaleFactor),
     y: region.pixelY ?? Math.round(region.y * scaleFactor),
@@ -62,40 +64,70 @@ function createAutoZoomStream(sourceStream, region) {
     height: canvas.height,
   };
   const displayBounds = region.displayBounds || { x: 0, y: 0, width: region.width, height: region.height };
+  const pixelScaleX = region.width > 0 ? srcRegion.width / region.width : scaleFactor;
+  const pixelScaleY = region.height > 0 ? srcRegion.height / region.height : scaleFactor;
   const fps = 60;
-  const zoomLevel = 1.65;
+  const zoomLevel = clamp(1.5 + ((srcRegion.width - 1280) / 2560), 1.5, 2.5);
+  const cursorPollIntervalMs = 80;
+  const stillMovementThresholdPx = 8;
+  const stillFrameThreshold = 6;
   let currentZoom = 1;
   let targetZoom = 1;
   let currentCenterX = srcRegion.x + srcRegion.width / 2;
   let currentCenterY = srcRegion.y + srcRegion.height / 2;
   let targetCenterX = currentCenterX;
   let targetCenterY = currentCenterY;
+  let lastCursorX = null;
+  let lastCursorY = null;
+  let stillFrames = 0;
   let rafId = null;
   let stopped = false;
   let lastCursorPoll = 0;
+  let cursorPollInFlight = false;
 
   function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
   }
 
   async function updateCursorTarget(now) {
-    if (now - lastCursorPoll < 80) return;
+    if (cursorPollInFlight || now - lastCursorPoll < cursorPollIntervalMs) return;
     lastCursorPoll = now;
+    cursorPollInFlight = true;
     try {
       const cursor = await getCursorScreenPoint();
       const relLogicalX = cursor.x - displayBounds.x - region.x;
       const relLogicalY = cursor.y - displayBounds.y - region.y;
-      const inside = relLogicalX >= 0 && relLogicalY >= 0 && relLogicalX <= region.width && relLogicalY <= region.height;
-      targetZoom = inside ? zoomLevel : 1;
-      if (inside) {
-        targetCenterX = srcRegion.x + relLogicalX * scaleFactor;
-        targetCenterY = srcRegion.y + relLogicalY * scaleFactor;
+      const cursorPixelX = srcRegion.x + relLogicalX * pixelScaleX;
+      const cursorPixelY = srcRegion.y + relLogicalY * pixelScaleY;
+
+      targetCenterX = cursorPixelX;
+      targetCenterY = cursorPixelY;
+
+      if (lastCursorX === null || lastCursorY === null) {
+        lastCursorX = cursorPixelX;
+        lastCursorY = cursorPixelY;
+        targetZoom = 1;
+        return;
+      }
+
+      const movement = Math.hypot(cursorPixelX - lastCursorX, cursorPixelY - lastCursorY);
+      lastCursorX = cursorPixelX;
+      lastCursorY = cursorPixelY;
+
+      if (movement > stillMovementThresholdPx) {
+        stillFrames = 0;
+        targetZoom = 1;
       } else {
-        targetCenterX = srcRegion.x + srcRegion.width / 2;
-        targetCenterY = srcRegion.y + srcRegion.height / 2;
+        stillFrames += 1;
+        targetZoom = stillFrames >= stillFrameThreshold ? zoomLevel : 1;
       }
     } catch (error) {
       targetZoom = 1;
+      stillFrames = 0;
+      lastCursorX = null;
+      lastCursorY = null;
+    } finally {
+      cursorPollInFlight = false;
     }
   }
 
@@ -142,13 +174,62 @@ function createAutoZoomStream(sourceStream, region) {
   return { stream: canvasStream, ready, stop };
 }
 
+function getDisplayBounds(candidate = {}) {
+  return candidate.bounds || candidate.displayBounds || null;
+}
+
+function deriveFullscreenRegionFromSource(source = {}, displays = []) {
+  const sourceDisplayId = source.displayId ?? source.display_id ?? source.display?.id;
+  const sourceDisplay = source.display || source.screen || null;
+  const matchedDisplay = sourceDisplay || displays.find((display) => {
+    if (sourceDisplayId === undefined || sourceDisplayId === null) return false;
+    return String(display.id) === String(sourceDisplayId);
+  }) || (displays.length === 1 ? displays[0] : null);
+  const bounds = getDisplayBounds(source) || getDisplayBounds(matchedDisplay) || source.region?.displayBounds || null;
+  if (!bounds) return null;
+
+  const scaleFactor = source.scaleFactor || matchedDisplay?.scaleFactor || source.region?.scaleFactor || 1;
+  const pixelSize = source.pixelSize || source.nativeSize || matchedDisplay?.pixelSize || {};
+  const pixelWidth = source.pixelWidth || pixelSize.width || Math.round(bounds.width * scaleFactor);
+  const pixelHeight = source.pixelHeight || pixelSize.height || Math.round(bounds.height * scaleFactor);
+
+  return {
+    x: 0,
+    y: 0,
+    width: bounds.width,
+    height: bounds.height,
+    displayBounds: bounds,
+    scaleFactor,
+    pixelX: 0,
+    pixelY: 0,
+    pixelWidth,
+    pixelHeight,
+  };
+}
+
+async function getAutoZoomRegion(source = {}, requestedMode = source.mode) {
+  const sourceMode = requestedMode || source.mode;
+  if (sourceMode === 'region' && source.region) return source.region;
+  if (sourceMode !== 'fullscreen') return null;
+
+  const sourceRegion = deriveFullscreenRegionFromSource(source);
+  if (sourceRegion) return sourceRegion;
+
+  try {
+    const displays = await ipcRenderer.invoke('get-displays');
+    return deriveFullscreenRegionFromSource(source, Array.isArray(displays) ? displays : []);
+  } catch (error) {
+    return null;
+  }
+}
+
 async function startRecording(options = {}) {
   if (proRecorder && proRecorder.state !== 'inactive') {
     throw new Error('A screen recording is already in progress');
   }
 
   proRecordingFormat = options?.format === 'gif' ? 'gif' : 'mp4';
-  const mode = options?.mode === 'region' ? 'region' : 'window';
+  const mode = options?.mode === 'region' ? 'region' : options?.mode === 'fullscreen' ? 'fullscreen' : 'window';
   const source = await ipcRenderer.invoke('pro-recording-source', {
     mode,
     autoZoom: options?.autoZoom !== false,
@@ -171,8 +252,9 @@ async function startRecording(options = {}) {
   }
 
   let zoomPipeline = null;
-  if (source.mode === 'region' && source.region) {
-    zoomPipeline = createAutoZoomStream(rawStream, source.region);
+  const autoZoomRegion = source.autoZoom === false || options?.autoZoom === false ? null : await getAutoZoomRegion(source, mode);
+  if (autoZoomRegion) {
+    zoomPipeline = createAutoZoomStream(rawStream, autoZoomRegion);
     proRecordingStream = await zoomPipeline.ready;
     proRecordingRawStream = rawStream;
     proRecordingZoomStop = zoomPipeline.stop;
