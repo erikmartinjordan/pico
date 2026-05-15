@@ -20,6 +20,22 @@ let lastRecordingSourceId = null;
 let lastRecordingRegion = null;
 let tray = null;
 
+function debugWindowState(tag) {
+  const win = mainWindow;
+  console.log('[pico][window-state]', {
+    tag,
+    appHidden: typeof app.isHidden === 'function' ? app.isHidden() : null,
+    appFocused: app.isFocused(),
+    hasFocusedWindow: Boolean(BrowserWindow.getFocusedWindow()),
+    winExists: Boolean(win),
+    winDestroyed: win ? win.isDestroyed() : null,
+    winVisible: win && !win.isDestroyed() ? win.isVisible() : null,
+    winMinimized: win && !win.isDestroyed() ? win.isMinimized() : null,
+    winFocused: win && !win.isDestroyed() ? win.isFocused() : null,
+    winLoading: win && !win.isDestroyed() ? win.webContents.isLoading() : null,
+  });
+}
+
 
 function getMacScreenRecordingStatus() {
   if (process.platform !== 'darwin') return 'granted';
@@ -794,6 +810,9 @@ function createMainWindow() {
 
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   mainWindow.once('ready-to-show', () => mainWindow.show());
+  mainWindow.webContents.on('did-finish-load', () => console.log('[pico][main] did-finish-load'));
+  mainWindow.webContents.on('render-process-gone', (_, details) => console.error('[pico][main] render-process-gone', details));
+  mainWindow.webContents.on('did-fail-load', (_, code, desc) => console.error('[pico][main] did-fail-load', code, desc));
   mainWindow.on('minimize', (event) => {
     if (process.platform === 'darwin') {
       event.preventDefault();
@@ -993,18 +1012,23 @@ function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) 
 // ── IPC Handlers ────────────────────────────────────────────────────────────
 
 ipcMain.handle('start-capture', async () => {
+  console.log('[pico][capture] start-capture invoked');
   if (mainWindow) mainWindow.hide();
   await new Promise(r => setTimeout(r, 200));
 
   try {
+    const status = process.platform === 'darwin' ? getMacScreenRecordingStatus() : 'granted';
+    console.log('[pico][capture] permission status:', status);
     if (!await ensureMacScreenRecordingPermission()) {
       if (mainWindow) mainWindow.show();
       return { success: false, error: 'Screen Recording permission is required.' };
     }
     const captureData = await captureAllScreens();
+    console.log('[pico][capture] capture data ready; creating overlays');
     createCaptureOverlays(captureData, 'region', []);
     return { success: true };
   } catch (err) {
+    console.error('[pico][capture] start-capture failed:', err.message);
     if (mainWindow) mainWindow.show();
     return { success: false, error: err.message };
   }
@@ -1431,9 +1455,14 @@ app.whenReady().then(() => {
     : ['CommandOrControl+Shift+S'];
   globalShortcuts.forEach((accelerator) => {
     const ok = globalShortcut.register(accelerator, () => {
+      console.log(`[pico][shortcut] fired: ${accelerator}`);
+      debugWindowState('before-shortcut');
       focusAndShowMainWindow();
+      debugWindowState('after-focus-show');
       mainWindow?.webContents.send('trigger-capture');
+      console.log('[pico][shortcut] sent trigger-capture');
     });
+    console.log(`[pico][shortcut] register ${accelerator}: ${ok ? 'ok' : 'failed'}`);
     if (!ok) console.warn(`[pico] Failed to register global shortcut: ${accelerator}`);
   });
   app.on('activate', () => {

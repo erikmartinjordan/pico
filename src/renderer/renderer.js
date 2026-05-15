@@ -274,7 +274,10 @@ function bindKeyboard() {
 }
 
 function bindIPC() {
-  window.pico.onTriggerCapture(() => startCapture());
+  window.pico.onTriggerCapture(() => {
+    console.log('[pico][renderer] received trigger-capture');
+    startCapture();
+  });
   window.pico.onTriggerCaptureWindow(() => startCaptureWindow());
   window.pico.onTriggerCaptureFullscreen(() => startCaptureFullscreen());
   window.pico.onShortcutCaptureReady(() => {
