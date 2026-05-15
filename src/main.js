@@ -1445,8 +1445,28 @@ app.whenReady().then(() => {
   setupTray();
   const focusAndShowMainWindow = () => {
     if (!mainWindow || mainWindow.isDestroyed()) createMainWindow();
+    if (process.platform === 'darwin') {
+      app.show();
+      if (app.dock && typeof app.dock.show === 'function') app.dock.show();
+      app.focus({ steal: true });
+    }
+    if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.show();
+    mainWindow.moveTop();
     mainWindow.focus();
+  };
+  const triggerCaptureFromShortcut = () => {
+    focusAndShowMainWindow();
+    const sendTrigger = () => {
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      mainWindow.webContents.send('trigger-capture');
+      console.log('[pico][shortcut] sent trigger-capture');
+    };
+    if (mainWindow?.webContents?.isLoading()) {
+      mainWindow.webContents.once('did-finish-load', () => setTimeout(sendTrigger, 80));
+      return;
+    }
+    setTimeout(sendTrigger, 80);
   };
   // On macOS users may press either Cmd+Shift+S or Ctrl+Shift+S.
   // Register both explicitly to improve reliability while minimized/hidden.
@@ -1457,10 +1477,8 @@ app.whenReady().then(() => {
     const ok = globalShortcut.register(accelerator, () => {
       console.log(`[pico][shortcut] fired: ${accelerator}`);
       debugWindowState('before-shortcut');
-      focusAndShowMainWindow();
+      triggerCaptureFromShortcut();
       debugWindowState('after-focus-show');
-      mainWindow?.webContents.send('trigger-capture');
-      console.log('[pico][shortcut] sent trigger-capture');
     });
     console.log(`[pico][shortcut] register ${accelerator}: ${ok ? 'ok' : 'failed'}`);
     if (!ok) console.warn(`[pico] Failed to register global shortcut: ${accelerator}`);
