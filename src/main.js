@@ -1413,10 +1413,19 @@ function setupTray() {
 app.whenReady().then(() => {
   createMainWindow();
   setupTray();
-  globalShortcut.register('CommandOrControl+Shift+S', () => {
+  const focusAndShowMainWindow = () => {
     if (!mainWindow || mainWindow.isDestroyed()) createMainWindow();
     mainWindow.show();
     mainWindow.focus();
+  };
+  // On macOS users may press either Cmd+Shift+S or Ctrl+Shift+S.
+  // Register both explicitly to improve reliability while minimized/hidden.
+  const globalShortcuts = process.platform === 'darwin'
+    ? ['Command+Shift+S', 'Control+Shift+S']
+    : ['CommandOrControl+Shift+S'];
+  globalShortcuts.forEach((accelerator) => {
+    const ok = globalShortcut.register(accelerator, focusAndShowMainWindow);
+    if (!ok) console.warn(`[pico] Failed to register global shortcut: ${accelerator}`);
   });
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
