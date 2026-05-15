@@ -48,6 +48,23 @@
       </div>
       <div class="toolbar-separator"></div>
       <div class="toolbar-group">
+        <div class="recording-settings-wrap">
+          <button class="toolbar-btn" id="btn-recording-settings" data-tooltip="Recording settings">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1 1 0 00.2 1.1l.1.1a1.8 1.8 0 01-2.5 2.5l-.1-.1a1 1 0 00-1.1-.2 1 1 0 00-.6.9V20a1.8 1.8 0 01-3.6 0v-.2a1 1 0 00-.6-.9 1 1 0 00-1.1.2l-.1.1a1.8 1.8 0 01-2.5-2.5l.1-.1a1 1 0 00.2-1.1 1 1 0 00-.9-.6H4a1.8 1.8 0 010-3.6h.2a1 1 0 00.9-.6 1 1 0 00-.2-1.1l-.1-.1a1.8 1.8 0 012.5-2.5l.1.1a1 1 0 001.1.2 1 1 0 00.6-.9V4a1.8 1.8 0 013.6 0v.2a1 1 0 00.6.9 1 1 0 001.1-.2l.1-.1a1.8 1.8 0 012.5 2.5l-.1.1a1 1 0 00-.2 1.1 1 1 0 00.9.6h.2a1.8 1.8 0 010 3.6h-.2a1 1 0 00-.9.6z"/></svg>
+          </button>
+          <div class="recording-settings-menu" id="recording-settings-menu" aria-hidden="true">
+            <label>Format
+              <select id="recording-format-setting">
+                <option value="mp4">MP4</option>
+                <option value="gif">GIF</option>
+              </select>
+            </label>
+            <label class="recording-setting-checkbox"><input type="checkbox" id="recording-autozoom-setting" checked /> Autozoom</label>
+          </div>
+        </div>
+      </div>
+      <div class="toolbar-separator"></div>
+      <div class="toolbar-group">
         <button class="toolbar-btn" id="btn-crop" data-tooltip="Crop image"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2v4H2"/><path d="M6 6h12v12"/><path d="M18 22v-4h4"/><path d="M2 6h4v12h12"/></svg></button>
         <button class="toolbar-btn" id="btn-copy" data-tooltip="Copy to clipboard · Ctrl/Cmd+C"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M5 15V5h10"/></svg></button>
       </div>
