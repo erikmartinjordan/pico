@@ -76,6 +76,9 @@ const elements = {
   btnRecordScreen: $('#btn-record-screen'),
   recordingFormatMenu: $('#recording-format-menu'),
   recordingSaveProgress: $('#recording-save-progress'),
+  btnCaptureRegion: $('#btn-capture-region'),
+  btnCaptureWindow: $('#btn-capture-window'),
+  btnCaptureFullscreen: $('#btn-capture-fullscreen'),
   emptyCapture: $('#empty-capture'),
   emptyOpen: $('#empty-open'),
   toolBtns: $$('.tool-btn'),
@@ -124,10 +127,22 @@ function init() {
 // Event Binding
 // ══════════════════════════════════════════════════════════════════════════════
 
+function setCaptureModeButton(mode = 'region') {
+  const selected = mode === 'window'
+    ? elements.btnCaptureWindow
+    : mode === 'fullscreen'
+      ? elements.btnCaptureFullscreen
+      : elements.btnCaptureRegion;
+  [elements.btnCaptureRegion, elements.btnCaptureWindow, elements.btnCaptureFullscreen].forEach((btn) => {
+    if (!btn) return;
+    btn.classList.toggle('active', btn === selected);
+  });
+}
+
 function bindToolbar() {
-  on($('#btn-capture-region'), 'click', startCapture);
-  on($('#btn-capture-window'), 'click', startCaptureWindow);
-  on($('#btn-capture-fullscreen'), 'click', startCaptureFullscreen);
+  on(elements.btnCaptureRegion, 'click', () => { setCaptureModeButton('region'); startCapture(); });
+  on(elements.btnCaptureWindow, 'click', () => { setCaptureModeButton('window'); startCaptureWindow(); });
+  on(elements.btnCaptureFullscreen, 'click', () => { setCaptureModeButton('fullscreen'); startCaptureFullscreen(); });
   on(elements.btnRecordScreen, 'click', onRecordButtonClick);
   elements.recordingFormatMenu?.querySelectorAll('[data-format]').forEach((button) => {
     button.addEventListener('click', () => startRecordingWithFormat(button.dataset.format, button.dataset.mode));
@@ -249,7 +264,10 @@ function bindIPC() {
   window.pico.onTriggerCapture(() => startCapture());
   window.pico.onTriggerCaptureWindow(() => startCaptureWindow());
   window.pico.onTriggerCaptureFullscreen(() => startCaptureFullscreen());
-  window.pico.onShortcutCaptureReady(() => selectTool('rect'));
+  window.pico.onShortcutCaptureReady(() => {
+    selectTool('rect');
+    setCaptureModeButton('region');
+  });
   window.pico.onLoadCapture((payload) => {
     const capturePayload = typeof payload === 'string' ? { dataUrl: payload } : payload;
     loadImage(capturePayload?.dataUrl, {
