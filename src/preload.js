@@ -64,38 +64,58 @@ function createAutoZoomStream(sourceStream, region) {
   const displayBounds = region.displayBounds || { x: 0, y: 0, width: region.width, height: region.height };
   const fps = 60;
   const zoomLevel = 1.65;
-  let currentZoom = 1;
-  let targetZoom = 1;
+  const normalZoom = 1;
+  const cursorPollInterval = 16;
+  const zoomSmoothingMs = 170;
+  const centerSmoothingMs = 55;
+  const normalEpsilon = 0.001;
+  let currentZoom = normalZoom;
+  let targetZoom = normalZoom;
   let currentCenterX = srcRegion.x + srcRegion.width / 2;
   let currentCenterY = srcRegion.y + srcRegion.height / 2;
   let targetCenterX = currentCenterX;
   let targetCenterY = currentCenterY;
   let rafId = null;
   let stopped = false;
-  let lastCursorPoll = 0;
+  let cursorRequestInFlight = false;
+  let lastCursorPoll = -cursorPollInterval;
+  let lastFrameTime = 0;
 
   function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
   }
 
+  function smoothFactor(deltaMs, smoothingMs) {
+    if (deltaMs <= 0) return 0;
+    return 1 - Math.exp(-deltaMs / smoothingMs);
+  }
+
+  function setNormalTarget() {
+    targetZoom = normalZoom;
+    targetCenterX = srcRegion.x + srcRegion.width / 2;
+    targetCenterY = srcRegion.y + srcRegion.height / 2;
+  }
+
   async function updateCursorTarget(now) {
-    if (now - lastCursorPoll < 80) return;
+    if (cursorRequestInFlight || now - lastCursorPoll < cursorPollInterval) return;
+    cursorRequestInFlight = true;
     lastCursorPoll = now;
     try {
       const cursor = await getCursorScreenPoint();
       const relLogicalX = cursor.x - displayBounds.x - region.x;
       const relLogicalY = cursor.y - displayBounds.y - region.y;
       const inside = relLogicalX >= 0 && relLogicalY >= 0 && relLogicalX <= region.width && relLogicalY <= region.height;
-      targetZoom = inside ? zoomLevel : 1;
       if (inside) {
+        targetZoom = zoomLevel;
         targetCenterX = srcRegion.x + relLogicalX * scaleFactor;
         targetCenterY = srcRegion.y + relLogicalY * scaleFactor;
       } else {
-        targetCenterX = srcRegion.x + srcRegion.width / 2;
-        targetCenterY = srcRegion.y + srcRegion.height / 2;
+        setNormalTarget();
       }
     } catch (error) {
-      targetZoom = 1;
+      setNormalTarget();
+    } finally {
+      cursorRequestInFlight = false;
     }
   }
 
@@ -103,9 +123,20 @@ function createAutoZoomStream(sourceStream, region) {
     if (stopped) return;
     updateCursorTarget(now);
 
-    currentZoom += (targetZoom - currentZoom) * 0.08;
-    currentCenterX += (targetCenterX - currentCenterX) * 0.10;
-    currentCenterY += (targetCenterY - currentCenterY) * 0.10;
+    const deltaMs = lastFrameTime ? Math.min(64, now - lastFrameTime) : 1000 / fps;
+    lastFrameTime = now;
+    const zoomAlpha = smoothFactor(deltaMs, zoomSmoothingMs);
+    const centerAlpha = smoothFactor(deltaMs, centerSmoothingMs);
+    currentZoom += (targetZoom - currentZoom) * zoomAlpha;
+    currentCenterX += (targetCenterX - currentCenterX) * centerAlpha;
+    currentCenterY += (targetCenterY - currentCenterY) * centerAlpha;
+
+    const isReturningToNormal = targetZoom === normalZoom && Math.abs(currentZoom - normalZoom) < normalEpsilon;
+    if (isReturningToNormal) {
+      currentZoom = normalZoom;
+      currentCenterX = targetCenterX;
+      currentCenterY = targetCenterY;
+    }
 
     const cropW = srcRegion.width / currentZoom;
     const cropH = srcRegion.height / currentZoom;
@@ -113,8 +144,8 @@ function createAutoZoomStream(sourceStream, region) {
     const minY = srcRegion.y;
     const maxX = srcRegion.x + srcRegion.width - cropW;
     const maxY = srcRegion.y + srcRegion.height - cropH;
-    const sx = clamp(currentCenterX - cropW / 2, minX, maxX);
-    const sy = clamp(currentCenterY - cropH / 2, minY, maxY);
+    const sx = isReturningToNormal ? srcRegion.x : clamp(currentCenterX - cropW / 2, minX, maxX);
+    const sy = isReturningToNormal ? srcRegion.y : clamp(currentCenterY - cropH / 2, minY, maxY);
 
     ctx.fillStyle = '#09090b';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -122,7 +153,6 @@ function createAutoZoomStream(sourceStream, region) {
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(video, sx, sy, cropW, cropH, 0, 0, canvas.width, canvas.height);
-
     }
     rafId = requestAnimationFrame(draw);
   }
