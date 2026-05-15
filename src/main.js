@@ -25,7 +25,7 @@ function debugWindowState(tag) {
   console.log('[pico][window-state]', {
     tag,
     appHidden: typeof app.isHidden === 'function' ? app.isHidden() : null,
-    appFocused: app.isFocused(),
+    appFocused: typeof app.focus === 'function' ? Boolean(BrowserWindow.getFocusedWindow()) : null,
     hasFocusedWindow: Boolean(BrowserWindow.getFocusedWindow()),
     winExists: Boolean(win),
     winDestroyed: win ? win.isDestroyed() : null,
