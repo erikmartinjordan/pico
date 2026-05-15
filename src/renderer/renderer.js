@@ -53,6 +53,8 @@ const state = {
   isRecording: false,
   recordingFormat: 'mp4',
   recordingMode: 'region',
+  recordingStartedAt: 0,
+  exportProgressTimer: null,
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -84,6 +86,9 @@ const elements = {
   textWrapper: $('#text-input-wrapper'),
   textInput: $('#inline-text-input'),
   toastContainer: $('#toast-container'),
+  exportProgress: $('#export-progress'),
+  exportProgressFill: $('#export-progress-fill'),
+  exportProgressLabel: $('#export-progress-label'),
   textFontFamily: $('#text-font-family'),
   textFontSize: $('#text-font-size'),
   textStyleGroup: $('#text-style-group'),
@@ -222,6 +227,8 @@ function bindIPC() {
   window.pico.onRecordingStopRequested(() => {
     if (state.isRecording) toggleRecording();
   });
+  window.pico.onRecordingExportProgress((payload) => applyExportProgress(payload));
+  window.pico.onRecordingExportSaved(() => finalizeExportProgress());
 }
 
 function bindInlineText() {
@@ -484,6 +491,8 @@ async function startRecordingWithFormat(format = 'mp4', mode = 'region') {
     state.recordingFormat = format;
     state.recordingMode = mode;
     setRecordingIndicator(true);
+    state.recordingStartedAt = Date.now();
+    startExportProgress();
     const targetLabel = mode === 'region' ? 'selected region with autozoom' : (started.source?.name || 'window');
     showToast(started.systemAudio ? `Recording ${targetLabel} as ${format.toUpperCase()}` : `Recording ${targetLabel} as ${format.toUpperCase()} without system audio`, started.systemAudio ? 'success' : 'info');
   } catch (err) {
@@ -493,6 +502,7 @@ async function startRecordingWithFormat(format = 'mp4', mode = 'region') {
       showToast('Recording canceled', 'info');
       return;
     }
+    resetExportProgress();
     showToast(`Recording failed: ${err.message}`, 'error');
   }
 }
@@ -505,6 +515,7 @@ async function toggleRecording(event) {
     }
 
     showToast('Finalizing recording…', 'info');
+    applyExportProgress({ stage: 'encoding', progress: 0.92 });
     const result = await window.pico.stopRecording({ format: state.recordingFormat || (event?.shiftKey ? 'gif' : 'mp4') });
     state.isRecording = false;
     setRecordingIndicator(false);
@@ -518,6 +529,7 @@ async function toggleRecording(event) {
   } catch (err) {
     state.isRecording = false;
     setRecordingIndicator(false);
+    resetExportProgress();
     showToast(`Recording failed: ${err.message}`, 'error');
   }
 }
@@ -1413,6 +1425,51 @@ function showCapturePreview(dataUrl, captureMode = 'region') {
   showCapturePreview.timeoutId = window.setTimeout(() => {
     preview.classList.remove('visible');
   }, 2300);
+}
+
+
+function startExportProgress() {
+  if (!elements.exportProgress || !elements.exportProgressFill) return;
+  resetExportProgress(false);
+  elements.exportProgress.classList.add('visible');
+  elements.exportProgress.setAttribute('aria-hidden', 'false');
+  elements.exportProgressLabel.textContent = 'Recording in progress…';
+  state.exportProgressTimer = window.setInterval(() => {
+    if (!state.isRecording) return;
+    const elapsed = Date.now() - state.recordingStartedAt;
+    const estimatedDuration = 30000;
+    const progress = Math.min(0.9, elapsed / estimatedDuration);
+    elements.exportProgressFill.style.width = `${Math.max(progress, 0.02) * 100}%`;
+  }, 100);
+}
+
+function applyExportProgress(payload = {}) {
+  if (!elements.exportProgress || !elements.exportProgressFill) return;
+  elements.exportProgress.classList.add('visible');
+  elements.exportProgress.setAttribute('aria-hidden', 'false');
+  const stage = payload.stage || 'recording';
+  const progress = Math.max(0, Math.min(1, Number(payload.progress) || 0));
+  elements.exportProgressFill.style.width = `${progress * 100}%`;
+  elements.exportProgressLabel.textContent = stage === 'done' ? 'Export complete' : (stage === 'encoding' ? 'Encoding and saving…' : 'Recording in progress…');
+}
+
+function finalizeExportProgress() {
+  applyExportProgress({ stage: 'done', progress: 1 });
+  window.setTimeout(() => resetExportProgress(), 800);
+}
+
+function resetExportProgress(hide = true) {
+  if (state.exportProgressTimer) {
+    window.clearInterval(state.exportProgressTimer);
+    state.exportProgressTimer = null;
+  }
+  if (!elements.exportProgress || !elements.exportProgressFill) return;
+  if (hide) {
+    elements.exportProgress.classList.remove('visible');
+    elements.exportProgress.setAttribute('aria-hidden', 'true');
+    elements.exportProgressLabel.textContent = 'Preparing export…';
+    elements.exportProgressFill.style.width = '0%';
+  }
 }
 
 function showToast(message, type = 'info') {

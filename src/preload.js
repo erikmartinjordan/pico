@@ -11,6 +11,7 @@ let proRecordingChunks = [];
 let proRecordingFormat = 'mp4';
 let proRecordingRawStream = null;
 let proRecordingZoomStop = null;
+let proRecordingStartedAt = 0;
 
 function getRecordingMimeType() {
   const preferred = 'video/webm;codecs=vp9';
@@ -29,7 +30,10 @@ async function getDesktopStream(sourceId, includeAudio) {
     mandatory: {
       chromeMediaSource: 'desktop',
       chromeMediaSourceId: sourceId,
+      maxFrameRate: 30,
+      minFrameRate: 30,
     },
+    frameRate: { ideal: 30, max: 30 },
   };
   const audio = includeAudio ? {
     mandatory: {
@@ -123,14 +127,6 @@ function createAutoZoomStream(sourceStream, region) {
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(video, sx, sy, cropW, cropH, 0, 0, canvas.width, canvas.height);
 
-      if (currentZoom > 1.04) {
-        const glow = Math.min(0.28, (currentZoom - 1) * 0.18);
-        ctx.save();
-        ctx.strokeStyle = `rgba(249, 115, 22, ${glow})`;
-        ctx.lineWidth = Math.max(3, Math.round(Math.min(canvas.width, canvas.height) * 0.006));
-        ctx.strokeRect(ctx.lineWidth / 2, ctx.lineWidth / 2, canvas.width - ctx.lineWidth, canvas.height - ctx.lineWidth);
-        ctx.restore();
-      }
     }
     rafId = requestAnimationFrame(draw);
   }
@@ -192,12 +188,17 @@ async function startRecording(options = {}) {
 
   const mimeType = getRecordingMimeType();
   proRecordingChunks = [];
-  proRecorder = new MediaRecorder(proRecordingStream, { mimeType });
+  proRecorder = new MediaRecorder(proRecordingStream, {
+    mimeType,
+    videoBitsPerSecond: 8_000_000,
+  });
   proRecorder.ondataavailable = (event) => {
     if (event.data && event.data.size > 0) proRecordingChunks.push(event.data);
   };
-  proRecorder.start(1000);
+  proRecordingStartedAt = Date.now();
+  proRecorder.start(100);
   ipcRenderer.invoke('pro-recording-indicator-show', { region: source.mode === 'region' ? source.region : null }).catch(() => {});
+  ipcRenderer.send('pro-recording-export-progress', { stage: 'recording', progress: 0 });
   return { success: true, pro: true, source, systemAudio, mimeType };
 }
 
@@ -218,11 +219,13 @@ function stopRecording(options = {}) {
         }
         const arrayBuffer = await blob.arrayBuffer();
         await ipcRenderer.invoke('pro-recording-indicator-hide');
+        ipcRenderer.send('pro-recording-export-progress', { stage: 'encoding', progress: 0.92 });
         const result = await ipcRenderer.invoke('pro-save-recording', {
           data: new Uint8Array(arrayBuffer),
           gif: shouldExportGif,
           format: options?.format || proRecordingFormat,
         });
+        ipcRenderer.send('pro-recording-export-progress', { stage: 'done', progress: 1 });
         resolve(result);
       } catch (error) {
         reject(error);
@@ -236,12 +239,10 @@ function stopRecording(options = {}) {
         proRecordingZoomStop = null;
         proRecorder = null;
         proRecordingChunks = [];
+        proRecordingStartedAt = 0;
       }
     };
-    if (proRecorder.state === 'recording' && typeof proRecorder.requestData === 'function') {
-      proRecorder.requestData();
-    }
-    proRecorder.stop();
+      proRecorder.stop();
   });
 }
 
@@ -254,6 +255,9 @@ contextBridge.exposeInMainWorld('pico', {
   onTriggerCapture: (callback) => ipcRenderer.on('trigger-capture', () => callback()),
   onLoadCaptureData: (callback) => ipcRenderer.on('load-capture-data', (_, data) => callback(data)),
   onRecordingStopRequested: (callback) => ipcRenderer.on('pro-recording-stop-requested', () => callback()),
+  onRecordingExportSaved: (callback) => ipcRenderer.on('pro-recording-export-saved', (_, data) => callback(data)),
+  onRecordingExportProgress: (callback) => ipcRenderer.on('pro-recording-export-progress', (_, data) => callback(data)),
+  updateRecordingExportProgress: (payload) => ipcRenderer.send('pro-recording-export-progress', payload),
 
   // Capture overlay communication
   onCaptureData: (callback) => ipcRenderer.on('capture-data', (_, data) => callback(data)),

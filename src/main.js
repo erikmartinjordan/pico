@@ -1315,7 +1315,7 @@ ipcMain.handle('pro-save-recording', async (event, payload) => {
 
   const webmPath = tempRecordingPath('webm');
   const bytes = Buffer.isBuffer(data) ? data : Buffer.from(data);
-  fs.writeFileSync(webmPath, bytes);
+  await fs.promises.writeFile(webmPath, bytes);
 
   try {
     let mp4Path = saveResult.filePath;
@@ -1331,6 +1331,9 @@ ipcMain.handle('pro-save-recording', async (event, payload) => {
       const webmOutputPath = saveResult.filePath.replace(/\.[^.]+$/i, '.webm');
       fs.mkdirSync(path.dirname(webmOutputPath), { recursive: true });
       fs.copyFileSync(webmPath, webmOutputPath);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('pro-recording-export-saved', { path: webmOutputPath, format: 'webm' });
+      }
       return {
         webm: webmOutputPath,
         warning: `Saved as .webm (bundled ffmpeg/gifski conversion tools are unavailable for ${format.toUpperCase()} export).`,
@@ -1339,12 +1342,19 @@ ipcMain.handle('pro-save-recording', async (event, payload) => {
 
     if (format === 'gif') {
       try {
-        return { gif: await convertMp4ToGif(mp4, saveResult.filePath) };
+        const gif = await convertMp4ToGif(mp4, saveResult.filePath);
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('pro-recording-export-saved', { path: gif, format: 'gif' });
+        }
+        return { gif };
       } finally {
         fs.rmSync(mp4, { force: true });
       }
     }
 
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('pro-recording-export-saved', { path: mp4, format: 'mp4' });
+    }
     return { mp4 };
   } finally {
     fs.rmSync(webmPath, { force: true });
@@ -1374,3 +1384,9 @@ app.on('window-all-closed', () => {
 });
 
 app.on('will-quit', () => globalShortcut.unregisterAll());
+
+ipcMain.on('pro-recording-export-progress', (event, payload = {}) => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('pro-recording-export-progress', payload);
+  }
+});
