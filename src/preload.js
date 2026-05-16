@@ -71,19 +71,26 @@ function createAutoZoomStream(sourceStream, region) {
   const pixelScaleX = region.width > 0 ? srcRegion.width / region.width : scaleFactor;
   const pixelScaleY = region.height > 0 ? srcRegion.height / region.height : scaleFactor;
   const fps = 60;
-  const zoomLevel = clamp(1.5 + ((srcRegion.width - 1280) / 2560), 1.5, 2.5);
+  const zoomLevel = clamp(1.35 + ((srcRegion.width - 1280) / 5120), 1.35, 1.8);
   const cursorPollIntervalMs = 80;
   const stillMovementThresholdPx = 8;
   const stillFrameThreshold = 6;
+  const activeFrameThreshold = 12;
+  const zoomLerp = 0.07;
+  const centerLerp = 0.12;
+  const regionCenterX = srcRegion.x + srcRegion.width / 2;
+  const regionCenterY = srcRegion.y + srcRegion.height / 2;
   let currentZoom = 1;
   let targetZoom = 1;
-  let currentCenterX = srcRegion.x + srcRegion.width / 2;
-  let currentCenterY = srcRegion.y + srcRegion.height / 2;
+  let currentCenterX = regionCenterX;
+  let currentCenterY = regionCenterY;
   let targetCenterX = currentCenterX;
   let targetCenterY = currentCenterY;
   let lastCursorX = null;
   let lastCursorY = null;
   let stillFrames = 0;
+  let activeFrames = 0;
+  let smoothedMovement = 0;
   let rafId = null;
   let stopped = false;
   let lastCursorPoll = 0;
@@ -111,19 +118,24 @@ function createAutoZoomStream(sourceStream, region) {
       }
 
       const movement = Math.hypot(cursorPixelX - lastCursorX, cursorPixelY - lastCursorY);
+      smoothedMovement = smoothedMovement * 0.6 + movement * 0.4;
       lastCursorX = cursorPixelX;
       lastCursorY = cursorPixelY;
 
-      if (movement > stillMovementThresholdPx) {
+      if (smoothedMovement > stillMovementThresholdPx) {
         stillFrames = 0;
-        targetZoom = 1;
+        activeFrames += 1;
+        if (activeFrames >= activeFrameThreshold) targetZoom = 1;
       } else {
+        activeFrames = 0;
         stillFrames += 1;
-        targetZoom = stillFrames >= stillFrameThreshold ? zoomLevel : 1;
+        targetZoom = stillFrames >= stillFrameThreshold ? zoomLevel : targetZoom;
       }
     } catch (error) {
       targetZoom = 1;
       stillFrames = 0;
+      activeFrames = 0;
+      smoothedMovement = 0;
       lastCursorX = null;
       lastCursorY = null;
     } finally {
@@ -135,14 +147,11 @@ function createAutoZoomStream(sourceStream, region) {
     if (stopped) return;
     updateCursorTarget(now);
 
-    currentZoom += (targetZoom - currentZoom) * 0.14;
-    if (currentZoom > 1.01) {
-      currentCenterX += (targetCenterX - currentCenterX) * 0.16;
-      currentCenterY += (targetCenterY - currentCenterY) * 0.16;
-    } else {
-      currentCenterX = targetCenterX;
-      currentCenterY = targetCenterY;
-    }
+    currentZoom += (targetZoom - currentZoom) * zoomLerp;
+    const followCenterX = targetZoom > 1.01 ? targetCenterX : regionCenterX;
+    const followCenterY = targetZoom > 1.01 ? targetCenterY : regionCenterY;
+    currentCenterX += (followCenterX - currentCenterX) * centerLerp;
+    currentCenterY += (followCenterY - currentCenterY) * centerLerp;
 
     const cropW = srcRegion.width / currentZoom;
     const cropH = srcRegion.height / currentZoom;
