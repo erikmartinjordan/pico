@@ -72,102 +72,177 @@ function createAutoZoomStream(sourceStream, region) {
   const pixelScaleY = region.height > 0 ? srcRegion.height / region.height : scaleFactor;
   const fps = 60;
   const zoomLevel = clamp(1.35 + ((srcRegion.width - 1280) / 5120), 1.35, 1.8);
-  const cursorPollIntervalMs = 80;
-  const stillMovementThresholdPx = 8;
-  const stillFrameThreshold = 6;
-  const activeFrameThreshold = 2;
-  const zoomLerp = 0.07;
-  const centerLerp = 0.12;
+  const cursorPollIntervalMs = 33;
+  const velocityEase = 0.22;
+  const zoomInVelocityPxPerSecond = 70 * scaleFactor;
+  const zoomOutVelocityPxPerSecond = 260 * scaleFactor;
+  const zoomInDelayMs = 260;
+  const zoomOutHoldMs = 180;
+  const centerLeadMs = 85;
   const regionCenterX = srcRegion.x + srcRegion.width / 2;
   const regionCenterY = srcRegion.y + srcRegion.height / 2;
-  let currentZoom = 1;
-  let targetZoom = 1;
-  let currentCenterX = regionCenterX;
-  let currentCenterY = regionCenterY;
-  let targetCenterX = currentCenterX;
-  let targetCenterY = currentCenterY;
-  let lastCursorX = null;
-  let lastCursorY = null;
-  let stillFrames = 0;
-  let dwellZoomedOut = false;
-  let activeFrames = 0;
-  let smoothedMovement = 0;
+  const camera = {
+    x: regionCenterX,
+    y: regionCenterY,
+    zoom: 1,
+    vx: 0,
+    vy: 0,
+    vz: 0,
+  };
+  const cursorState = {
+    x: regionCenterX,
+    y: regionCenterY,
+    vx: 0,
+    vy: 0,
+    speed: 0,
+    lastX: null,
+    lastY: null,
+    lastSampleAt: 0,
+    lastMotionAt: performance.now(),
+    quietSince: performance.now(),
+    targetZoom: 1,
+  };
   let rafId = null;
+  let pollTimer = null;
   let stopped = false;
-  let lastCursorPoll = 0;
   let cursorPollInFlight = false;
+  let lastFrameAt = performance.now();
 
-  async function updateCursorTarget(now) {
-    if (cursorPollInFlight || now - lastCursorPoll < cursorPollIntervalMs) return;
-    lastCursorPoll = now;
+  function springTo(current, target, velocity, frequency, damping, dt) {
+    const angularFrequency = frequency * Math.PI * 2;
+    const acceleration = (target - current) * angularFrequency * angularFrequency
+      - velocity * (2 * damping * angularFrequency);
+    const nextVelocity = velocity + acceleration * dt;
+    return {
+      value: current + nextVelocity * dt,
+      velocity: nextVelocity,
+    };
+  }
+
+  function softClamp(value, min, max, padding) {
+    if (max <= min) return (min + max) / 2;
+    const safePadding = Math.max(1, Math.min(padding, (max - min) / 2));
+    const lower = min + safePadding;
+    const upper = max - safePadding;
+    if (value < lower) {
+      const distance = Math.max(0, lower - value);
+      return lower - safePadding * (1 - Math.exp(-distance / safePadding));
+    }
+    if (value > upper) {
+      const distance = Math.max(0, value - upper);
+      return upper + safePadding * (1 - Math.exp(-distance / safePadding));
+    }
+    return value;
+  }
+
+  function screenPointToSourcePixel(cursor) {
+    const relLogicalX = cursor.x - displayBounds.x - region.x;
+    const relLogicalY = cursor.y - displayBounds.y - region.y;
+    return {
+      x: srcRegion.x + relLogicalX * pixelScaleX,
+      y: srcRegion.y + relLogicalY * pixelScaleY,
+    };
+  }
+
+  function updateZoomIntent(now) {
+    if (cursorState.speed > zoomOutVelocityPxPerSecond) {
+      cursorState.lastMotionAt = now;
+      cursorState.quietSince = now;
+      cursorState.targetZoom = 1;
+      return;
+    }
+
+    if (cursorState.speed > zoomInVelocityPxPerSecond) {
+      cursorState.quietSince = now;
+      if (now - cursorState.lastMotionAt < zoomOutHoldMs) cursorState.targetZoom = 1;
+      return;
+    }
+
+    if (now - cursorState.quietSince > zoomInDelayMs && now - cursorState.lastMotionAt > zoomOutHoldMs) {
+      cursorState.targetZoom = zoomLevel;
+    }
+  }
+
+  async function pollCursor() {
+    if (stopped || cursorPollInFlight) return;
     cursorPollInFlight = true;
     try {
       const cursor = await getCursorScreenPoint();
-      const relLogicalX = cursor.x - displayBounds.x - region.x;
-      const relLogicalY = cursor.y - displayBounds.y - region.y;
-      const cursorPixelX = srcRegion.x + relLogicalX * pixelScaleX;
-      const cursorPixelY = srcRegion.y + relLogicalY * pixelScaleY;
+      const now = performance.now();
+      const point = screenPointToSourcePixel(cursor);
+      const x = clamp(point.x, srcRegion.x, srcRegion.x + srcRegion.width);
+      const y = clamp(point.y, srcRegion.y, srcRegion.y + srcRegion.height);
 
-      targetCenterX = cursorPixelX;
-      targetCenterY = cursorPixelY;
-
-      if (lastCursorX === null || lastCursorY === null) {
-        lastCursorX = cursorPixelX;
-        lastCursorY = cursorPixelY;
-        targetZoom = 1;
-        return;
+      if (cursorState.lastX !== null && cursorState.lastY !== null && cursorState.lastSampleAt > 0) {
+        const dt = Math.max(0.001, (now - cursorState.lastSampleAt) / 1000);
+        const instantVx = (x - cursorState.lastX) / dt;
+        const instantVy = (y - cursorState.lastY) / dt;
+        const instantSpeed = Math.hypot(instantVx, instantVy);
+        cursorState.vx = cursorState.vx * (1 - velocityEase) + instantVx * velocityEase;
+        cursorState.vy = cursorState.vy * (1 - velocityEase) + instantVy * velocityEase;
+        cursorState.speed = cursorState.speed * (1 - velocityEase) + instantSpeed * velocityEase;
       }
 
-      const movement = Math.hypot(cursorPixelX - lastCursorX, cursorPixelY - lastCursorY);
-      smoothedMovement = smoothedMovement * 0.6 + movement * 0.4;
-      lastCursorX = cursorPixelX;
-      lastCursorY = cursorPixelY;
-
-      if (smoothedMovement > stillMovementThresholdPx) {
-        stillFrames = 0;
-        dwellZoomedOut = false;
-        activeFrames += 1;
-        if (activeFrames >= activeFrameThreshold) targetZoom = 1;
-      } else {
-        activeFrames = 0;
-        stillFrames += 1;
-        if (!dwellZoomedOut && stillFrames >= stillFrameThreshold + 40) {
-          targetZoom = 1;
-          dwellZoomedOut = true;
-        } else if (!dwellZoomedOut && stillFrames >= stillFrameThreshold) {
-          targetZoom = zoomLevel;
-        }
-      }
+      cursorState.x = x;
+      cursorState.y = y;
+      cursorState.lastX = x;
+      cursorState.lastY = y;
+      cursorState.lastSampleAt = now;
+      updateZoomIntent(now);
     } catch (error) {
-      targetZoom = 1;
-      stillFrames = 0;
-      activeFrames = 0;
-      smoothedMovement = 0;
-      lastCursorX = null;
-      lastCursorY = null;
+      cursorState.targetZoom = 1;
+      cursorState.speed = 0;
+      cursorState.vx = 0;
+      cursorState.vy = 0;
+      cursorState.lastX = null;
+      cursorState.lastY = null;
+      cursorState.lastSampleAt = 0;
+      cursorState.lastMotionAt = performance.now();
+      cursorState.quietSince = cursorState.lastMotionAt;
     } finally {
       cursorPollInFlight = false;
     }
   }
 
+  function startCursorPolling() {
+    pollCursor();
+    pollTimer = setInterval(pollCursor, cursorPollIntervalMs);
+  }
+
   function draw(now = performance.now()) {
     if (stopped) return;
-    updateCursorTarget(now);
+    const dt = Math.min(0.05, Math.max(0.001, (now - lastFrameAt) / 1000));
+    lastFrameAt = now;
+    updateZoomIntent(now);
 
-    currentZoom += (targetZoom - currentZoom) * zoomLerp;
-    const followCenterX = currentZoom > 1.01 ? targetCenterX : regionCenterX;
-    const followCenterY = currentZoom > 1.01 ? targetCenterY : regionCenterY;
-    currentCenterX += (followCenterX - currentCenterX) * centerLerp;
-    currentCenterY += (followCenterY - currentCenterY) * centerLerp;
+    const predictedCursorX = cursorState.x + cursorState.vx * (centerLeadMs / 1000);
+    const predictedCursorY = cursorState.y + cursorState.vy * (centerLeadMs / 1000);
+    const desiredZoom = cursorState.targetZoom;
+    const zoomSpring = springTo(camera.zoom, desiredZoom, camera.vz, 2.1, 0.86, dt);
+    camera.zoom = clamp(zoomSpring.value, 1, zoomLevel + 0.08);
+    camera.vz = zoomSpring.velocity;
 
-    const cropW = srcRegion.width / currentZoom;
-    const cropH = srcRegion.height / currentZoom;
-    const minX = srcRegion.x;
-    const minY = srcRegion.y;
-    const maxX = srcRegion.x + srcRegion.width - cropW;
-    const maxY = srcRegion.y + srcRegion.height - cropH;
-    const sx = clamp(currentCenterX - cropW / 2, minX, maxX);
-    const sy = clamp(currentCenterY - cropH / 2, minY, maxY);
+    const cropW = srcRegion.width / camera.zoom;
+    const cropH = srcRegion.height / camera.zoom;
+    const minCenterX = srcRegion.x + cropW / 2;
+    const minCenterY = srcRegion.y + cropH / 2;
+    const maxCenterX = srcRegion.x + srcRegion.width - cropW / 2;
+    const maxCenterY = srcRegion.y + srcRegion.height - cropH / 2;
+    const edgePaddingX = Math.min(cropW * 0.18, srcRegion.width * 0.12);
+    const edgePaddingY = Math.min(cropH * 0.18, srcRegion.height * 0.12);
+    const focusX = camera.zoom > 1.01 ? predictedCursorX : regionCenterX;
+    const focusY = camera.zoom > 1.01 ? predictedCursorY : regionCenterY;
+    const desiredCenterX = softClamp(focusX, minCenterX, maxCenterX, edgePaddingX);
+    const desiredCenterY = softClamp(focusY, minCenterY, maxCenterY, edgePaddingY);
+    const centerSpringX = springTo(camera.x, desiredCenterX, camera.vx, 2.7, 0.9, dt);
+    const centerSpringY = springTo(camera.y, desiredCenterY, camera.vy, 2.7, 0.9, dt);
+    camera.x = centerSpringX.value;
+    camera.y = centerSpringY.value;
+    camera.vx = centerSpringX.velocity;
+    camera.vy = centerSpringY.velocity;
+
+    const sx = clamp(camera.x - cropW / 2, srcRegion.x, srcRegion.x + srcRegion.width - cropW);
+    const sy = clamp(camera.y - cropH / 2, srcRegion.y, srcRegion.y + srcRegion.height - cropH);
 
     ctx.fillStyle = '#09090b';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -184,10 +259,13 @@ function createAutoZoomStream(sourceStream, region) {
   sourceStream.getAudioTracks().forEach((track) => canvasStream.addTrack(track));
   const stop = () => {
     stopped = true;
+    if (pollTimer) clearInterval(pollTimer);
     if (rafId) cancelAnimationFrame(rafId);
   };
 
   const ready = video.play().then(() => {
+    lastFrameAt = performance.now();
+    startCursorPolling();
     draw();
     return canvasStream;
   });
