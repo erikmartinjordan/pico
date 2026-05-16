@@ -75,7 +75,7 @@ function createAutoZoomStream(sourceStream, region) {
   const cursorPollIntervalMs = 80;
   const stillMovementThresholdPx = 8;
   const stillFrameThreshold = 6;
-  const activeFrameThreshold = 12;
+  const activeFrameThreshold = 2;
   const zoomLerp = 0.07;
   const centerLerp = 0.12;
   const regionCenterX = srcRegion.x + srcRegion.width / 2;
@@ -89,6 +89,7 @@ function createAutoZoomStream(sourceStream, region) {
   let lastCursorX = null;
   let lastCursorY = null;
   let stillFrames = 0;
+  let dwellZoomedOut = false;
   let activeFrames = 0;
   let smoothedMovement = 0;
   let rafId = null;
@@ -124,13 +125,18 @@ function createAutoZoomStream(sourceStream, region) {
 
       if (smoothedMovement > stillMovementThresholdPx) {
         stillFrames = 0;
+        dwellZoomedOut = false;
         activeFrames += 1;
         if (activeFrames >= activeFrameThreshold) targetZoom = 1;
       } else {
         activeFrames = 0;
         stillFrames += 1;
-        if (stillFrames >= stillFrameThreshold) targetZoom = zoomLevel;
-        if (stillFrames >= stillFrameThreshold + 40) targetZoom = 1;
+        if (!dwellZoomedOut && stillFrames >= stillFrameThreshold + 40) {
+          targetZoom = 1;
+          dwellZoomedOut = true;
+        } else if (!dwellZoomedOut && stillFrames >= stillFrameThreshold) {
+          targetZoom = zoomLevel;
+        }
       }
     } catch (error) {
       targetZoom = 1;
@@ -149,8 +155,8 @@ function createAutoZoomStream(sourceStream, region) {
     updateCursorTarget(now);
 
     currentZoom += (targetZoom - currentZoom) * zoomLerp;
-    const followCenterX = targetZoom > 1.01 ? targetCenterX : regionCenterX;
-    const followCenterY = targetZoom > 1.01 ? targetCenterY : regionCenterY;
+    const followCenterX = currentZoom > 1.01 ? targetCenterX : regionCenterX;
+    const followCenterY = currentZoom > 1.01 ? targetCenterY : regionCenterY;
     currentCenterX += (followCenterX - currentCenterX) * centerLerp;
     currentCenterY += (followCenterY - currentCenterY) * centerLerp;
 
