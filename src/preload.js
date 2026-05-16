@@ -74,20 +74,26 @@ function createAutoZoomStream(sourceStream, region) {
   const pixelScaleY = region.height > 0 ? srcRegion.height / region.height : scaleFactor;
   const fps = 60;
 
-  const zoomLevel = clamp(1.35 + ((srcRegion.width - 1280) / 5120), 1.35, 1.8);
+  const zoomLevel = clamp(1.35 + ((srcRegion.width - 1280) / 5120), 1.35, 1.65);
   const regionCenterX = srcRegion.x + srcRegion.width / 2;
   const regionCenterY = srcRegion.y + srcRegion.height / 2;
 
-  // --- Smooth Auto-Zoom Parameters ---
-  const ZOOM_IN_DELAY_MS = 600; // How long the mouse must be still to zoom in
-  const MOVEMENT_THRESHOLD = 4 * scaleFactor; // Pixels mouse must move to wake up
-  const ZOOM_SPEED = 4.5; // Easing speed for zoom (higher = faster)
-  const PAN_SPEED = 5.0; // Easing speed for panning (higher = faster)
+  // --- Cinematic Auto-Zoom Tuning ---
+  const IDLE_ZOOM_IN_DELAY_MS = 800;  // Time stationary before zooming in on an element
+  const IDLE_ZOOM_OUT_DELAY_MS = 2500; // Time stationary before drifting back to full screen
+  const LARGE_MOVE_THRESHOLD = 180 * scaleFactor; // Distance traveled to trigger a zoom-out reset
 
-  // State
+  // Easing speeds (Lower = smoother/slower, Higher = snappier)
+  const ZOOM_SPEED = 3.2;
+  const PAN_SPEED = 3.8;
+
+  // States: 'FULL_SCREEN', 'ZOOMED_FOLLOW', 'ZOOMED_STILL'
+  let zoomState = 'FULL_SCREEN';
+
   let camera = { x: regionCenterX, y: regionCenterY, zoom: 1 };
   let targetCamera = { x: regionCenterX, y: regionCenterY, zoom: 1 };
   let cursor = { x: regionCenterX, y: regionCenterY };
+  let lastAnchor = { x: regionCenterX, y: regionCenterY };
 
   let lastMoveTime = performance.now();
   let lastFrameTime = performance.now();
@@ -96,7 +102,6 @@ function createAutoZoomStream(sourceStream, region) {
   let stopped = false;
   let cursorPollInFlight = false;
 
-  // Framerate-independent smoothing (perfectly damped, no jitter)
   function expEase(current, target, speed, dt) {
     return current + (target - current) * (1 - Math.exp(-speed * dt));
   }
@@ -111,31 +116,59 @@ function createAutoZoomStream(sourceStream, region) {
       const px = srcRegion.x + relLogicalX * pixelScaleX;
       const py = srcRegion.y + relLogicalY * pixelScaleY;
 
-      // Check if mouse moved enough to trigger a zoom out
-      const distance = Math.hypot(px - cursor.x, py - cursor.y);
-      if (distance > MOVEMENT_THRESHOLD) {
+      const totalDistanceMoved = Math.hypot(px - cursor.x, py - cursor.y);
+
+      // If mouse is moving actively, update timers
+      if (totalDistanceMoved > 2 * scaleFactor) {
         lastMoveTime = performance.now();
+
+        // If we are zoomed in, but user drags mouse a long distance away, break lock and zoom out
+        if (zoomState === 'ZOOMED_STILL' || zoomState === 'ZOOMED_FOLLOW') {
+          const distFromAnchor = Math.hypot(px - lastAnchor.x, py - lastAnchor.y);
+          if (distFromAnchor > LARGE_MOVE_THRESHOLD) {
+            zoomState = 'ZOOMED_FOLLOW';
+          }
+        }
       }
 
       cursor.x = clamp(px, srcRegion.x, srcRegion.x + srcRegion.width);
       cursor.y = clamp(py, srcRegion.y, srcRegion.y + srcRegion.height);
     } catch (e) {
-      // Ignore poll errors
+      // Catch isolated IPC glitches safely
     } finally {
       cursorPollInFlight = false;
     }
   }
 
-  function updateTargets(now) {
+  function updateStateMachine(now) {
     const timeSinceMove = now - lastMoveTime;
 
-    if (timeSinceMove > ZOOM_IN_DELAY_MS) {
-      // Idle: Zoom in on the cursor
+    if (timeSinceMove > IDLE_ZOOM_IN_DELAY_MS) {
+      // User stopped moving cursor. Anchor here and zoom in.
+      if (zoomState === 'FULL_SCREEN' || zoomState === 'ZOOMED_FOLLOW') {
+        zoomState = 'ZOOMED_STILL';
+        lastAnchor.x = cursor.x;
+        lastAnchor.y = cursor.y;
+      }
+    }
+
+    // If completely idle on an element for a long time, drift back out to show full desktop context
+    if (timeSinceMove > IDLE_ZOOM_OUT_DELAY_MS && zoomState === 'ZOOMED_STILL') {
+      zoomState = 'FULL_SCREEN';
+    }
+
+    // Assign camera targets based on current state
+    if (zoomState === 'ZOOMED_STILL') {
       targetCamera.zoom = zoomLevel;
+      targetCamera.x = lastAnchor.x;
+      targetCamera.y = lastAnchor.y;
+    } else if (zoomState === 'ZOOMED_FOLLOW') {
+      // Smoothly track cursor while staying partially zoomed in to avoid snappy context switching
+      targetCamera.zoom = zoomLevel - 0.15;
       targetCamera.x = cursor.x;
       targetCamera.y = cursor.y;
     } else {
-      // Moving: Zoom out and gracefully return focus to the center of the screen
+      // Return to full presentation view
       targetCamera.zoom = 1;
       targetCamera.x = regionCenterX;
       targetCamera.y = regionCenterY;
@@ -145,22 +178,20 @@ function createAutoZoomStream(sourceStream, region) {
   function draw(now = performance.now()) {
     if (stopped) return;
 
-    // Cap dt at 100ms to prevent massive jumps if the tab lags or is backgrounded
     const dt = Math.min(0.1, (now - lastFrameTime) / 1000);
     lastFrameTime = now;
 
-    updateTargets(now);
+    updateStateMachine(now);
 
-    // Ease the actual camera values toward the targets smoothly
+    // Dynamic easing speeds based on how far we are from target (smoothes out stops)
     camera.zoom = expEase(camera.zoom, targetCamera.zoom, ZOOM_SPEED, dt);
     camera.x = expEase(camera.x, targetCamera.x, PAN_SPEED, dt);
     camera.y = expEase(camera.y, targetCamera.y, PAN_SPEED, dt);
 
-    // Calculate dynamic crop window
     const cropW = srcRegion.width / camera.zoom;
     const cropH = srcRegion.height / camera.zoom;
 
-    // Hard clamp the camera center so we NEVER see black borders outside the video
+    // Strict safety boundaries to eliminate black gaps at video edges
     const minCenterX = srcRegion.x + cropW / 2;
     const maxCenterX = srcRegion.x + srcRegion.width - cropW / 2;
     const minCenterY = srcRegion.y + cropH / 2;
@@ -194,8 +225,7 @@ function createAutoZoomStream(sourceStream, region) {
 
   const ready = video.play().then(() => {
     lastFrameTime = performance.now();
-    // Poll cursor 25 times a second in the background, fully decoupled from rendering
-    pollTimer = setInterval(pollCursor, 40);
+    pollTimer = setInterval(pollCursor, 33); // 30Hz background coordinate capture
     draw();
     return canvasStream;
   });
