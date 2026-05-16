@@ -61,47 +61,42 @@ function createAutoZoomStream(sourceStream, region) {
   canvas.width = evenDimension(pixelWidth);
   canvas.height = evenDimension(pixelHeight);
   const ctx = canvas.getContext('2d', { alpha: false });
+
   const srcRegion = {
     x: region.pixelX ?? Math.round(region.x * scaleFactor),
     y: region.pixelY ?? Math.round(region.y * scaleFactor),
     width: canvas.width,
     height: canvas.height,
   };
+
   const displayBounds = region.displayBounds || { x: 0, y: 0, width: region.width, height: region.height };
   const pixelScaleX = region.width > 0 ? srcRegion.width / region.width : scaleFactor;
   const pixelScaleY = region.height > 0 ? srcRegion.height / region.height : scaleFactor;
   const fps = 60;
-  const zoomLevel = clamp(1.35 + ((srcRegion.width - 1280) / 5120), 1.35, 1.8);
-  const cursorPollIntervalMs = 33;
-  const velocityEase = 0.22;
-  const zoomInVelocityPxPerSecond = 70 * scaleFactor;
-  const zoomOutVelocityPxPerSecond = 260 * scaleFactor;
-  const zoomInDelayMs = 260;
-  const zoomOutHoldMs = 180;
-  const centerLeadMs = 85;
+
+  const zoomLevel = clamp(1.35 + ((srcRegion.width - 1280) / 5120), 1.35, 1.65);
   const regionCenterX = srcRegion.x + srcRegion.width / 2;
   const regionCenterY = srcRegion.y + srcRegion.height / 2;
-  const camera = {
-    x: regionCenterX,
-    y: regionCenterY,
-    zoom: 1,
-    vx: 0,
-    vy: 0,
-    vz: 0,
-  };
-  const cursorState = {
-    x: regionCenterX,
-    y: regionCenterY,
-    vx: 0,
-    vy: 0,
-    speed: 0,
-    lastX: null,
-    lastY: null,
-    lastSampleAt: 0,
-    lastMotionAt: performance.now(),
-    quietSince: performance.now(),
-    targetZoom: 1,
-  };
+
+  // --- Cinematic Auto-Zoom Tuning ---
+  const IDLE_ZOOM_IN_DELAY_MS = 800;  // Time stationary before zooming in on an element
+  const IDLE_ZOOM_OUT_DELAY_MS = 2500; // Time stationary before drifting back to full screen
+  const LARGE_MOVE_THRESHOLD = 180 * scaleFactor; // Distance traveled to trigger a zoom-out reset
+
+  // Easing speeds (Lower = smoother/slower, Higher = snappier)
+  const ZOOM_SPEED = 3.2;
+  const PAN_SPEED = 3.8;
+
+  // States: 'FULL_SCREEN', 'ZOOMED_FOLLOW', 'ZOOMED_STILL'
+  let zoomState = 'FULL_SCREEN';
+
+  let camera = { x: regionCenterX, y: regionCenterY, zoom: 1 };
+  let targetCamera = { x: regionCenterX, y: regionCenterY, zoom: 1 };
+  let cursor = { x: regionCenterX, y: regionCenterY };
+  let lastAnchor = { x: regionCenterX, y: regionCenterY };
+
+  let lastMoveTime = performance.now();
+  let lastFrameTime = performance.now();
   let rafId = null;
   let pollTimer = null;
   let stopped = false;
@@ -163,86 +158,106 @@ function createAutoZoomStream(sourceStream, region) {
     }
   }
 
+  function expEase(current, target, speed, dt) {
+    return current + (target - current) * (1 - Math.exp(-speed * dt));
+  }
+
   async function pollCursor() {
     if (stopped || cursorPollInFlight) return;
     cursorPollInFlight = true;
     try {
-      const cursor = await getCursorScreenPoint();
-      const now = performance.now();
-      const point = screenPointToSourcePixel(cursor);
-      const x = clamp(point.x, srcRegion.x, srcRegion.x + srcRegion.width);
-      const y = clamp(point.y, srcRegion.y, srcRegion.y + srcRegion.height);
+      const pt = await getCursorScreenPoint();
+      const relLogicalX = pt.x - displayBounds.x - region.x;
+      const relLogicalY = pt.y - displayBounds.y - region.y;
+      const px = srcRegion.x + relLogicalX * pixelScaleX;
+      const py = srcRegion.y + relLogicalY * pixelScaleY;
 
-      if (cursorState.lastX !== null && cursorState.lastY !== null && cursorState.lastSampleAt > 0) {
-        const dt = Math.max(0.001, (now - cursorState.lastSampleAt) / 1000);
-        const instantVx = (x - cursorState.lastX) / dt;
-        const instantVy = (y - cursorState.lastY) / dt;
-        const instantSpeed = Math.hypot(instantVx, instantVy);
-        cursorState.vx = cursorState.vx * (1 - velocityEase) + instantVx * velocityEase;
-        cursorState.vy = cursorState.vy * (1 - velocityEase) + instantVy * velocityEase;
-        cursorState.speed = cursorState.speed * (1 - velocityEase) + instantSpeed * velocityEase;
+      const totalDistanceMoved = Math.hypot(px - cursor.x, py - cursor.y);
+
+      // If mouse is moving actively, update timers
+      if (totalDistanceMoved > 2 * scaleFactor) {
+        lastMoveTime = performance.now();
+
+        // If we are zoomed in, but user drags mouse a long distance away, break lock and zoom out
+        if (zoomState === 'ZOOMED_STILL' || zoomState === 'ZOOMED_FOLLOW') {
+          const distFromAnchor = Math.hypot(px - lastAnchor.x, py - lastAnchor.y);
+          if (distFromAnchor > LARGE_MOVE_THRESHOLD) {
+            zoomState = 'ZOOMED_FOLLOW';
+          }
+        }
       }
 
-      cursorState.x = x;
-      cursorState.y = y;
-      cursorState.lastX = x;
-      cursorState.lastY = y;
-      cursorState.lastSampleAt = now;
-      updateZoomIntent(now);
-    } catch (error) {
-      cursorState.targetZoom = 1;
-      cursorState.speed = 0;
-      cursorState.vx = 0;
-      cursorState.vy = 0;
-      cursorState.lastX = null;
-      cursorState.lastY = null;
-      cursorState.lastSampleAt = 0;
-      cursorState.lastMotionAt = performance.now();
-      cursorState.quietSince = cursorState.lastMotionAt;
+      cursor.x = clamp(px, srcRegion.x, srcRegion.x + srcRegion.width);
+      cursor.y = clamp(py, srcRegion.y, srcRegion.y + srcRegion.height);
+    } catch (e) {
+      // Catch isolated IPC glitches safely
     } finally {
       cursorPollInFlight = false;
     }
   }
 
-  function startCursorPolling() {
-    pollCursor();
-    pollTimer = setInterval(pollCursor, cursorPollIntervalMs);
+  function updateStateMachine(now) {
+    const timeSinceMove = now - lastMoveTime;
+
+    if (timeSinceMove > IDLE_ZOOM_IN_DELAY_MS) {
+      // User stopped moving cursor. Anchor here and zoom in.
+      if (zoomState === 'FULL_SCREEN' || zoomState === 'ZOOMED_FOLLOW') {
+        zoomState = 'ZOOMED_STILL';
+        lastAnchor.x = cursor.x;
+        lastAnchor.y = cursor.y;
+      }
+    }
+
+    // If completely idle on an element for a long time, drift back out to show full desktop context
+    if (timeSinceMove > IDLE_ZOOM_OUT_DELAY_MS && zoomState === 'ZOOMED_STILL') {
+      zoomState = 'FULL_SCREEN';
+    }
+
+    // Assign camera targets based on current state
+    if (zoomState === 'ZOOMED_STILL') {
+      targetCamera.zoom = zoomLevel;
+      targetCamera.x = lastAnchor.x;
+      targetCamera.y = lastAnchor.y;
+    } else if (zoomState === 'ZOOMED_FOLLOW') {
+      // Smoothly track cursor while staying partially zoomed in to avoid snappy context switching
+      targetCamera.zoom = zoomLevel - 0.15;
+      targetCamera.x = cursor.x;
+      targetCamera.y = cursor.y;
+    } else {
+      // Return to full presentation view
+      targetCamera.zoom = 1;
+      targetCamera.x = regionCenterX;
+      targetCamera.y = regionCenterY;
+    }
   }
 
   function draw(now = performance.now()) {
     if (stopped) return;
-    const dt = Math.min(0.05, Math.max(0.001, (now - lastFrameAt) / 1000));
-    lastFrameAt = now;
-    updateZoomIntent(now);
 
-    const predictedCursorX = cursorState.x + cursorState.vx * (centerLeadMs / 1000);
-    const predictedCursorY = cursorState.y + cursorState.vy * (centerLeadMs / 1000);
-    const desiredZoom = cursorState.targetZoom;
-    const zoomSpring = springTo(camera.zoom, desiredZoom, camera.vz, 2.1, 0.86, dt);
-    camera.zoom = clamp(zoomSpring.value, 1, zoomLevel + 0.08);
-    camera.vz = zoomSpring.velocity;
+    const dt = Math.min(0.1, (now - lastFrameTime) / 1000);
+    lastFrameTime = now;
+
+    updateStateMachine(now);
+
+    // Dynamic easing speeds based on how far we are from target (smoothes out stops)
+    camera.zoom = expEase(camera.zoom, targetCamera.zoom, ZOOM_SPEED, dt);
+    camera.x = expEase(camera.x, targetCamera.x, PAN_SPEED, dt);
+    camera.y = expEase(camera.y, targetCamera.y, PAN_SPEED, dt);
 
     const cropW = srcRegion.width / camera.zoom;
     const cropH = srcRegion.height / camera.zoom;
-    const minCenterX = srcRegion.x + cropW / 2;
-    const minCenterY = srcRegion.y + cropH / 2;
-    const maxCenterX = srcRegion.x + srcRegion.width - cropW / 2;
-    const maxCenterY = srcRegion.y + srcRegion.height - cropH / 2;
-    const edgePaddingX = Math.min(cropW * 0.18, srcRegion.width * 0.12);
-    const edgePaddingY = Math.min(cropH * 0.18, srcRegion.height * 0.12);
-    const focusX = camera.zoom > 1.01 ? predictedCursorX : regionCenterX;
-    const focusY = camera.zoom > 1.01 ? predictedCursorY : regionCenterY;
-    const desiredCenterX = softClamp(focusX, minCenterX, maxCenterX, edgePaddingX);
-    const desiredCenterY = softClamp(focusY, minCenterY, maxCenterY, edgePaddingY);
-    const centerSpringX = springTo(camera.x, desiredCenterX, camera.vx, 2.7, 0.9, dt);
-    const centerSpringY = springTo(camera.y, desiredCenterY, camera.vy, 2.7, 0.9, dt);
-    camera.x = centerSpringX.value;
-    camera.y = centerSpringY.value;
-    camera.vx = centerSpringX.velocity;
-    camera.vy = centerSpringY.velocity;
 
-    const sx = clamp(camera.x - cropW / 2, srcRegion.x, srcRegion.x + srcRegion.width - cropW);
-    const sy = clamp(camera.y - cropH / 2, srcRegion.y, srcRegion.y + srcRegion.height - cropH);
+    // Strict safety boundaries to eliminate black gaps at video edges
+    const minCenterX = srcRegion.x + cropW / 2;
+    const maxCenterX = srcRegion.x + srcRegion.width - cropW / 2;
+    const minCenterY = srcRegion.y + cropH / 2;
+    const maxCenterY = srcRegion.y + srcRegion.height - cropH / 2;
+
+    const safeCenterX = clamp(camera.x, minCenterX, maxCenterX);
+    const safeCenterY = clamp(camera.y, minCenterY, maxCenterY);
+
+    const sx = safeCenterX - cropW / 2;
+    const sy = safeCenterY - cropH / 2;
 
     ctx.fillStyle = '#09090b';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -250,13 +265,14 @@ function createAutoZoomStream(sourceStream, region) {
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(video, sx, sy, cropW, cropH, 0, 0, canvas.width, canvas.height);
-
     }
+
     rafId = requestAnimationFrame(draw);
   }
 
   const canvasStream = canvas.captureStream(fps);
   sourceStream.getAudioTracks().forEach((track) => canvasStream.addTrack(track));
+
   const stop = () => {
     stopped = true;
     if (pollTimer) clearInterval(pollTimer);
@@ -264,8 +280,8 @@ function createAutoZoomStream(sourceStream, region) {
   };
 
   const ready = video.play().then(() => {
-    lastFrameAt = performance.now();
-    startCursorPolling();
+    lastFrameTime = performance.now();
+    pollTimer = setInterval(pollCursor, 33); // 30Hz background coordinate capture
     draw();
     return canvasStream;
   });
@@ -461,10 +477,10 @@ contextBridge.exposeInMainWorld('pico', {
   saveFile: (dataUrl) => ipcRenderer.invoke('save-file', dataUrl),
   copyToClipboard: (dataUrl) => ipcRenderer.invoke('copy-to-clipboard', dataUrl),
   readClipboardImage: () => ipcRenderer.invoke('read-clipboard-image'),
-  
+
   // Display info
   getDisplays: () => ipcRenderer.invoke('get-displays'),
-  
+
   // Platform info
   platform: process.platform,
 });
