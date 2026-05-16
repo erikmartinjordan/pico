@@ -19,6 +19,57 @@ let recordingRegionSelection = null;
 let lastRecordingSourceId = null;
 let lastRecordingRegion = null;
 let tray = null;
+let desktopIconsHidden = false;
+let preferencesWindow = null;
+
+function getAppWebPreferences() {
+  return {
+    preload: path.join(__dirname, 'preload.js'),
+    contextIsolation: true,
+    nodeIntegration: false,
+    sandbox: true,
+  };
+}
+
+function openPreferencesWindow() {
+  if (preferencesWindow && !preferencesWindow.isDestroyed()) {
+    preferencesWindow.focus();
+    return;
+  }
+
+  preferencesWindow = new BrowserWindow({
+    width: 700,
+    height: 520,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    autoHideMenuBar: true,
+    title: 'Preferences',
+    webPreferences: getAppWebPreferences(),
+  });
+
+  preferencesWindow.loadFile(path.join(__dirname, 'renderer', 'preferences.html'));
+  preferencesWindow.on('closed', () => {
+    preferencesWindow = null;
+  });
+}
+
+async function hideMacDesktopIconsForRecording() {
+  if (process.platform !== 'darwin' || desktopIconsHidden) return;
+  await setMacDesktopIconsVisible(false);
+  desktopIconsHidden = true;
+}
+
+async function restoreMacDesktopIconsAfterRecording() {
+  if (process.platform !== 'darwin' || !desktopIconsHidden) return;
+  try {
+    await setMacDesktopIconsVisible(true);
+  } catch (restoreError) {
+    console.error('[pico][recording] failed to restore desktop icons:', restoreError.message);
+  } finally {
+    desktopIconsHidden = false;
+  }
+}
 
 function debugWindowState(tag) {
   const win = mainWindow;
@@ -783,6 +834,7 @@ function hideRecordingIndicator() {
   recordingIndicatorWindows = [];
   lastRecordingSourceId = null;
   lastRecordingRegion = null;
+  restoreMacDesktopIconsAfterRecording();
 
   // Restore pico main window when recording ends
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -806,7 +858,7 @@ function createMainWindow() {
         { label: 'Capture Window', click: () => mainWindow?.webContents.send('trigger-capture-window') },
         { label: 'Capture Fullscreen', click: () => mainWindow?.webContents.send('trigger-capture-fullscreen') },
         { type: 'separator' },
-        { label: 'Preferences', accelerator: 'CommandOrControl+,', click: () => mainWindow?.webContents.send('open-preferences') },
+        { label: 'Preferences', accelerator: 'CommandOrControl+,', click: () => openPreferencesWindow() },
         { type: 'separator' },
         { role: 'quit' },
       ],
@@ -1320,7 +1372,7 @@ async function chooseRecordingRegionSource(options = {}) {
       if (!await ensureMacScreenRecordingPermission()) {
         throw new Error('Screen Recording permission is required.');
       }
-      const captureData = await withHiddenDesktopIcons(options, async () => captureAllScreens());
+      const captureData = await withHiddenDesktopIcons({ ...options, hideDesktopIcons: false }, async () => captureAllScreens());
       createCaptureOverlays(captureData, 'record-region', []);
     } catch (error) {
       recordingRegionSelection = null;
@@ -1355,25 +1407,38 @@ ipcMain.handle('pro-recording-source', async (event, options = {}) => {
     throw new Error('Screen Recording permission is required.');
   }
 
-  if (options?.mode === 'region') {
-    const region = await chooseRecordingRegionSource(options);
-    if (!region) return null;
-    lastRecordingSourceId = region.sourceId;
-    lastRecordingRegion = region;
-    return {
-      id: region.sourceId,
-      name: 'Selected region',
-      mode: 'region',
-      region,
-      autoZoom: options.autoZoom !== false,
-    };
-  }
+  await hideMacDesktopIconsForRecording();
 
-  const source = await chooseRecordingWindowSource();
-  if (!source) return null;
-  lastRecordingSourceId = source.id;
-  lastRecordingRegion = null;
-  return { id: source.id, name: source.name, mode: 'window' };
+  try {
+    if (options?.mode === 'region') {
+      const region = await chooseRecordingRegionSource(options);
+      if (!region) {
+        await restoreMacDesktopIconsAfterRecording();
+        return null;
+      }
+      lastRecordingSourceId = region.sourceId;
+      lastRecordingRegion = region;
+      return {
+        id: region.sourceId,
+        name: 'Selected region',
+        mode: 'region',
+        region,
+        autoZoom: options.autoZoom !== false,
+      };
+    }
+
+    const source = await chooseRecordingWindowSource();
+    if (!source) {
+      await restoreMacDesktopIconsAfterRecording();
+      return null;
+    }
+    lastRecordingSourceId = source.id;
+    lastRecordingRegion = null;
+    return { id: source.id, name: source.name, mode: 'window' };
+  } catch (error) {
+    await restoreMacDesktopIconsAfterRecording();
+    throw error;
+  }
 });
 
 ipcMain.handle('pro-save-recording', async (event, payload) => {
@@ -1458,6 +1523,8 @@ function setupTray() {
     { label: 'Capture Window', click: () => mainWindow?.webContents.send('trigger-capture-window') },
     { label: 'Capture Fullscreen', click: () => mainWindow?.webContents.send('trigger-capture-fullscreen') },
     { type: 'separator' },
+    { label: 'Preferences', click: () => openPreferencesWindow() },
+    { type: 'separator' },
     { label: 'Quit', role: 'quit' },
   ]);
 
@@ -1497,8 +1564,8 @@ app.whenReady().then(() => {
     focusAndShowMainWindow();
     const sendTrigger = () => {
       if (!mainWindow || mainWindow.isDestroyed()) return;
-      mainWindow.webContents.send('trigger-capture');
-      console.log('[pico][shortcut] sent trigger-capture');
+      mainWindow.webContents.send('trigger-capture-menu');
+      console.log('[pico][shortcut] sent trigger-capture-menu');
     };
     if (wasMissingWindow) {
       runWhenWindowReady(() => setTimeout(sendTrigger, 40));

@@ -284,6 +284,12 @@ function bindIPC() {
     console.log('[pico][renderer] received trigger-capture');
     startCapture();
   });
+  window.pico.onTriggerCaptureMenu(() => {
+    console.log('[pico][renderer] received trigger-capture-menu');
+    setCaptureModeButton('region');
+    showWindow();
+    document.dispatchEvent(new CustomEvent('pico:show-capture-menu'));
+  });
   window.pico.onTriggerCaptureWindow(() => startCaptureWindow());
   window.pico.onTriggerCaptureFullscreen(() => startCaptureFullscreen());
   window.pico.onShortcutCaptureReady(() => {

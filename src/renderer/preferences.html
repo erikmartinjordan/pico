@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:;">
+  <title>pico Preferences</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <form class="preferences-panel" id="preferences-form">
+    <h3>Preferences</h3>
+
+    <label>Recording format
+      <select id="recording-format-setting"><option value="mp4">MP4</option><option value="gif">GIF</option></select>
+    </label>
+    <label><span>Autozoom on region recording</span><input type="checkbox" id="recording-autozoom-setting" checked></label>
+    <label><span>Hide desktop icons while capturing</span><input type="checkbox" id="hide-desktop-icons-setting" checked></label>
+  </form>
+
+  <script src="preferences.js"></script>
+</body>
+</html>

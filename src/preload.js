@@ -129,7 +129,8 @@ function createAutoZoomStream(sourceStream, region) {
       } else {
         activeFrames = 0;
         stillFrames += 1;
-        targetZoom = stillFrames >= stillFrameThreshold ? zoomLevel : targetZoom;
+        if (stillFrames >= stillFrameThreshold) targetZoom = zoomLevel;
+        if (stillFrames >= stillFrameThreshold + 40) targetZoom = 1;
       }
     } catch (error) {
       targetZoom = 1;
@@ -347,6 +348,7 @@ contextBridge.exposeInMainWorld('pico', {
   startCaptureFullscreen: (options = {}) => ipcRenderer.invoke('start-capture-fullscreen', options),
   onLoadCapture: (callback) => ipcRenderer.on('load-capture', (_, data) => callback(data)),
   onTriggerCapture: (callback) => ipcRenderer.on('trigger-capture', () => callback()),
+  onTriggerCaptureMenu: (callback) => ipcRenderer.on('trigger-capture-menu', () => callback()),
   onTriggerCaptureWindow: (callback) => ipcRenderer.on('trigger-capture-window', () => callback()),
   onTriggerCaptureFullscreen: (callback) => ipcRenderer.on('trigger-capture-fullscreen', () => callback()),
   onShortcutCaptureReady: (callback) => ipcRenderer.on('trigger-shortcut-capture-ready', () => callback()),
