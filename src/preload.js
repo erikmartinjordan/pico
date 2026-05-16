@@ -101,6 +101,62 @@ function createAutoZoomStream(sourceStream, region) {
   let pollTimer = null;
   let stopped = false;
   let cursorPollInFlight = false;
+  let lastFrameAt = performance.now();
+
+  function springTo(current, target, velocity, frequency, damping, dt) {
+    const angularFrequency = frequency * Math.PI * 2;
+    const acceleration = (target - current) * angularFrequency * angularFrequency
+      - velocity * (2 * damping * angularFrequency);
+    const nextVelocity = velocity + acceleration * dt;
+    return {
+      value: current + nextVelocity * dt,
+      velocity: nextVelocity,
+    };
+  }
+
+  function softClamp(value, min, max, padding) {
+    if (max <= min) return (min + max) / 2;
+    const safePadding = Math.max(1, Math.min(padding, (max - min) / 2));
+    const lower = min + safePadding;
+    const upper = max - safePadding;
+    if (value < lower) {
+      const distance = Math.max(0, lower - value);
+      return lower - safePadding * (1 - Math.exp(-distance / safePadding));
+    }
+    if (value > upper) {
+      const distance = Math.max(0, value - upper);
+      return upper + safePadding * (1 - Math.exp(-distance / safePadding));
+    }
+    return value;
+  }
+
+  function screenPointToSourcePixel(cursor) {
+    const relLogicalX = cursor.x - displayBounds.x - region.x;
+    const relLogicalY = cursor.y - displayBounds.y - region.y;
+    return {
+      x: srcRegion.x + relLogicalX * pixelScaleX,
+      y: srcRegion.y + relLogicalY * pixelScaleY,
+    };
+  }
+
+  function updateZoomIntent(now) {
+    if (cursorState.speed > zoomOutVelocityPxPerSecond) {
+      cursorState.lastMotionAt = now;
+      cursorState.quietSince = now;
+      cursorState.targetZoom = 1;
+      return;
+    }
+
+    if (cursorState.speed > zoomInVelocityPxPerSecond) {
+      cursorState.quietSince = now;
+      if (now - cursorState.lastMotionAt < zoomOutHoldMs) cursorState.targetZoom = 1;
+      return;
+    }
+
+    if (now - cursorState.quietSince > zoomInDelayMs && now - cursorState.lastMotionAt > zoomOutHoldMs) {
+      cursorState.targetZoom = zoomLevel;
+    }
+  }
 
   function expEase(current, target, speed, dt) {
     return current + (target - current) * (1 - Math.exp(-speed * dt));
