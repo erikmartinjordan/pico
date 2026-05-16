@@ -61,113 +61,116 @@ function createAutoZoomStream(sourceStream, region) {
   canvas.width = evenDimension(pixelWidth);
   canvas.height = evenDimension(pixelHeight);
   const ctx = canvas.getContext('2d', { alpha: false });
+
   const srcRegion = {
     x: region.pixelX ?? Math.round(region.x * scaleFactor),
     y: region.pixelY ?? Math.round(region.y * scaleFactor),
     width: canvas.width,
     height: canvas.height,
   };
+
   const displayBounds = region.displayBounds || { x: 0, y: 0, width: region.width, height: region.height };
   const pixelScaleX = region.width > 0 ? srcRegion.width / region.width : scaleFactor;
   const pixelScaleY = region.height > 0 ? srcRegion.height / region.height : scaleFactor;
   const fps = 60;
+
   const zoomLevel = clamp(1.35 + ((srcRegion.width - 1280) / 5120), 1.35, 1.8);
-  const cursorPollIntervalMs = 80;
-  const stillMovementThresholdPx = 8;
-  const stillFrameThreshold = 6;
-  const activeFrameThreshold = 2;
-  const zoomLerp = 0.07;
-  const centerLerp = 0.12;
   const regionCenterX = srcRegion.x + srcRegion.width / 2;
   const regionCenterY = srcRegion.y + srcRegion.height / 2;
-  let currentZoom = 1;
-  let targetZoom = 1;
-  let currentCenterX = regionCenterX;
-  let currentCenterY = regionCenterY;
-  let targetCenterX = currentCenterX;
-  let targetCenterY = currentCenterY;
-  let lastCursorX = null;
-  let lastCursorY = null;
-  let stillFrames = 0;
-  let dwellZoomedOut = false;
-  let activeFrames = 0;
-  let smoothedMovement = 0;
+
+  // --- Smooth Auto-Zoom Parameters ---
+  const ZOOM_IN_DELAY_MS = 600; // How long the mouse must be still to zoom in
+  const MOVEMENT_THRESHOLD = 4 * scaleFactor; // Pixels mouse must move to wake up
+  const ZOOM_SPEED = 4.5; // Easing speed for zoom (higher = faster)
+  const PAN_SPEED = 5.0; // Easing speed for panning (higher = faster)
+
+  // State
+  let camera = { x: regionCenterX, y: regionCenterY, zoom: 1 };
+  let targetCamera = { x: regionCenterX, y: regionCenterY, zoom: 1 };
+  let cursor = { x: regionCenterX, y: regionCenterY };
+
+  let lastMoveTime = performance.now();
+  let lastFrameTime = performance.now();
   let rafId = null;
+  let pollTimer = null;
   let stopped = false;
-  let lastCursorPoll = 0;
   let cursorPollInFlight = false;
 
-  async function updateCursorTarget(now) {
-    if (cursorPollInFlight || now - lastCursorPoll < cursorPollIntervalMs) return;
-    lastCursorPoll = now;
+  // Framerate-independent smoothing (perfectly damped, no jitter)
+  function expEase(current, target, speed, dt) {
+    return current + (target - current) * (1 - Math.exp(-speed * dt));
+  }
+
+  async function pollCursor() {
+    if (stopped || cursorPollInFlight) return;
     cursorPollInFlight = true;
     try {
-      const cursor = await getCursorScreenPoint();
-      const relLogicalX = cursor.x - displayBounds.x - region.x;
-      const relLogicalY = cursor.y - displayBounds.y - region.y;
-      const cursorPixelX = srcRegion.x + relLogicalX * pixelScaleX;
-      const cursorPixelY = srcRegion.y + relLogicalY * pixelScaleY;
+      const pt = await getCursorScreenPoint();
+      const relLogicalX = pt.x - displayBounds.x - region.x;
+      const relLogicalY = pt.y - displayBounds.y - region.y;
+      const px = srcRegion.x + relLogicalX * pixelScaleX;
+      const py = srcRegion.y + relLogicalY * pixelScaleY;
 
-      targetCenterX = cursorPixelX;
-      targetCenterY = cursorPixelY;
-
-      if (lastCursorX === null || lastCursorY === null) {
-        lastCursorX = cursorPixelX;
-        lastCursorY = cursorPixelY;
-        targetZoom = 1;
-        return;
+      // Check if mouse moved enough to trigger a zoom out
+      const distance = Math.hypot(px - cursor.x, py - cursor.y);
+      if (distance > MOVEMENT_THRESHOLD) {
+        lastMoveTime = performance.now();
       }
 
-      const movement = Math.hypot(cursorPixelX - lastCursorX, cursorPixelY - lastCursorY);
-      smoothedMovement = smoothedMovement * 0.6 + movement * 0.4;
-      lastCursorX = cursorPixelX;
-      lastCursorY = cursorPixelY;
-
-      if (smoothedMovement > stillMovementThresholdPx) {
-        stillFrames = 0;
-        dwellZoomedOut = false;
-        activeFrames += 1;
-        if (activeFrames >= activeFrameThreshold) targetZoom = 1;
-      } else {
-        activeFrames = 0;
-        stillFrames += 1;
-        if (!dwellZoomedOut && stillFrames >= stillFrameThreshold + 40) {
-          targetZoom = 1;
-          dwellZoomedOut = true;
-        } else if (!dwellZoomedOut && stillFrames >= stillFrameThreshold) {
-          targetZoom = zoomLevel;
-        }
-      }
-    } catch (error) {
-      targetZoom = 1;
-      stillFrames = 0;
-      activeFrames = 0;
-      smoothedMovement = 0;
-      lastCursorX = null;
-      lastCursorY = null;
+      cursor.x = clamp(px, srcRegion.x, srcRegion.x + srcRegion.width);
+      cursor.y = clamp(py, srcRegion.y, srcRegion.y + srcRegion.height);
+    } catch (e) {
+      // Ignore poll errors
     } finally {
       cursorPollInFlight = false;
     }
   }
 
+  function updateTargets(now) {
+    const timeSinceMove = now - lastMoveTime;
+
+    if (timeSinceMove > ZOOM_IN_DELAY_MS) {
+      // Idle: Zoom in on the cursor
+      targetCamera.zoom = zoomLevel;
+      targetCamera.x = cursor.x;
+      targetCamera.y = cursor.y;
+    } else {
+      // Moving: Zoom out and gracefully return focus to the center of the screen
+      targetCamera.zoom = 1;
+      targetCamera.x = regionCenterX;
+      targetCamera.y = regionCenterY;
+    }
+  }
+
   function draw(now = performance.now()) {
     if (stopped) return;
-    updateCursorTarget(now);
 
-    currentZoom += (targetZoom - currentZoom) * zoomLerp;
-    const followCenterX = currentZoom > 1.01 ? targetCenterX : regionCenterX;
-    const followCenterY = currentZoom > 1.01 ? targetCenterY : regionCenterY;
-    currentCenterX += (followCenterX - currentCenterX) * centerLerp;
-    currentCenterY += (followCenterY - currentCenterY) * centerLerp;
+    // Cap dt at 100ms to prevent massive jumps if the tab lags or is backgrounded
+    const dt = Math.min(0.1, (now - lastFrameTime) / 1000);
+    lastFrameTime = now;
 
-    const cropW = srcRegion.width / currentZoom;
-    const cropH = srcRegion.height / currentZoom;
-    const minX = srcRegion.x;
-    const minY = srcRegion.y;
-    const maxX = srcRegion.x + srcRegion.width - cropW;
-    const maxY = srcRegion.y + srcRegion.height - cropH;
-    const sx = clamp(currentCenterX - cropW / 2, minX, maxX);
-    const sy = clamp(currentCenterY - cropH / 2, minY, maxY);
+    updateTargets(now);
+
+    // Ease the actual camera values toward the targets smoothly
+    camera.zoom = expEase(camera.zoom, targetCamera.zoom, ZOOM_SPEED, dt);
+    camera.x = expEase(camera.x, targetCamera.x, PAN_SPEED, dt);
+    camera.y = expEase(camera.y, targetCamera.y, PAN_SPEED, dt);
+
+    // Calculate dynamic crop window
+    const cropW = srcRegion.width / camera.zoom;
+    const cropH = srcRegion.height / camera.zoom;
+
+    // Hard clamp the camera center so we NEVER see black borders outside the video
+    const minCenterX = srcRegion.x + cropW / 2;
+    const maxCenterX = srcRegion.x + srcRegion.width - cropW / 2;
+    const minCenterY = srcRegion.y + cropH / 2;
+    const maxCenterY = srcRegion.y + srcRegion.height - cropH / 2;
+
+    const safeCenterX = clamp(camera.x, minCenterX, maxCenterX);
+    const safeCenterY = clamp(camera.y, minCenterY, maxCenterY);
+
+    const sx = safeCenterX - cropW / 2;
+    const sy = safeCenterY - cropH / 2;
 
     ctx.fillStyle = '#09090b';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -175,19 +178,24 @@ function createAutoZoomStream(sourceStream, region) {
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(video, sx, sy, cropW, cropH, 0, 0, canvas.width, canvas.height);
-
     }
+
     rafId = requestAnimationFrame(draw);
   }
 
   const canvasStream = canvas.captureStream(fps);
   sourceStream.getAudioTracks().forEach((track) => canvasStream.addTrack(track));
+
   const stop = () => {
     stopped = true;
+    if (pollTimer) clearInterval(pollTimer);
     if (rafId) cancelAnimationFrame(rafId);
   };
 
   const ready = video.play().then(() => {
+    lastFrameTime = performance.now();
+    // Poll cursor 25 times a second in the background, fully decoupled from rendering
+    pollTimer = setInterval(pollCursor, 40);
     draw();
     return canvasStream;
   });
@@ -383,10 +391,10 @@ contextBridge.exposeInMainWorld('pico', {
   saveFile: (dataUrl) => ipcRenderer.invoke('save-file', dataUrl),
   copyToClipboard: (dataUrl) => ipcRenderer.invoke('copy-to-clipboard', dataUrl),
   readClipboardImage: () => ipcRenderer.invoke('read-clipboard-image'),
-  
+
   // Display info
   getDisplays: () => ipcRenderer.invoke('get-displays'),
-  
+
   // Platform info
   platform: process.platform,
 });
