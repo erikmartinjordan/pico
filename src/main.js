@@ -54,10 +54,14 @@ function writeSettings(nextSettings = {}) {
   return settings;
 }
 
-function defaultSaveDirectory(fallbackName) {
+function configuredDefaultSaveDirectory() {
   const settings = readSettings();
   if (settings.defaultSavePath && fs.existsSync(settings.defaultSavePath)) return settings.defaultSavePath;
-  return app.getPath(fallbackName);
+  return '';
+}
+
+function defaultSaveDirectory(fallbackName) {
+  return configuredDefaultSaveDirectory() || app.getPath(fallbackName);
 }
 
 function defaultSavePath(fallbackName, filename) {
@@ -1504,22 +1508,29 @@ ipcMain.handle('pro-save-recording', async (event, payload) => {
 
   const format = payload?.format === 'gif' || payload?.gif ? 'gif' : 'mp4';
   const extension = format === 'gif' ? 'gif' : 'mp4';
-  const saveResult = await dialog.showSaveDialog(mainWindow, {
-    title: 'Save screen recording',
-    defaultPath: defaultSavePath('videos', `pico-recording-${Date.now()}.${extension}`),
-    buttonLabel: 'Save Recording',
-    filters: format === 'gif'
-      ? [{ name: 'GIF Animation', extensions: ['gif'] }]
-      : [{ name: 'MP4 Video', extensions: ['mp4'] }],
-  });
-  if (saveResult.canceled || !saveResult.filePath) return { canceled: true };
+  const filename = `pico-recording-${Date.now()}.${extension}`;
+  const configuredSaveDirectory = configuredDefaultSaveDirectory();
+  let outputPath = configuredSaveDirectory ? path.join(configuredSaveDirectory, filename) : '';
+
+  if (!outputPath) {
+    const saveResult = await dialog.showSaveDialog(mainWindow, {
+      title: 'Save screen recording',
+      defaultPath: defaultSavePath('videos', filename),
+      buttonLabel: 'Save Recording',
+      filters: format === 'gif'
+        ? [{ name: 'GIF Animation', extensions: ['gif'] }]
+        : [{ name: 'MP4 Video', extensions: ['mp4'] }],
+    });
+    if (saveResult.canceled || !saveResult.filePath) return { canceled: true };
+    outputPath = saveResult.filePath;
+  }
 
   const webmPath = tempRecordingPath('webm');
   const bytes = Buffer.isBuffer(data) ? data : Buffer.from(data);
   fs.writeFileSync(webmPath, bytes);
 
   try {
-    let mp4Path = saveResult.filePath;
+    let mp4Path = outputPath;
     if (format === 'gif') mp4Path = tempRecordingPath('mp4');
 
     let mp4;
@@ -1527,9 +1538,9 @@ ipcMain.handle('pro-save-recording', async (event, payload) => {
       mp4 = await convertWebmToMp4(webmPath, mp4Path);
     } catch (conversionError) {
       fs.rmSync(mp4Path, { force: true });
-      if (format === 'mp4') fs.rmSync(saveResult.filePath, { force: true });
+      if (format === 'mp4') fs.rmSync(outputPath, { force: true });
       // Save as webm so the recording is not lost, but inform the user clearly
-      const webmOutputPath = saveResult.filePath.replace(/\.[^.]+$/i, '.webm');
+      const webmOutputPath = outputPath.replace(/\.[^.]+$/i, '.webm');
       fs.mkdirSync(path.dirname(webmOutputPath), { recursive: true });
       fs.copyFileSync(webmPath, webmOutputPath);
       return {
@@ -1540,7 +1551,7 @@ ipcMain.handle('pro-save-recording', async (event, payload) => {
 
     if (format === 'gif') {
       try {
-        return { gif: await convertMp4ToGif(mp4, saveResult.filePath) };
+        return { gif: await convertMp4ToGif(mp4, outputPath) };
       } finally {
         fs.rmSync(mp4, { force: true });
       }
