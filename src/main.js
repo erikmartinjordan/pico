@@ -81,12 +81,12 @@ function openPreferencesWindow() {
 
   preferencesWindow = new BrowserWindow({
     width: 700,
-    height: 340,
+    height: 300,
     resizable: false,
     minimizable: false,
     maximizable: false,
     autoHideMenuBar: true,
-    title: 'Preferences',
+    title: '',
     webPreferences: getAppWebPreferences(),
   });
 
