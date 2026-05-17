@@ -475,6 +475,9 @@ contextBridge.exposeInMainWorld('pico', {
   // File operations
   openFile: () => ipcRenderer.invoke('open-file'),
   saveFile: (dataUrl) => ipcRenderer.invoke('save-file', dataUrl),
+  getSettings: () => ipcRenderer.invoke('get-settings'),
+  saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
+  chooseDefaultSavePath: (currentPath) => ipcRenderer.invoke('choose-default-save-path', currentPath),
   copyToClipboard: (dataUrl) => ipcRenderer.invoke('copy-to-clipboard', dataUrl),
   readClipboardImage: () => ipcRenderer.invoke('read-clipboard-image'),
 

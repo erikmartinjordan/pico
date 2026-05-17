@@ -22,6 +22,52 @@ let tray = null;
 let desktopIconsHidden = false;
 let preferencesWindow = null;
 
+const SETTINGS_FILE = 'settings.json';
+const DEFAULT_SETTINGS = {
+  defaultSavePath: '',
+};
+
+function settingsPath() {
+  return path.join(app.getPath('userData'), SETTINGS_FILE);
+}
+
+function normalizeSettings(candidate = {}) {
+  return {
+    defaultSavePath: typeof candidate.defaultSavePath === 'string' ? candidate.defaultSavePath : DEFAULT_SETTINGS.defaultSavePath,
+  };
+}
+
+function readSettings() {
+  try {
+    if (!fs.existsSync(settingsPath())) return { ...DEFAULT_SETTINGS };
+    return normalizeSettings(JSON.parse(fs.readFileSync(settingsPath(), 'utf8')));
+  } catch (error) {
+    console.error('[pico] failed to read settings:', error.message);
+    return { ...DEFAULT_SETTINGS };
+  }
+}
+
+function writeSettings(nextSettings = {}) {
+  const settings = normalizeSettings({ ...readSettings(), ...nextSettings });
+  fs.mkdirSync(path.dirname(settingsPath()), { recursive: true });
+  fs.writeFileSync(settingsPath(), JSON.stringify(settings, null, 2));
+  return settings;
+}
+
+function configuredDefaultSaveDirectory() {
+  const settings = readSettings();
+  if (settings.defaultSavePath && fs.existsSync(settings.defaultSavePath)) return settings.defaultSavePath;
+  return '';
+}
+
+function defaultSaveDirectory(fallbackName) {
+  return configuredDefaultSaveDirectory() || app.getPath(fallbackName);
+}
+
+function defaultSavePath(fallbackName, filename) {
+  return path.join(defaultSaveDirectory(fallbackName), filename);
+}
+
 function getAppWebPreferences() {
   return {
     preload: path.join(__dirname, 'preload.js'),
@@ -39,12 +85,12 @@ function openPreferencesWindow() {
 
   preferencesWindow = new BrowserWindow({
     width: 700,
-    height: 520,
+    height: 300,
     resizable: false,
     minimizable: false,
     maximizable: false,
     autoHideMenuBar: true,
-    title: 'Preferences',
+    title: '',
     webPreferences: getAppWebPreferences(),
   });
 
@@ -1299,6 +1345,21 @@ ipcMain.on('window-source-cancel', () => {
   recordingSourceSelection = null;
   if (mainWindow) mainWindow.show();
 });
+ipcMain.handle('get-settings', async () => readSettings());
+
+ipcMain.handle('save-settings', async (event, nextSettings = {}) => writeSettings(nextSettings));
+
+ipcMain.handle('choose-default-save-path', async (event, currentPath = '') => {
+  const result = await dialog.showOpenDialog(preferencesWindow || mainWindow, {
+    title: 'Choose default save path',
+    defaultPath: typeof currentPath === 'string' && currentPath ? currentPath : defaultSaveDirectory('documents'),
+    properties: ['openDirectory', 'createDirectory'],
+  });
+  if (result.canceled || !result.filePaths[0]) return { canceled: true };
+  const settings = writeSettings({ defaultSavePath: result.filePaths[0] });
+  return { canceled: false, path: settings.defaultSavePath };
+});
+
 ipcMain.handle('open-file', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ['openFile'],
@@ -1314,7 +1375,7 @@ ipcMain.handle('open-file', async () => {
 
 ipcMain.handle('save-file', async (event, dataUrl) => {
   const result = await dialog.showSaveDialog(mainWindow, {
-    defaultPath: `screenshot-${Date.now()}.png`,
+    defaultPath: defaultSavePath('pictures', `screenshot-${Date.now()}.png`),
     filters: [{ name: 'PNG Image', extensions: ['png'] }, { name: 'JPEG Image', extensions: ['jpg'] }],
   });
   if (result.canceled || !result.filePath) return { success: false };
@@ -1447,22 +1508,29 @@ ipcMain.handle('pro-save-recording', async (event, payload) => {
 
   const format = payload?.format === 'gif' || payload?.gif ? 'gif' : 'mp4';
   const extension = format === 'gif' ? 'gif' : 'mp4';
-  const saveResult = await dialog.showSaveDialog(mainWindow, {
-    title: 'Save screen recording',
-    defaultPath: path.join(app.getPath('videos'), `pico-recording-${Date.now()}.${extension}`),
-    buttonLabel: 'Save Recording',
-    filters: format === 'gif'
-      ? [{ name: 'GIF Animation', extensions: ['gif'] }]
-      : [{ name: 'MP4 Video', extensions: ['mp4'] }],
-  });
-  if (saveResult.canceled || !saveResult.filePath) return { canceled: true };
+  const filename = `pico-recording-${Date.now()}.${extension}`;
+  const configuredSaveDirectory = configuredDefaultSaveDirectory();
+  let outputPath = configuredSaveDirectory ? path.join(configuredSaveDirectory, filename) : '';
+
+  if (!outputPath) {
+    const saveResult = await dialog.showSaveDialog(mainWindow, {
+      title: 'Save screen recording',
+      defaultPath: defaultSavePath('videos', filename),
+      buttonLabel: 'Save Recording',
+      filters: format === 'gif'
+        ? [{ name: 'GIF Animation', extensions: ['gif'] }]
+        : [{ name: 'MP4 Video', extensions: ['mp4'] }],
+    });
+    if (saveResult.canceled || !saveResult.filePath) return { canceled: true };
+    outputPath = saveResult.filePath;
+  }
 
   const webmPath = tempRecordingPath('webm');
   const bytes = Buffer.isBuffer(data) ? data : Buffer.from(data);
   fs.writeFileSync(webmPath, bytes);
 
   try {
-    let mp4Path = saveResult.filePath;
+    let mp4Path = outputPath;
     if (format === 'gif') mp4Path = tempRecordingPath('mp4');
 
     let mp4;
@@ -1470,9 +1538,9 @@ ipcMain.handle('pro-save-recording', async (event, payload) => {
       mp4 = await convertWebmToMp4(webmPath, mp4Path);
     } catch (conversionError) {
       fs.rmSync(mp4Path, { force: true });
-      if (format === 'mp4') fs.rmSync(saveResult.filePath, { force: true });
+      if (format === 'mp4') fs.rmSync(outputPath, { force: true });
       // Save as webm so the recording is not lost, but inform the user clearly
-      const webmOutputPath = saveResult.filePath.replace(/\.[^.]+$/i, '.webm');
+      const webmOutputPath = outputPath.replace(/\.[^.]+$/i, '.webm');
       fs.mkdirSync(path.dirname(webmOutputPath), { recursive: true });
       fs.copyFileSync(webmPath, webmOutputPath);
       return {
@@ -1483,7 +1551,7 @@ ipcMain.handle('pro-save-recording', async (event, payload) => {
 
     if (format === 'gif') {
       try {
-        return { gif: await convertMp4ToGif(mp4, saveResult.filePath) };
+        return { gif: await convertMp4ToGif(mp4, outputPath) };
       } finally {
         fs.rmSync(mp4, { force: true });
       }
