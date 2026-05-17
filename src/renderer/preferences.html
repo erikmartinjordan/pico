@@ -7,7 +7,7 @@
   <title>pico Preferences</title>
   <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body class="preferences-window">
   <form class="preferences-panel" id="preferences-form">
     <h3>Preferences</h3>
 
@@ -16,6 +16,18 @@
     </label>
     <label><span>Autozoom on region recording</span><input type="checkbox" id="recording-autozoom-setting" checked></label>
     <label><span>Hide desktop icons while capturing</span><input type="checkbox" id="hide-desktop-icons-setting" checked></label>
+
+    <div class="preferences-field preferences-field--path">
+      <div>
+        <label for="default-save-path-setting">Default save path</label>
+        <p>Choose the folder used first when saving screenshots and recordings.</p>
+      </div>
+      <div class="path-picker">
+        <input type="text" id="default-save-path-setting" placeholder="System default" readonly>
+        <button type="button" id="choose-default-save-path-setting">Choose…</button>
+        <button type="button" id="clear-default-save-path-setting" class="secondary">Clear</button>
+      </div>
+    </div>
   </form>
 
   <script src="preferences.js"></script>

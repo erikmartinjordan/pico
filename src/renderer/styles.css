@@ -224,6 +224,84 @@ body {
   accent-color: #f97316;
 }
 
+
+.preferences-window {
+  background: #15161a;
+}
+
+.preferences-window .preferences-panel {
+  width: 100%;
+  min-height: 100%;
+  border: 0;
+  border-radius: 0;
+  background: #15161a;
+  padding: 22px;
+  gap: 16px;
+  box-shadow: none;
+}
+
+.preferences-window .preferences-panel h3 {
+  font-size: 16px;
+}
+
+.preferences-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.preferences-field label {
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+  color: rgba(255,255,255,0.86);
+}
+
+.preferences-field p {
+  margin-top: 4px;
+  font-size: 10px;
+  line-height: 1.45;
+  color: rgba(255,255,255,0.52);
+}
+
+.path-picker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+}
+
+.path-picker input {
+  min-width: 0;
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 7px;
+  padding: 7px 9px;
+  background: #1e1f24;
+  color: rgba(255,255,255,0.88);
+  font: inherit;
+  font-size: 11px;
+}
+
+.path-picker button {
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 7px;
+  padding: 7px 10px;
+  background: #272a31;
+  color: #f5f0eb;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.path-picker button.secondary {
+  color: rgba(255,255,255,0.68);
+}
+
+.path-picker button:hover {
+  background: #31353f;
+}
+
 .preferences-actions {
   display: flex;
   justify-content: flex-end;
