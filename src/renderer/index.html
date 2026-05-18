@@ -96,6 +96,22 @@
       </div>
     </div>
     <canvas id="canvas"></canvas>
+    <div class="recording-preview hidden" id="recording-preview" aria-hidden="true">
+      <div class="recording-preview__panel">
+        <div class="recording-preview__header">
+          <div>
+            <h3>Recording preview</h3>
+            <p id="recording-preview-meta">Review your capture before saving.</p>
+          </div>
+          <button class="recording-preview__close" id="recording-preview-close" aria-label="Close recording preview">×</button>
+        </div>
+        <video id="recording-preview-video" controls playsinline muted></video>
+        <div class="recording-preview__actions">
+          <button type="button" class="btn btn-secondary" id="recording-preview-discard">Discard</button>
+          <button type="button" class="btn btn-primary" id="recording-preview-save">Save recording</button>
+        </div>
+      </div>
+    </div>
     <div class="text-input-wrapper" id="text-input-wrapper">
       <textarea id="inline-text-input" placeholder="Type here..."></textarea>
     </div>
@@ -158,24 +174,6 @@
       <div class="preferences-actions"><button value="close">Done</button></div>
     </form>
   </dialog>
-
-
-  <div class="recording-preview hidden" id="recording-preview" aria-hidden="true">
-    <div class="recording-preview__panel">
-      <div class="recording-preview__header">
-        <div>
-          <h3>Recording preview</h3>
-          <p id="recording-preview-meta">Review your capture before saving.</p>
-        </div>
-        <button class="recording-preview__close" id="recording-preview-close" aria-label="Close recording preview">×</button>
-      </div>
-      <video id="recording-preview-video" controls playsinline></video>
-      <div class="recording-preview__actions">
-        <button type="button" class="btn btn-secondary" id="recording-preview-discard">Discard</button>
-        <button type="button" class="btn btn-primary" id="recording-preview-save">Save recording</button>
-      </div>
-    </div>
-  </div>
 
   <div class="toast-container" id="toast-container"></div>
   <div class="app-tooltip" id="app-tooltip" aria-hidden="true"></div>

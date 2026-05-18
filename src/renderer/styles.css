@@ -490,6 +490,11 @@ body {
 
 #canvas.visible { display: block; }
 
+.canvas-container.recording-preview-active #canvas,
+.canvas-container.recording-preview-active .empty-state {
+  display: none;
+}
+
 /* ── Empty State ── */
 .empty-state {
   text-align: center;
@@ -963,31 +968,25 @@ body {
 
 /* ── In-app Recording Preview ── */
 .recording-preview {
-  position: fixed;
-  inset: 0;
-  z-index: 120;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 28px;
-  background: radial-gradient(circle at top, rgba(255,255,255,0.12), rgba(0,0,0,0.58));
-  backdrop-filter: blur(18px) saturate(150%);
-  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  position: relative;
+  z-index: 2;
+  width: min(960px, calc(100vw - 56px));
+  max-height: calc(100vh - 112px);
 }
 
 .recording-preview.hidden { display: none; }
 
 .recording-preview__panel {
-  width: min(960px, 100%);
-  max-height: calc(100vh - 56px);
+  width: 100%;
+  max-height: calc(100vh - 112px);
   display: flex;
   flex-direction: column;
   gap: 14px;
   padding: 16px;
-  border: 1px solid rgba(255,255,255,0.24);
-  border-radius: 26px;
-  background: linear-gradient(145deg, rgba(255,255,255,0.24), rgba(24,24,27,0.72));
-  box-shadow: 0 28px 90px rgba(0,0,0,0.52), 0 1px 0 rgba(255,255,255,0.35) inset;
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 8px;
+  background: rgba(17,17,20,0.92);
+  box-shadow: 0 18px 54px rgba(0,0,0,0.42), 0 1px 0 rgba(255,255,255,0.08) inset;
 }
 
 .recording-preview__header,
@@ -1012,7 +1011,7 @@ body {
   width: 32px;
   height: 32px;
   border: 1px solid rgba(255,255,255,0.18);
-  border-radius: 999px;
+  border-radius: 8px;
   background: rgba(255,255,255,0.10);
   color: #fff;
   font-size: 20px;
@@ -1021,10 +1020,15 @@ body {
 
 #recording-preview-video {
   width: 100%;
-  max-height: calc(100vh - 220px);
-  border-radius: 18px;
+  max-height: calc(100vh - 276px);
+  border-radius: 6px;
   background: #050507;
   box-shadow: 0 0 0 1px rgba(255,255,255,0.12);
 }
 
 .recording-preview__actions { justify-content: flex-end; }
+
+.recording-preview.is-live .recording-preview__actions,
+.recording-preview.is-live .recording-preview__close {
+  display: none;
+}
