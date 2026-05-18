@@ -1615,8 +1615,13 @@ ipcMain.on('pro-recording-stop-clicked', () => {
 
 function setupTray() {
   if (process.platform !== 'darwin' || tray) return;
-  const iconPath = path.join(__dirname, 'assets', 'icons', 'macos', 'menu-bar.png');
-  const trayIcon = nativeImage.createFromPath(iconPath).resize({ width: 18, height: 18 });
+  const iconPath = path.join(__dirname, 'assets', 'icons', 'macos', 'StatusTemplate-volcano-thicker.png');
+  const icon2xPath = path.join(__dirname, 'assets', 'icons', 'macos', 'StatusTemplate-volcano-thicker@2x.png');
+  const trayIcon = nativeImage.createEmpty();
+  trayIcon.addRepresentation({ scaleFactor: 1, dataURL: readImageFileAsDataUrl(iconPath) });
+  if (fs.existsSync(icon2xPath)) {
+    trayIcon.addRepresentation({ scaleFactor: 2, dataURL: readImageFileAsDataUrl(icon2xPath) });
+  }
   trayIcon.setTemplateImage(true);
   tray = new Tray(trayIcon);
   tray.setToolTip('pico');
