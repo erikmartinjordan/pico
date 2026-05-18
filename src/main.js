@@ -22,11 +22,138 @@ let tray = null;
 let desktopIconsHidden = false;
 let desktopIconsVisibleBeforeRecording = true;
 let preferencesWindow = null;
+let floatingCaptureToolbarWindow = null;
 
 const SETTINGS_FILE = 'settings.json';
 const DEFAULT_SETTINGS = {
   defaultSavePath: '',
 };
+
+
+function getFloatingCaptureToolbarBounds() {
+  const display = screen.getPrimaryDisplay();
+  const workArea = display.workArea || display.bounds;
+  const width = 260;
+  const height = 64;
+  return {
+    width,
+    height,
+    x: Math.round(workArea.x + (workArea.width - width) / 2),
+    y: Math.round(workArea.y + 14),
+  };
+}
+
+function floatingCaptureToolbarHtml(activeMode = 'region') {
+  const csp = "default-src 'self' 'unsafe-inline' data:; script-src 'unsafe-inline'; style-src 'unsafe-inline'";
+  return `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="${csp}">
+<style>
+  html, body { width: 100%; height: 100%; margin: 0; background: transparent; overflow: hidden; }
+  body { display: grid; place-items: center; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif; }
+  .bar {
+    height: 46px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 10px;
+    border-radius: 999px;
+    color: rgba(255,255,255,0.88);
+    background:
+      radial-gradient(circle at 18% 0%, rgba(255,255,255,0.70), rgba(255,255,255,0.18) 32%, transparent 64%),
+      linear-gradient(135deg, rgba(255,255,255,0.32), rgba(255,255,255,0.10) 48%, rgba(255,255,255,0.05)),
+      rgba(28,28,32,0.40);
+    border: 1px solid rgba(255,255,255,0.34);
+    box-shadow: 0 18px 56px rgba(0,0,0,0.36), 0 1px 0 rgba(255,255,255,0.62) inset, 0 -1px 0 rgba(255,255,255,0.10) inset;
+    backdrop-filter: blur(34px) saturate(210%) brightness(1.08);
+    -webkit-backdrop-filter: blur(34px) saturate(210%) brightness(1.08);
+  }
+  button {
+    width: 34px;
+    height: 34px;
+    border: 0;
+    border-radius: 14px;
+    background: transparent;
+    color: inherit;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+  }
+  button:hover { background: rgba(255,255,255,0.18); color: #fff; }
+  button.active { background: linear-gradient(135deg, rgba(255,255,255,0.30), rgba(240,125,32,0.30)); box-shadow: 0 0 0 1px rgba(255,255,255,0.24); }
+  svg { width: 17px; height: 17px; }
+  .sep { width: 1px; height: 18px; background: rgba(255,255,255,0.18); margin: 0 2px; }
+</style>
+</head>
+<body>
+  <div class="bar" role="toolbar" aria-label="Capture options">
+    <button class="${activeMode === 'region' ? 'active' : ''}" data-action="region" title="Capture region" aria-label="Capture region"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 8V4h4M4 16v4h4M16 4h4v4M16 20h4v-4"/><rect x="8" y="8" width="8" height="8" rx="1" stroke-dasharray="2 2"/></svg></button>
+    <button class="${activeMode === 'window' ? 'active' : ''}" data-action="window" title="Capture window" aria-label="Capture window"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 8h18"/><circle cx="6" cy="6" r=".6" fill="currentColor"/></svg></button>
+    <button class="${activeMode === 'fullscreen' ? 'active' : ''}" data-action="fullscreen" title="Capture fullscreen" aria-label="Capture fullscreen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M6 21h12M12 17v4"/></svg></button>
+    <div class="sep"></div>
+    <button class="${activeMode === 'record' ? 'active' : ''}" data-action="record" title="Record screen" aria-label="Record screen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="13" height="14" rx="2"/><path d="M16 10l5-3v10l-5-3z"/></svg></button>
+  </div>
+<script>
+  document.querySelectorAll('button[data-action]').forEach((button) => {
+    button.addEventListener('click', () => window.pico.floatingCaptureToolbarAction(button.dataset.action));
+  });
+</script>
+</body>
+</html>`;
+}
+
+function showFloatingCaptureToolbar(activeMode = 'region') {
+  if (floatingCaptureToolbarWindow && !floatingCaptureToolbarWindow.isDestroyed()) floatingCaptureToolbarWindow.close();
+  floatingCaptureToolbarWindow = null;
+  if (!floatingCaptureToolbarWindow) {
+    floatingCaptureToolbarWindow = new BrowserWindow({
+      ...getFloatingCaptureToolbarBounds(),
+      frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      hasShadow: false,
+      resizable: false,
+      movable: false,
+      skipTaskbar: true,
+      focusable: true,
+      show: false,
+      webPreferences: getAppWebPreferences(),
+    });
+    floatingCaptureToolbarWindow.setAlwaysOnTop(true, 'screen-saver');
+    floatingCaptureToolbarWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    floatingCaptureToolbarWindow.loadURL(`data:text/html;charset=UTF-8,${encodeURIComponent(floatingCaptureToolbarHtml(activeMode))}`);
+    floatingCaptureToolbarWindow.on('closed', () => { floatingCaptureToolbarWindow = null; });
+  }
+
+  floatingCaptureToolbarWindow.setBounds(getFloatingCaptureToolbarBounds());
+  floatingCaptureToolbarWindow.setAlwaysOnTop(true, 'screen-saver');
+  floatingCaptureToolbarWindow.showInactive();
+  floatingCaptureToolbarWindow.moveTop();
+}
+
+function hideFloatingCaptureToolbar() {
+  if (floatingCaptureToolbarWindow && !floatingCaptureToolbarWindow.isDestroyed()) floatingCaptureToolbarWindow.hide();
+}
+
+function closeFloatingCaptureToolbar() {
+  if (floatingCaptureToolbarWindow && !floatingCaptureToolbarWindow.isDestroyed()) floatingCaptureToolbarWindow.close();
+  floatingCaptureToolbarWindow = null;
+}
+
+function sendToMainRenderer(channel, payload) {
+  if (!mainWindow || mainWindow.isDestroyed()) createMainWindow();
+  const send = () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.webContents.send(channel, payload);
+  };
+  if (mainWindow.webContents.isLoading()) {
+    mainWindow.webContents.once('did-finish-load', () => setTimeout(send, 40));
+  } else {
+    send();
+  }
+}
 
 function settingsPath() {
   return path.join(app.getPath('userData'), SETTINGS_FILE);
@@ -1060,6 +1187,11 @@ async function captureAllScreens() {
   };
 }
 
+function closeCaptureOverlays() {
+  captureWindows.forEach((w) => { if (!w.isDestroyed()) w.close(); });
+  captureWindows = [];
+}
+
 function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) {
   const displays = screen.getAllDisplays();
 
@@ -1157,28 +1289,35 @@ function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) 
 
 ipcMain.handle('start-capture', async (event, options = {}) => {
   console.log('[pico][capture] start-capture invoked');
+  closeCaptureOverlays();
+  hideFloatingCaptureToolbar();
   if (mainWindow) mainWindow.hide();
-  await new Promise(r => setTimeout(r, 200));
+  await new Promise(r => setTimeout(r, 120));
 
   try {
     const status = process.platform === 'darwin' ? getMacScreenRecordingStatus() : 'granted';
     console.log('[pico][capture] permission status:', status);
     if (!await ensureMacScreenRecordingPermission()) {
       if (mainWindow) mainWindow.show();
+      closeFloatingCaptureToolbar();
       return { success: false, error: 'Screen Recording permission is required.' };
     }
     const captureData = await withHiddenDesktopIcons(options, async () => captureAllScreens());
     console.log('[pico][capture] capture data ready; creating overlays');
     createCaptureOverlays(captureData, 'region', []);
+    setTimeout(() => showFloatingCaptureToolbar('region'), 120);
     return { success: true };
   } catch (err) {
     console.error('[pico][capture] start-capture failed:', err.message);
+    closeFloatingCaptureToolbar();
     if (mainWindow) mainWindow.show();
     return { success: false, error: err.message };
   }
 });
 
 ipcMain.handle('start-capture-window', async (event, options = {}) => {
+  closeCaptureOverlays();
+  hideFloatingCaptureToolbar();
   if (mainWindow) mainWindow.hide();
   await new Promise(r => setTimeout(r, process.platform === 'darwin' ? 180 : 80));
   try {
@@ -1204,14 +1343,18 @@ ipcMain.handle('start-capture-window', async (event, options = {}) => {
     }
 
     createCaptureOverlays(captureData, 'window', winBounds);
+    setTimeout(() => showFloatingCaptureToolbar('window'), 120);
     return { success: true };
   } catch (err) {
+    closeFloatingCaptureToolbar();
     if (mainWindow) mainWindow.show();
     return { success: false, error: err.message };
   }
 });
 
 ipcMain.handle('start-capture-fullscreen', async (event, options = {}) => {
+  closeCaptureOverlays();
+  closeFloatingCaptureToolbar();
   if (mainWindow) mainWindow.hide();
   await new Promise(r => setTimeout(r, 200));
   try {
@@ -1235,8 +1378,8 @@ ipcMain.handle('start-capture-fullscreen', async (event, options = {}) => {
 ipcMain.on('window-overlay-select', async (event, windowName) => {
   // Use desktopCapturer to get a pixel-perfect capture of the selected window.
   // This avoids the frame inset guessing entirely.
-  captureWindows.forEach(w => { if (!w.isDestroyed()) w.close(); });
-  captureWindows = [];
+  closeCaptureOverlays();
+  closeFloatingCaptureToolbar();
 
   try {
     // Find matching source by name (best match)
@@ -1274,8 +1417,8 @@ ipcMain.on('window-overlay-select', async (event, windowName) => {
 });
 
 ipcMain.on('capture-complete', (event, imageDataUrl) => {
-  captureWindows.forEach(w => { if (!w.isDestroyed()) w.close(); });
-  captureWindows = [];
+  closeCaptureOverlays();
+  closeFloatingCaptureToolbar();
   copyDataUrlToClipboard(imageDataUrl);
   if (mainWindow) {
     mainWindow.show();
@@ -1286,8 +1429,8 @@ ipcMain.on('capture-complete', (event, imageDataUrl) => {
 });
 
 ipcMain.on('capture-cancel', () => {
-  captureWindows.forEach(w => { if (!w.isDestroyed()) w.close(); });
-  captureWindows = [];
+  closeCaptureOverlays();
+  closeFloatingCaptureToolbar();
   if (recordingRegionSelection) {
     recordingRegionSelection.resolve(null);
     recordingRegionSelection = null;
@@ -1298,8 +1441,8 @@ ipcMain.on('capture-cancel', () => {
 });
 
 ipcMain.on('recording-region-complete', (event, region) => {
-  captureWindows.forEach(w => { if (!w.isDestroyed()) w.close(); });
-  captureWindows = [];
+  closeCaptureOverlays();
+  closeFloatingCaptureToolbar();
   if (recordingRegionSelection) {
     recordingRegionSelection.resolve(region);
     recordingRegionSelection = null;
@@ -1627,18 +1770,10 @@ function setupTray() {
   tray.setToolTip('pico');
 
   const trayMenu = Menu.buildFromTemplate([
-    {
-      label: 'Open pico',
-      click: () => {
-        if (!mainWindow || mainWindow.isDestroyed()) createMainWindow();
-        mainWindow.show();
-        mainWindow.focus();
-      },
-    },
-    { type: 'separator' },
-    { label: 'Capture Region', click: () => mainWindow?.webContents.send('trigger-capture') },
-    { label: 'Capture Window', click: () => mainWindow?.webContents.send('trigger-capture-window') },
-    { label: 'Capture Fullscreen', click: () => mainWindow?.webContents.send('trigger-capture-fullscreen') },
+    { label: 'Capture Region', click: () => sendToMainRenderer('trigger-capture') },
+    { label: 'Capture Window', click: () => sendToMainRenderer('trigger-capture-window') },
+    { label: 'Capture Fullscreen', click: () => sendToMainRenderer('trigger-capture-fullscreen') },
+    { label: 'Record Screen', click: () => sendToMainRenderer('trigger-record-screen') },
     { type: 'separator' },
     { label: 'Preferences', click: () => openPreferencesWindow() },
     { type: 'separator' },
@@ -1646,11 +1781,8 @@ function setupTray() {
   ]);
 
   tray.setContextMenu(trayMenu);
-  tray.on('click', () => {
-    if (!mainWindow || mainWindow.isDestroyed()) createMainWindow();
-    mainWindow.show();
-    mainWindow.focus();
-  });
+  tray.on('click', () => tray.popUpContextMenu(trayMenu));
+  tray.on('right-click', () => tray.popUpContextMenu(trayMenu));
 }
 
 app.whenReady().then(() => {
@@ -1678,11 +1810,11 @@ app.whenReady().then(() => {
   };
   const triggerCaptureFromShortcut = () => {
     const wasMissingWindow = !mainWindow || mainWindow.isDestroyed();
-    focusAndShowMainWindow();
+    if (!mainWindow || mainWindow.isDestroyed()) createMainWindow();
     const sendTrigger = () => {
       if (!mainWindow || mainWindow.isDestroyed()) return;
-      mainWindow.webContents.send('trigger-capture-menu');
-      console.log('[pico][shortcut] sent trigger-capture-menu');
+      mainWindow.webContents.send('trigger-capture');
+      console.log('[pico][shortcut] sent trigger-capture');
     };
     if (wasMissingWindow) {
       runWhenWindowReady(() => setTimeout(sendTrigger, 40));
@@ -1722,3 +1854,20 @@ app.on('window-all-closed', () => {
 });
 
 app.on('will-quit', () => globalShortcut.unregisterAll());
+
+ipcMain.on('floating-capture-toolbar-action', (event, action) => {
+  if (!['region', 'window', 'fullscreen', 'record'].includes(action)) return;
+  if (action === 'region') {
+    sendToMainRenderer('trigger-capture');
+    return;
+  }
+  if (action === 'window') {
+    sendToMainRenderer('trigger-capture-window');
+    return;
+  }
+  if (action === 'fullscreen') {
+    sendToMainRenderer('trigger-capture-fullscreen');
+    return;
+  }
+  sendToMainRenderer('trigger-record-screen');
+});
