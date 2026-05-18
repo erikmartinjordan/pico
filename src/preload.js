@@ -501,6 +501,7 @@ contextBridge.exposeInMainWorld('pico', {
   onTriggerCaptureMenu: (callback) => ipcRenderer.on('trigger-capture-menu', () => callback()),
   onTriggerCaptureWindow: (callback) => ipcRenderer.on('trigger-capture-window', () => callback()),
   onTriggerCaptureFullscreen: (callback) => ipcRenderer.on('trigger-capture-fullscreen', () => callback()),
+  onTriggerRecordScreen: (callback) => ipcRenderer.on('trigger-record-screen', () => callback()),
   onShortcutCaptureReady: (callback) => ipcRenderer.on('trigger-shortcut-capture-ready', () => callback()),
   onOpenPreferences: (callback) => ipcRenderer.on('open-preferences', () => callback()),
   onLoadCaptureData: (callback) => ipcRenderer.on('load-capture-data', (_, data) => callback(data)),
@@ -522,6 +523,7 @@ contextBridge.exposeInMainWorld('pico', {
   startRecording,
   stopRecording,
   saveRecording: (payload) => ipcRenderer.invoke('pro-save-recording', payload),
+  setMainWindowIgnoreMouseEvents: (ignore) => ipcRenderer.invoke('set-main-window-ignore-mouse-events', Boolean(ignore)),
 
   // File operations
   openFile: () => ipcRenderer.invoke('open-file'),

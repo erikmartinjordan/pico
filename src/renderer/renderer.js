@@ -133,6 +133,7 @@ function init() {
   bindPaste();
   bindCrop();
   bindTooltips();
+  bindFloatingToolbarHitTest();
   if (elements.textFontFamily) elements.textFontFamily.value = state.textFontFamily;
   if (elements.textFontSize) elements.textFontSize.value = String(state.textFontSize);
   loadRecordingSettings();
@@ -235,6 +236,32 @@ function bindStrokePicker() {
 }
 
 
+
+function bindFloatingToolbarHitTest() {
+  const setIgnore = (ignore) => window.pico.setMainWindowIgnoreMouseEvents?.(ignore).catch(() => {});
+  const interactiveSelector = [
+    '.toolbar',
+    '.recording-format-menu.visible',
+    '.stroke-menu',
+    '.preferences-dialog[open]',
+    '.recording-preview:not(.hidden)',
+    '.recording-save-progress.visible',
+    '.app-tooltip.visible',
+    '.toast-container',
+  ].join(', ');
+
+  const update = (event) => {
+    const target = event?.target;
+    const isInteractive = Boolean(target?.closest?.(interactiveSelector));
+    setIgnore(!isInteractive);
+  };
+
+  document.addEventListener('mousemove', update);
+  document.addEventListener('mouseenter', update);
+  document.addEventListener('mouseleave', () => setIgnore(true));
+  setIgnore(true);
+}
+
 function bindTooltips() {
   const tooltip = elements.tooltip;
   if (!tooltip) return;
@@ -331,6 +358,7 @@ function bindIPC() {
   });
   window.pico.onTriggerCaptureWindow(() => startCaptureWindow());
   window.pico.onTriggerCaptureFullscreen(() => startCaptureFullscreen());
+  window.pico.onTriggerRecordScreen?.(() => startRecordingWithFormat(state.recordingSettings.format, 'region'));
   window.pico.onShortcutCaptureReady(() => {
     showWindow();
   });
