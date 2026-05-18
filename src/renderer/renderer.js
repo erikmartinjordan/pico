@@ -145,12 +145,14 @@ function init() {
 // Event Binding
 // ══════════════════════════════════════════════════════════════════════════════
 
-function setCaptureModeButton(mode = 'region') {
+function setCaptureModeButton(mode = null) {
   const selected = mode === 'window'
     ? elements.btnCaptureWindow
     : mode === 'fullscreen'
       ? elements.btnCaptureFullscreen
-      : elements.btnCaptureRegion;
+      : mode === 'region'
+        ? elements.btnCaptureRegion
+        : null;
   [elements.btnCaptureRegion, elements.btnCaptureWindow, elements.btnCaptureFullscreen].forEach((btn) => {
     if (!btn) return;
     btn.classList.toggle('active', btn === selected);
@@ -324,14 +326,12 @@ function bindIPC() {
   });
   window.pico.onTriggerCaptureMenu(() => {
     console.log('[pico][renderer] received trigger-capture-menu');
-    setCaptureModeButton('region');
     showWindow();
     document.dispatchEvent(new CustomEvent('pico:show-capture-menu'));
   });
   window.pico.onTriggerCaptureWindow(() => startCaptureWindow());
   window.pico.onTriggerCaptureFullscreen(() => startCaptureFullscreen());
   window.pico.onShortcutCaptureReady(() => {
-    setCaptureModeButton('region');
     showWindow();
   });
   window.pico.onOpenPreferences(() => openPreferences());
@@ -747,23 +747,42 @@ async function saveRecordingPreview() {
 
 async function startCapture() {
   if (state.cropActive) cancelCrop();
-  const result = await window.pico.startCapture({ hideDesktopIcons: state.captureSettings.hideDesktopIcons });
-  if (!result.success) showToast(result.error || 'Failed to start capture', 'error');
+  try {
+    const result = await window.pico.startCapture({ hideDesktopIcons: state.captureSettings.hideDesktopIcons });
+    if (!result.success) showToast(result.error || 'Failed to start capture', 'error');
+  } catch (err) {
+    showToast(err?.message || 'Failed to start capture', 'error');
+  } finally {
+    setCaptureModeButton();
+  }
 }
 
 async function startCaptureWindow() {
   if (state.cropActive) cancelCrop();
-  const result = await window.pico.startCaptureWindow({ hideDesktopIcons: state.captureSettings.hideDesktopIcons });
-  if (!result.success) showToast(result.error || 'Failed to capture window', 'error');
+  try {
+    const result = await window.pico.startCaptureWindow({ hideDesktopIcons: state.captureSettings.hideDesktopIcons });
+    if (!result.success) showToast(result.error || 'Failed to capture window', 'error');
+  } catch (err) {
+    showToast(err?.message || 'Failed to capture window', 'error');
+  } finally {
+    setCaptureModeButton();
+  }
 }
 
 async function startCaptureFullscreen() {
   if (state.cropActive) cancelCrop();
   state.pendingFullscreenPreview = true;
-  const result = await window.pico.startCaptureFullscreen({ hideDesktopIcons: state.captureSettings.hideDesktopIcons });
-  if (!result.success) {
+  try {
+    const result = await window.pico.startCaptureFullscreen({ hideDesktopIcons: state.captureSettings.hideDesktopIcons });
+    if (!result.success) {
+      state.pendingFullscreenPreview = false;
+      showToast(result.error || 'Failed to capture screen', 'error');
+    }
+  } catch (err) {
     state.pendingFullscreenPreview = false;
-    showToast(result.error || 'Failed to capture screen', 'error');
+    showToast(err?.message || 'Failed to capture screen', 'error');
+  } finally {
+    setCaptureModeButton();
   }
 }
 
