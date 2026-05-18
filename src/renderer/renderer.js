@@ -99,7 +99,6 @@ const elements = {
   recordingPreviewMeta: $('#recording-preview-meta'),
   recordingPreviewSave: $('#recording-preview-save'),
   recordingPreviewDiscard: $('#recording-preview-discard'),
-  recordingPreviewClose: $('#recording-preview-close'),
   statusTool: $('#status-tool'),
   statusZoom: $('#status-zoom'),
   textWrapper: $('#text-input-wrapper'),
@@ -203,7 +202,6 @@ function bindToolbar() {
   bindStrokePicker();
   on(elements.recordingPreviewSave, 'click', saveRecordingPreview);
   on(elements.recordingPreviewDiscard, 'click', discardRecordingPreview);
-  on(elements.recordingPreviewClose, 'click', discardRecordingPreview);
   on(elements.textFontFamily, 'change', () => selectTextFontFamily(elements.textFontFamily.value));
   on(elements.textFontSize, 'change', () => selectTextFontSize(parseInt(elements.textFontSize.value)));
 }
@@ -703,7 +701,7 @@ function showRecordingPreview(result = {}) {
   };
   elements.recordingPreviewVideo.src = url;
   elements.recordingPreviewVideo.load();
-  elements.recordingPreviewMeta.textContent = `Unsaved ${state.recordingPreview.format.toUpperCase()} export · previewing captured WebM source`;
+  elements.recordingPreviewMeta.textContent = `${state.recordingPreview.format.toUpperCase()} preview ready`;
   elements.recordingPreview.classList.remove('hidden');
   elements.recordingPreview.setAttribute('aria-hidden', 'false');
 }

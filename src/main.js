@@ -635,6 +635,47 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
+function rectsIntersect(a, b) {
+  if (!a || !b) return false;
+  return a.x < b.x + b.width &&
+    a.x + a.width > b.x &&
+    a.y < b.y + b.height &&
+    a.y + a.height > b.y;
+}
+
+function getRecordingRegionOnDisplay(display) {
+  if (!lastRecordingRegion || String(lastRecordingRegion.displayId) !== String(display.id)) return null;
+  return {
+    left: Math.max(0, Math.round(lastRecordingRegion.x)),
+    top: Math.max(0, Math.round(lastRecordingRegion.y)),
+    width: Math.max(1, Math.round(lastRecordingRegion.width)),
+    height: Math.max(1, Math.round(lastRecordingRegion.height)),
+  };
+}
+
+function chooseRecordingControlsPosition(display, controlWidth, controlHeight) {
+  const { workArea } = display;
+  const padding = 16;
+  const region = getRecordingRegionOnDisplay(display);
+  const defaultPosition = {
+    x: Math.round(workArea.x + (workArea.width - controlWidth) / 2),
+    y: Math.round(workArea.y + workArea.height - controlHeight - padding),
+  };
+
+  if (!region) return defaultPosition;
+
+  const candidates = [
+    { x: workArea.x + padding, y: workArea.y + padding },
+    { x: workArea.x + workArea.width - controlWidth - padding, y: workArea.y + padding },
+    { x: workArea.x + padding, y: workArea.y + workArea.height - controlHeight - padding },
+    { x: workArea.x + workArea.width - controlWidth - padding, y: workArea.y + workArea.height - controlHeight - padding },
+    { x: Math.round(workArea.x + (workArea.width - controlWidth) / 2), y: workArea.y + padding },
+  ].map((candidate) => ({ ...candidate, width: controlWidth, height: controlHeight }));
+
+  const safeCandidate = candidates.find((candidate) => !rectsIntersect(candidate, region));
+  return safeCandidate || null;
+}
+
 function showRecordingIndicator() {
   if (recordingIndicatorWindows.length > 0) {
     recordingIndicatorWindows.forEach(w => { if (!w.isDestroyed()) w.showInactive(); });
@@ -666,17 +707,18 @@ function showRecordingIndicator() {
   const allDisplays = screen.getAllDisplays();
   const dimOpacity = 'rgba(0, 0, 0, 0.52)';
   const statusText = lastRecordingRegion ? 'Recording region' : 'Recording';
+  const controlsPosition = chooseRecordingControlsPosition(targetDisplay, controlWidth, controlHeight);
+
+  if (!controlsPosition) {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.hide();
+    }
+    return;
+  }
 
   for (const display of allDisplays) {
     const { bounds } = display;
-    const regionOnDisplay = lastRecordingRegion && String(lastRecordingRegion.displayId) === String(display.id)
-      ? {
-          left: Math.max(0, Math.round(lastRecordingRegion.x)),
-          top: Math.max(0, Math.round(lastRecordingRegion.y)),
-          width: Math.max(1, Math.round(lastRecordingRegion.width)),
-          height: Math.max(1, Math.round(lastRecordingRegion.height)),
-        }
-      : null;
+    const regionOnDisplay = getRecordingRegionOnDisplay(display);
     if (regionOnDisplay) {
       regionOnDisplay.right = Math.max(0, bounds.width - regionOnDisplay.left - regionOnDisplay.width);
       regionOnDisplay.bottom = Math.max(0, bounds.height - regionOnDisplay.top - regionOnDisplay.height);
@@ -770,9 +812,7 @@ function showRecordingIndicator() {
     }
   }
 
-  const { workArea } = targetDisplay;
-  const controlsX = Math.round(workArea.x + (workArea.width - controlWidth) / 2);
-  const controlsY = Math.round(workArea.y + workArea.height - controlHeight - 16);
+  const { x: controlsX, y: controlsY } = controlsPosition;
   const controlsWindow = new BrowserWindow({
     width: controlWidth,
     height: controlHeight,
@@ -883,9 +923,9 @@ function showRecordingIndicator() {
 
   recordingIndicatorWindows.push(controlsWindow);
 
-  // Minimize pico main window so user can navigate other apps while recording
+  // Hide pico main window so it cannot appear inside the recording stream.
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.minimize();
+    mainWindow.hide();
   }
 }
 
@@ -1674,6 +1714,18 @@ app.whenReady().then(() => {
       debugWindowState('before-shortcut');
       triggerCaptureFromShortcut();
       debugWindowState('after-focus-show');
+    });
+    console.log(`[pico][shortcut] register ${accelerator}: ${ok ? 'ok' : 'failed'}`);
+    if (!ok) console.warn(`[pico] Failed to register global shortcut: ${accelerator}`);
+  });
+
+  const stopRecordingShortcuts = process.platform === 'darwin'
+    ? ['Command+Shift+R', 'Control+Shift+R']
+    : ['CommandOrControl+Shift+R'];
+  stopRecordingShortcuts.forEach((accelerator) => {
+    const ok = globalShortcut.register(accelerator, () => {
+      if (recordingIndicatorWindows.length === 0) return;
+      mainWindow?.webContents.send('pro-recording-stop-requested');
     });
     console.log(`[pico][shortcut] register ${accelerator}: ${ok ? 'ok' : 'failed'}`);
     if (!ok) console.warn(`[pico] Failed to register global shortcut: ${accelerator}`);

@@ -1,7 +1,7 @@
 # pico
 
 <p align="center">
-  <img src="src/assets/icons/macos/256x256.png" alt="pico icon" width="128" height="128" />
+  <img src="src/assets/icons/web/256x256.png" alt="pico icon" width="128" height="128" />
 </p>
 
 <p align="center">

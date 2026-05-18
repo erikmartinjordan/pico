@@ -994,8 +994,11 @@ body {
 .recording-preview__actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
+}
+
+.recording-preview__header {
+  justify-content: flex-start;
 }
 
 .recording-preview__header h3 {
@@ -1006,17 +1009,6 @@ body {
 .recording-preview__header p {
   font-size: 11px;
   color: rgba(255,255,255,0.62);
-}
-
-.recording-preview__close {
-  width: 32px;
-  height: 32px;
-  border: 1px solid rgba(255,255,255,0.18);
-  border-radius: 999px;
-  background: rgba(255,255,255,0.10);
-  color: #fff;
-  font-size: 20px;
-  cursor: pointer;
 }
 
 #recording-preview-video {
