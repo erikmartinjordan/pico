@@ -635,7 +635,7 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
-function showRecordingIndicator() {
+function showRecordingIndicator(options = {}) {
   if (recordingIndicatorWindows.length > 0) {
     recordingIndicatorWindows.forEach(w => { if (!w.isDestroyed()) w.showInactive(); });
     return;
@@ -883,8 +883,8 @@ function showRecordingIndicator() {
 
   recordingIndicatorWindows.push(controlsWindow);
 
-  // Minimize pico main window so user can navigate other apps while recording
-  if (mainWindow && !mainWindow.isDestroyed()) {
+  // Keep pico visible when the renderer is showing the selected stream inline.
+  if (!options.inlinePreview && mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.minimize();
   }
 }
@@ -1429,7 +1429,7 @@ ipcMain.handle('get-cursor-screen-point', () => screen.getCursorScreenPoint());
 
 ipcMain.handle('pro-recording-indicator-show', async (event, payload = {}) => {
   if (payload?.region) lastRecordingRegion = payload.region;
-  showRecordingIndicator();
+  showRecordingIndicator({ inlinePreview: Boolean(payload?.inlinePreview) });
   return { success: true };
 });
 
@@ -1495,6 +1495,10 @@ ipcMain.handle('pro-recording-source', async (event, options = {}) => {
       }
       lastRecordingSourceId = region.sourceId;
       lastRecordingRegion = region;
+      if (options?.inlinePreview && mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.show();
+        mainWindow.focus();
+      }
       return {
         id: region.sourceId,
         name: 'Selected region',
@@ -1511,6 +1515,10 @@ ipcMain.handle('pro-recording-source', async (event, options = {}) => {
     }
     lastRecordingSourceId = source.id;
     lastRecordingRegion = null;
+    if (options?.inlinePreview && mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
     return { id: source.id, name: source.name, mode: 'window' };
   } catch (error) {
     await restoreMacDesktopIconsAfterRecording();

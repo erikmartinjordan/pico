@@ -615,10 +615,12 @@ async function startRecordingWithFormat(format = 'mp4', mode = 'region') {
       mode,
       autoZoom: mode === 'region' ? state.recordingSettings.autoZoom : false,
       hideDesktopIcons: state.captureSettings.hideDesktopIcons,
+      previewVideoId: 'recording-preview-video',
     });
     state.isRecording = true;
     state.recordingFormat = format;
     state.recordingMode = mode;
+    showLiveRecordingPreview(started, format);
     setRecordingIndicator(true);
     const targetLabel = mode === 'region' ? 'selected region with autozoom' : (started.source?.name || 'window');
     showToast(started.systemAudio ? `Recording ${targetLabel} as ${format.toUpperCase()}` : `Recording ${targetLabel} as ${format.toUpperCase()} without system audio`, started.systemAudio ? 'success' : 'info');
@@ -701,9 +703,14 @@ function showRecordingPreview(result = {}) {
     format: result.format || state.recordingFormat || 'mp4',
     mimeType: result.mimeType || 'video/webm',
   };
+  elements.recordingPreview.classList.remove('is-live');
+  elements.recordingPreviewVideo.muted = false;
+  elements.recordingPreviewVideo.controls = true;
+  elements.recordingPreviewVideo.srcObject = null;
   elements.recordingPreviewVideo.src = url;
   elements.recordingPreviewVideo.load();
   elements.recordingPreviewMeta.textContent = `Unsaved ${state.recordingPreview.format.toUpperCase()} export · previewing captured WebM source`;
+  elements.container?.classList.add('recording-preview-active');
   elements.recordingPreview.classList.remove('hidden');
   elements.recordingPreview.setAttribute('aria-hidden', 'false');
 }
@@ -713,12 +720,30 @@ function discardRecordingPreview(options = {}) {
   state.recordingPreview = null;
   if (elements.recordingPreviewVideo) {
     elements.recordingPreviewVideo.pause();
+    elements.recordingPreviewVideo.srcObject = null;
+    elements.recordingPreviewVideo.muted = true;
     elements.recordingPreviewVideo.removeAttribute('src');
     elements.recordingPreviewVideo.load();
   }
+  elements.recordingPreview?.classList.remove('is-live');
   elements.recordingPreview?.classList.add('hidden');
   elements.recordingPreview?.setAttribute('aria-hidden', 'true');
+  elements.container?.classList.remove('recording-preview-active');
   if (!options?.silent) showToast('Recording discarded', 'info');
+}
+
+function showLiveRecordingPreview(started = {}, format = state.recordingFormat) {
+  if (!elements.recordingPreview || !elements.recordingPreviewVideo) return;
+  if (state.recordingPreview?.url) URL.revokeObjectURL(state.recordingPreview.url);
+  state.recordingPreview = null;
+  elements.recordingPreviewVideo.removeAttribute('src');
+  elements.recordingPreviewVideo.muted = true;
+  elements.recordingPreviewVideo.controls = false;
+  elements.recordingPreviewMeta.textContent = `Recording ${format.toUpperCase()} source preview${started.systemAudio ? '' : ' · no system audio'}`;
+  elements.recordingPreview.classList.add('is-live');
+  elements.container?.classList.add('recording-preview-active');
+  elements.recordingPreview.classList.remove('hidden');
+  elements.recordingPreview.setAttribute('aria-hidden', 'false');
 }
 
 async function saveRecordingPreview() {

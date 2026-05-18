@@ -20,6 +20,18 @@ function getRecordingMimeType() {
   return 'video/webm';
 }
 
+function attachRecordingPreviewStream(previewVideoId, stream) {
+  if (!previewVideoId || !stream) return;
+  const video = document.getElementById(previewVideoId);
+  if (!video) return;
+  video.pause();
+  video.removeAttribute('src');
+  video.srcObject = stream;
+  video.muted = true;
+  video.playsInline = true;
+  video.play().catch(() => {});
+}
+
 async function getCursorScreenPoint() {
   return ipcRenderer.invoke('get-cursor-screen-point');
 }
@@ -356,6 +368,7 @@ async function startRecording(options = {}) {
     mode,
     autoZoom: options?.autoZoom !== false,
     hideDesktopIcons: options?.hideDesktopIcons !== false,
+    inlinePreview: Boolean(options?.previewVideoId),
   });
   if (!source) throw new Error('Recording canceled');
   if (!navigator.mediaDevices?.getUserMedia) {
@@ -387,6 +400,8 @@ async function startRecording(options = {}) {
     proRecordingZoomStop = null;
   }
 
+  attachRecordingPreviewStream(options?.previewVideoId, proRecordingStream);
+
   const mimeType = getRecordingMimeType();
   proRecordingChunks = [];
   proRecorder = new MediaRecorder(proRecordingStream, { mimeType });
@@ -394,7 +409,10 @@ async function startRecording(options = {}) {
     if (event.data && event.data.size > 0) proRecordingChunks.push(event.data);
   };
   proRecorder.start(1000);
-  ipcRenderer.invoke('pro-recording-indicator-show', { region: source.mode === 'region' ? source.region : null }).catch(() => {});
+  ipcRenderer.invoke('pro-recording-indicator-show', {
+    region: source.mode === 'region' ? source.region : null,
+    inlinePreview: Boolean(options?.previewVideoId),
+  }).catch(() => {});
   return { success: true, pro: true, source, systemAudio, mimeType };
 }
 
