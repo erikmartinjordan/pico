@@ -56,7 +56,7 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
-function createAutoZoomStream(sourceStream, region) {
+function createAutoZoomStream(sourceStream, region, options = {}) {
   const video = document.createElement('video');
   video.muted = true;
   video.srcObject = sourceStream;
@@ -85,6 +85,7 @@ function createAutoZoomStream(sourceStream, region) {
   const pixelScaleX = region.width > 0 ? srcRegion.width / region.width : scaleFactor;
   const pixelScaleY = region.height > 0 ? srcRegion.height / region.height : scaleFactor;
   const fps = 60;
+  const enableAutoZoom = options.autoZoom !== false;
 
   const zoomLevel = clamp(1.35 + ((srcRegion.width - 1280) / 5120), 1.35, 1.65);
   const regionCenterX = srcRegion.x + srcRegion.width / 2;
@@ -249,12 +250,17 @@ function createAutoZoomStream(sourceStream, region) {
     const dt = Math.min(0.1, (now - lastFrameTime) / 1000);
     lastFrameTime = now;
 
-    updateStateMachine(now);
+    if (enableAutoZoom) {
+      updateStateMachine(now);
 
-    // Dynamic easing speeds based on how far we are from target (smoothes out stops)
-    camera.zoom = expEase(camera.zoom, targetCamera.zoom, ZOOM_SPEED, dt);
-    camera.x = expEase(camera.x, targetCamera.x, PAN_SPEED, dt);
-    camera.y = expEase(camera.y, targetCamera.y, PAN_SPEED, dt);
+      // Dynamic easing speeds based on how far we are from target (smoothes out stops)
+      camera.zoom = expEase(camera.zoom, targetCamera.zoom, ZOOM_SPEED, dt);
+      camera.x = expEase(camera.x, targetCamera.x, PAN_SPEED, dt);
+      camera.y = expEase(camera.y, targetCamera.y, PAN_SPEED, dt);
+    } else {
+      targetCamera = { x: regionCenterX, y: regionCenterY, zoom: 1 };
+      camera = { ...targetCamera };
+    }
 
     const cropW = srcRegion.width / camera.zoom;
     const cropH = srcRegion.height / camera.zoom;
@@ -293,7 +299,9 @@ function createAutoZoomStream(sourceStream, region) {
 
   const ready = video.play().then(() => {
     lastFrameTime = performance.now();
-    pollTimer = setInterval(pollCursor, 33); // 30Hz background coordinate capture
+    if (enableAutoZoom) {
+      pollTimer = setInterval(pollCursor, 33); // 30Hz background coordinate capture
+    }
     draw();
     return canvasStream;
   });
@@ -371,51 +379,73 @@ async function startRecording(options = {}) {
     inlinePreview: Boolean(options?.previewVideoId),
   });
   if (!source) throw new Error('Recording canceled');
-  if (!navigator.mediaDevices?.getUserMedia) {
-    throw new Error('Screen recording is unavailable because media capture APIs are not available.');
-  }
-  if (typeof MediaRecorder === 'undefined') {
-    throw new Error('Screen recording is unavailable because MediaRecorder is not available.');
-  }
-
   let systemAudio = true;
   let rawStream = null;
   try {
-    rawStream = await getDesktopStream(source.id, true);
-  } catch (audioError) {
-    systemAudio = false;
-    rawStream = await getDesktopStream(source.id, false);
-  }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error('Screen recording is unavailable because media capture APIs are not available.');
+    }
+    if (typeof MediaRecorder === 'undefined') {
+      throw new Error('Screen recording is unavailable because MediaRecorder is not available.');
+    }
 
-  let zoomPipeline = null;
-  const autoZoomRegion = source.autoZoom === false || options?.autoZoom === false ? null : await getAutoZoomRegion(source, mode);
-  if (autoZoomRegion) {
-    zoomPipeline = createAutoZoomStream(rawStream, autoZoomRegion);
-    proRecordingStream = await zoomPipeline.ready;
-    proRecordingRawStream = rawStream;
-    proRecordingZoomStop = zoomPipeline.stop;
-  } else {
-    proRecordingStream = rawStream;
+    await ipcRenderer.invoke('pro-recording-prepare', {
+      mode: source.mode || mode,
+      region: source.mode === 'region' ? source.region : null,
+    });
+
+    try {
+      rawStream = await getDesktopStream(source.id, true);
+    } catch (audioError) {
+      systemAudio = false;
+      rawStream = await getDesktopStream(source.id, false);
+    }
+
+    let zoomPipeline = null;
+    const shouldCropRegion = mode === 'region' && source.region;
+    const autoZoomRegion = shouldCropRegion
+      ? source.region
+      : (source.autoZoom === false || options?.autoZoom === false ? null : await getAutoZoomRegion(source, mode));
+    if (autoZoomRegion) {
+      zoomPipeline = createAutoZoomStream(rawStream, autoZoomRegion, {
+        autoZoom: shouldCropRegion ? options?.autoZoom !== false && source.autoZoom !== false : true,
+      });
+      proRecordingStream = await zoomPipeline.ready;
+      proRecordingRawStream = rawStream;
+      proRecordingZoomStop = zoomPipeline.stop;
+    } else {
+      proRecordingStream = rawStream;
+      proRecordingRawStream = null;
+      proRecordingZoomStop = null;
+    }
+
+    attachRecordingPreviewStream(null, proRecordingStream);
+
+    const mimeType = getRecordingMimeType();
+    proRecordingChunks = [];
+    proRecorder = new MediaRecorder(proRecordingStream, { mimeType });
+    proRecorder.ondataavailable = (event) => {
+      if (event.data && event.data.size > 0) proRecordingChunks.push(event.data);
+    };
+    proRecorder.start(1000);
+    ipcRenderer.invoke('pro-recording-indicator-show', {
+      region: source.mode === 'region' ? source.region : null,
+      inlinePreview: Boolean(options?.previewVideoId),
+    }).catch(() => {});
+    return { success: true, pro: true, source, systemAudio, mimeType };
+  } catch (error) {
+    proRecordingZoomStop?.();
+    rawStream?.getTracks().forEach((track) => track.stop());
+    proRecordingStream?.getTracks().forEach((track) => track.stop());
+    proRecordingStream = null;
     proRecordingRawStream = null;
     proRecordingZoomStop = null;
+    proRecorder = null;
+    proRecordingChunks = [];
+    ipcRenderer.invoke('pro-recording-indicator-hide').catch(() => {});
+    throw error;
   }
-
-  attachRecordingPreviewStream(options?.previewVideoId, proRecordingStream);
-
-  const mimeType = getRecordingMimeType();
-  proRecordingChunks = [];
-  proRecorder = new MediaRecorder(proRecordingStream, { mimeType });
-  proRecorder.ondataavailable = (event) => {
-    if (event.data && event.data.size > 0) proRecordingChunks.push(event.data);
-  };
-  proRecorder.start(1000);
-  ipcRenderer.invoke('pro-recording-indicator-show', {
-    region: source.mode === 'region' ? source.region : null,
-    inlinePreview: Boolean(options?.previewVideoId),
-  }).catch(() => {});
-  return { success: true, pro: true, source, systemAudio, mimeType };
 }
-
 function stopRecording(options = {}) {
   return new Promise((resolve, reject) => {
     if (!proRecorder || proRecorder.state === 'inactive') {

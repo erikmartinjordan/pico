@@ -951,6 +951,7 @@ function createMainWindow() {
     show: false,
   });
 
+  mainWindow.setContentProtection(true);
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   mainWindow.once('ready-to-show', () => mainWindow.show());
   mainWindow.webContents.on('did-finish-load', () => console.log('[pico][main] did-finish-load'));
@@ -1438,6 +1439,31 @@ ipcMain.handle('pro-recording-indicator-hide', async () => {
   return { success: true };
 });
 
+async function hidePicoWindowsBeforeRecording() {
+  const windowsToHide = [mainWindow, preferencesWindow, windowPickerWindow]
+    .filter((win) => win && !win.isDestroyed());
+
+  for (const win of windowsToHide) {
+    try {
+      win.setContentProtection(true);
+      win.hide();
+    } catch (error) {
+      console.error('[pico][recording] failed to hide pico window:', error.message);
+    }
+  }
+
+  // Let the OS compositor publish the hidden state before Chromium starts
+  // reading desktop frames. Without this guard, the first captured frames can
+  // contain pico itself and create the recursive preview effect.
+  await new Promise((resolve) => setTimeout(resolve, process.platform === 'darwin' ? 260 : 160));
+}
+
+ipcMain.handle('pro-recording-prepare', async (event, payload = {}) => {
+  if (payload?.region) lastRecordingRegion = payload.region;
+  await hidePicoWindowsBeforeRecording();
+  return { success: true };
+});
+
 async function chooseRecordingRegionSource(options = {}) {
   if (recordingRegionSelection) return recordingRegionSelection.promise;
 
@@ -1495,10 +1521,6 @@ ipcMain.handle('pro-recording-source', async (event, options = {}) => {
       }
       lastRecordingSourceId = region.sourceId;
       lastRecordingRegion = region;
-      if (options?.inlinePreview && mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.show();
-        mainWindow.focus();
-      }
       return {
         id: region.sourceId,
         name: 'Selected region',
@@ -1515,10 +1537,6 @@ ipcMain.handle('pro-recording-source', async (event, options = {}) => {
     }
     lastRecordingSourceId = source.id;
     lastRecordingRegion = null;
-    if (options?.inlinePreview && mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.show();
-      mainWindow.focus();
-    }
     return { id: source.id, name: source.name, mode: 'window' };
   } catch (error) {
     await restoreMacDesktopIconsAfterRecording();
