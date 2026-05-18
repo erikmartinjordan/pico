@@ -98,8 +98,7 @@ const elements = {
   recordingPreviewVideo: $('#recording-preview-video'),
   recordingPreviewMeta: $('#recording-preview-meta'),
   recordingPreviewSave: $('#recording-preview-save'),
-  recordingPreviewDiscard: $('#recording-preview-discard'),
-  recordingPreviewClose: $('#recording-preview-close'),
+  recordingPreviewDelete: $('#recording-preview-delete'),
   statusTool: $('#status-tool'),
   statusZoom: $('#status-zoom'),
   textWrapper: $('#text-input-wrapper'),
@@ -202,8 +201,7 @@ function bindToolbar() {
   });
   bindStrokePicker();
   on(elements.recordingPreviewSave, 'click', saveRecordingPreview);
-  on(elements.recordingPreviewDiscard, 'click', discardRecordingPreview);
-  on(elements.recordingPreviewClose, 'click', discardRecordingPreview);
+  on(elements.recordingPreviewDelete, 'click', discardRecordingPreview);
   on(elements.textFontFamily, 'change', () => selectTextFontFamily(elements.textFontFamily.value));
   on(elements.textFontSize, 'change', () => selectTextFontSize(parseInt(elements.textFontSize.value)));
 }
@@ -703,13 +701,16 @@ function showRecordingPreview(result = {}) {
     mimeType: result.mimeType || 'video/webm',
   };
   elements.recordingPreview.classList.remove('is-live');
-  elements.recordingPreviewVideo.muted = false;
+  elements.recordingPreviewVideo.muted = true;
   elements.recordingPreviewVideo.controls = true;
+  elements.recordingPreviewVideo.autoplay = true;
   elements.recordingPreviewVideo.srcObject = null;
   elements.recordingPreviewVideo.src = url;
   elements.recordingPreviewVideo.load();
-  elements.recordingPreviewMeta.textContent = `Unsaved ${state.recordingPreview.format.toUpperCase()} export · previewing captured WebM source`;
-  elements.container?.classList.add('recording-preview-active');
+  const playback = elements.recordingPreviewVideo.play();
+  if (playback?.catch) playback.catch(() => {});
+  elements.recordingPreviewMeta.textContent = `Unsaved ${state.recordingPreview.format.toUpperCase()} export`;
+  elements.container?.classList.add('recording-preview-active', 'recording-review-active');
   elements.recordingPreview.classList.remove('hidden');
   elements.recordingPreview.setAttribute('aria-hidden', 'false');
 }
@@ -727,7 +728,7 @@ function discardRecordingPreview(options = {}) {
   elements.recordingPreview?.classList.remove('is-live');
   elements.recordingPreview?.classList.add('hidden');
   elements.recordingPreview?.setAttribute('aria-hidden', 'true');
-  elements.container?.classList.remove('recording-preview-active');
+  elements.container?.classList.remove('recording-preview-active', 'recording-review-active');
   if (!options?.silent) showToast('Recording discarded', 'info');
 }
 
@@ -740,6 +741,7 @@ function showLiveRecordingPreview(started = {}, format = state.recordingFormat) 
   elements.recordingPreviewVideo.controls = false;
   elements.recordingPreviewMeta.textContent = `Recording ${format.toUpperCase()} source preview${started.systemAudio ? '' : ' · no system audio'}`;
   elements.recordingPreview.classList.add('is-live');
+  elements.container?.classList.remove('recording-review-active');
   elements.container?.classList.add('recording-preview-active');
   elements.recordingPreview.classList.remove('hidden');
   elements.recordingPreview.setAttribute('aria-hidden', 'false');
