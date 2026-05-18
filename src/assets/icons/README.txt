@@ -3,6 +3,7 @@
 This directory is the canonical source for pico runtime icons.
 
 - `icon.png` is the source icon used for generated app assets.
+- `macos/StatusTemplate-volcano-thicker.png` and `macos/StatusTemplate-volcano-thicker@2x.png` are the macOS menu bar template pair.
 - `macos/` contains macOS PNG sizes and `icon.icns`.
 - `windows/` contains Windows PNG sizes and `icon.ico`.
 - `linux/icons/` contains Linux PNG sizes.
