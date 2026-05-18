@@ -989,8 +989,7 @@ body {
   box-shadow: 0 18px 54px rgba(0,0,0,0.42), 0 1px 0 rgba(255,255,255,0.08) inset;
 }
 
-.recording-preview__header,
-.recording-preview__actions {
+.recording-preview__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1007,17 +1006,6 @@ body {
   color: rgba(255,255,255,0.62);
 }
 
-.recording-preview__close {
-  width: 32px;
-  height: 32px;
-  border: 1px solid rgba(255,255,255,0.18);
-  border-radius: 8px;
-  background: rgba(255,255,255,0.10);
-  color: #fff;
-  font-size: 20px;
-  cursor: pointer;
-}
-
 #recording-preview-video {
   width: 100%;
   max-height: calc(100vh - 276px);
@@ -1026,9 +1014,25 @@ body {
   box-shadow: 0 0 0 1px rgba(255,255,255,0.12);
 }
 
-.recording-preview__actions { justify-content: flex-end; }
-
-.recording-preview.is-live .recording-preview__actions,
-.recording-preview.is-live .recording-preview__close {
+.recording-preview-toolbar-actions {
   display: none;
+}
+
+.recording-review-active .toolbar > :not(.recording-preview-toolbar-actions) {
+  display: none;
+}
+
+.recording-review-active .recording-preview-toolbar-actions {
+  display: flex;
+}
+
+.recording-toolbar-btn {
+  width: auto;
+  padding: 0 12px;
+  gap: 7px;
+}
+
+.recording-toolbar-btn span {
+  font-size: 12px;
+  font-weight: 600;
 }
