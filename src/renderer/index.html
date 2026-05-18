@@ -42,9 +42,16 @@
       </div>
       <div class="toolbar-separator"></div>
       <div class="toolbar-group strokes">
-        <button class="stroke-btn" data-width="2"><span class="stroke-preview" style="height:1.5px"></span></button>
-        <button class="stroke-btn" data-width="4"><span class="stroke-preview" style="height:3px"></span></button>
-        <button class="stroke-btn" data-width="8"><span class="stroke-preview" style="height:5px"></span></button>
+        <div class="stroke-picker" id="stroke-picker">
+          <button class="stroke-btn stroke-current" id="stroke-current" data-tooltip="Line weight">
+            <span class="stroke-preview" id="stroke-current-preview" style="height:3px"></span>
+          </button>
+          <div class="stroke-menu" id="stroke-menu" role="menu" aria-label="Line weight" aria-hidden="true">
+            <button class="stroke-btn" data-width="2" role="menuitem" tabindex="-1"><span class="stroke-preview" style="height:1.5px"></span><span>Thin</span></button>
+            <button class="stroke-btn" data-width="4" role="menuitem" tabindex="-1"><span class="stroke-preview" style="height:3px"></span><span>Regular</span></button>
+            <button class="stroke-btn" data-width="8" role="menuitem" tabindex="-1"><span class="stroke-preview" style="height:5px"></span><span>Bold</span></button>
+          </div>
+        </div>
       </div>
       <div class="toolbar-group">
         <button class="toolbar-btn" id="btn-crop" data-tooltip="Crop image"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2v4H2"/><path d="M6 6h12v12"/><path d="M18 22v-4h4"/><path d="M2 6h4v12h12"/></svg></button>
@@ -151,6 +158,24 @@
       <div class="preferences-actions"><button value="close">Done</button></div>
     </form>
   </dialog>
+
+
+  <div class="recording-preview hidden" id="recording-preview" aria-hidden="true">
+    <div class="recording-preview__panel">
+      <div class="recording-preview__header">
+        <div>
+          <h3>Recording preview</h3>
+          <p id="recording-preview-meta">Review your capture before saving.</p>
+        </div>
+        <button class="recording-preview__close" id="recording-preview-close" aria-label="Close recording preview">×</button>
+      </div>
+      <video id="recording-preview-video" controls playsinline></video>
+      <div class="recording-preview__actions">
+        <button type="button" class="btn btn-secondary" id="recording-preview-discard">Discard</button>
+        <button type="button" class="btn btn-primary" id="recording-preview-save">Save recording</button>
+      </div>
+    </div>
+  </div>
 
   <div class="toast-container" id="toast-container"></div>
   <div class="app-tooltip" id="app-tooltip" aria-hidden="true"></div>
