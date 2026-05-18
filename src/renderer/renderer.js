@@ -615,7 +615,6 @@ async function startRecordingWithFormat(format = 'mp4', mode = 'region') {
       mode,
       autoZoom: mode === 'region' ? state.recordingSettings.autoZoom : false,
       hideDesktopIcons: state.captureSettings.hideDesktopIcons,
-      previewVideoId: 'recording-preview-video',
     });
     state.isRecording = true;
     state.recordingFormat = format;
