@@ -1589,8 +1589,10 @@ ipcMain.on('pro-recording-stop-clicked', () => {
 
 function setupTray() {
   if (process.platform !== 'darwin' || tray) return;
-  const iconPath = path.join(__dirname, 'assets', 'icons', 'macos', '16x16.png');
-  tray = new Tray(iconPath);
+  const iconPath = path.join(__dirname, 'assets', 'icons', 'macos', 'menu-bar.png');
+  const trayIcon = nativeImage.createFromPath(iconPath).resize({ width: 18, height: 18 });
+  trayIcon.setTemplateImage(true);
+  tray = new Tray(trayIcon);
   tray.setToolTip('pico');
 
   const trayMenu = Menu.buildFromTemplate([
