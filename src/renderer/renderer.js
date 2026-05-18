@@ -331,6 +331,7 @@ function bindIPC() {
   });
   window.pico.onTriggerCaptureWindow(() => startCaptureWindow());
   window.pico.onTriggerCaptureFullscreen(() => startCaptureFullscreen());
+  window.pico.onTriggerRecordScreen?.(() => startRecordingWithFormat(state.recordingSettings.format, 'region'));
   window.pico.onShortcutCaptureReady(() => {
     showWindow();
   });

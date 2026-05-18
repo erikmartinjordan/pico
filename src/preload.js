@@ -501,6 +501,7 @@ contextBridge.exposeInMainWorld('pico', {
   onTriggerCaptureMenu: (callback) => ipcRenderer.on('trigger-capture-menu', () => callback()),
   onTriggerCaptureWindow: (callback) => ipcRenderer.on('trigger-capture-window', () => callback()),
   onTriggerCaptureFullscreen: (callback) => ipcRenderer.on('trigger-capture-fullscreen', () => callback()),
+  onTriggerRecordScreen: (callback) => ipcRenderer.on('trigger-record-screen', () => callback()),
   onShortcutCaptureReady: (callback) => ipcRenderer.on('trigger-shortcut-capture-ready', () => callback()),
   onOpenPreferences: (callback) => ipcRenderer.on('open-preferences', () => callback()),
   onLoadCaptureData: (callback) => ipcRenderer.on('load-capture-data', (_, data) => callback(data)),
@@ -512,6 +513,7 @@ contextBridge.exposeInMainWorld('pico', {
   selectWindowByName: (name) => ipcRenderer.send('window-overlay-select', name),
   captureCancel: () => ipcRenderer.send('capture-cancel'),
   recordingRegionComplete: (region) => ipcRenderer.send('recording-region-complete', region),
+  floatingCaptureToolbarAction: (action) => ipcRenderer.send('floating-capture-toolbar-action', action),
 
   // Window picker fallback
   onWindowSources: (callback) => ipcRenderer.on('window-sources', (_, data) => callback(data)),
