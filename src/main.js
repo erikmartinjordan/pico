@@ -20,6 +20,7 @@ let lastRecordingSourceId = null;
 let lastRecordingRegion = null;
 let tray = null;
 let desktopIconsHidden = false;
+let desktopIconsVisibleBeforeRecording = true;
 let preferencesWindow = null;
 
 const SETTINGS_FILE = 'settings.json';
@@ -100,8 +101,10 @@ function openPreferencesWindow() {
   });
 }
 
-async function hideMacDesktopIconsForRecording() {
-  if (process.platform !== 'darwin' || desktopIconsHidden) return;
+async function hideMacDesktopIconsForRecording(options = {}) {
+  if (process.platform !== 'darwin' || desktopIconsHidden || options?.hideDesktopIcons === false) return;
+  desktopIconsVisibleBeforeRecording = await getMacDesktopIconsVisible();
+  if (!desktopIconsVisibleBeforeRecording) return;
   await setMacDesktopIconsVisible(false);
   desktopIconsHidden = true;
 }
@@ -109,11 +112,12 @@ async function hideMacDesktopIconsForRecording() {
 async function restoreMacDesktopIconsAfterRecording() {
   if (process.platform !== 'darwin' || !desktopIconsHidden) return;
   try {
-    await setMacDesktopIconsVisible(true);
+    await setMacDesktopIconsVisible(desktopIconsVisibleBeforeRecording);
   } catch (restoreError) {
     console.error('[pico][recording] failed to restore desktop icons:', restoreError.message);
   } finally {
     desktopIconsHidden = false;
+    desktopIconsVisibleBeforeRecording = true;
   }
 }
 
@@ -343,6 +347,16 @@ async function openWindowPickerFallback() {
 
 
 
+async function getMacDesktopIconsVisible() {
+  if (process.platform !== 'darwin') return true;
+  try {
+    const value = execSync('defaults read com.apple.finder CreateDesktop', { encoding: 'utf8' }).trim().toLowerCase();
+    return value !== '0' && value !== 'false' && value !== 'no';
+  } catch (_) {
+    return true;
+  }
+}
+
 async function setMacDesktopIconsVisible(visible) {
   if (process.platform !== 'darwin') return;
   const flag = visible ? 'true' : 'false';
@@ -357,6 +371,8 @@ async function setMacDesktopIconsVisible(visible) {
 async function withHiddenDesktopIcons(options = {}, action) {
   const shouldHide = process.platform === 'darwin' && options?.hideDesktopIcons !== false;
   if (!shouldHide) return action();
+  const wasVisible = await getMacDesktopIconsVisible();
+  if (!wasVisible) return action();
   let hidden = false;
   try {
     await setMacDesktopIconsVisible(false);
@@ -364,7 +380,7 @@ async function withHiddenDesktopIcons(options = {}, action) {
     return await action();
   } finally {
     if (hidden) {
-      try { await setMacDesktopIconsVisible(true); } catch (restoreError) {
+      try { await setMacDesktopIconsVisible(wasVisible); } catch (restoreError) {
         console.error('[pico][capture] failed to restore desktop icons:', restoreError.message);
       }
     }
@@ -1468,7 +1484,7 @@ ipcMain.handle('pro-recording-source', async (event, options = {}) => {
     throw new Error('Screen Recording permission is required.');
   }
 
-  await hideMacDesktopIconsForRecording();
+  await hideMacDesktopIconsForRecording(options);
 
   try {
     if (options?.mode === 'region') {

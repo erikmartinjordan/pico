@@ -355,6 +355,7 @@ async function startRecording(options = {}) {
   const source = await ipcRenderer.invoke('pro-recording-source', {
     mode,
     autoZoom: options?.autoZoom !== false,
+    hideDesktopIcons: options?.hideDesktopIcons !== false,
   });
   if (!source) throw new Error('Recording canceled');
   if (!navigator.mediaDevices?.getUserMedia) {
@@ -414,12 +415,13 @@ function stopRecording(options = {}) {
         }
         const arrayBuffer = await blob.arrayBuffer();
         await ipcRenderer.invoke('pro-recording-indicator-hide');
-        const result = await ipcRenderer.invoke('pro-save-recording', {
+        resolve({
+          preview: true,
           data: new Uint8Array(arrayBuffer),
+          mimeType: blob.type || proRecorder.mimeType || 'video/webm',
           gif: shouldExportGif,
           format: options?.format || proRecordingFormat,
         });
-        resolve(result);
       } catch (error) {
         reject(error);
       } finally {
@@ -471,6 +473,7 @@ contextBridge.exposeInMainWorld('pico', {
   // Pro capture/recording features
   startRecording,
   stopRecording,
+  saveRecording: (payload) => ipcRenderer.invoke('pro-save-recording', payload),
 
   // File operations
   openFile: () => ipcRenderer.invoke('open-file'),

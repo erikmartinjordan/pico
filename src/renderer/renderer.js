@@ -54,6 +54,7 @@ const state = {
   recordingFormat: 'mp4',
   recordingMode: 'region',
   isSavingRecording: false,
+  recordingPreview: null,
   recordingSettings: { format: 'mp4', autoZoom: true },
   captureSettings: { hideDesktopIcons: true },
 };
@@ -89,7 +90,16 @@ const elements = {
   emptyOpen: $('#empty-open'),
   toolBtns: $$('.tool-btn'),
   colorSwatches: $$('.color-swatch'),
-  strokeBtns: $$('.stroke-btn'),
+  strokePicker: $('#stroke-picker'),
+  strokeCurrentPreview: $('#stroke-current-preview'),
+  strokeMenu: $('#stroke-menu'),
+  strokeBtns: $$('.stroke-menu .stroke-btn'),
+  recordingPreview: $('#recording-preview'),
+  recordingPreviewVideo: $('#recording-preview-video'),
+  recordingPreviewMeta: $('#recording-preview-meta'),
+  recordingPreviewSave: $('#recording-preview-save'),
+  recordingPreviewDiscard: $('#recording-preview-discard'),
+  recordingPreviewClose: $('#recording-preview-close'),
   statusTool: $('#status-tool'),
   statusZoom: $('#status-zoom'),
   textWrapper: $('#text-input-wrapper'),
@@ -126,6 +136,7 @@ function init() {
   if (elements.textFontFamily) elements.textFontFamily.value = state.textFontFamily;
   if (elements.textFontSize) elements.textFontSize.value = String(state.textFontSize);
   loadRecordingSettings();
+  selectStrokeWidth(state.strokeWidth);
   toggleTextStyleControls();
   updateStatus();
 }
@@ -187,11 +198,38 @@ function bindToolbar() {
   elements.colorSwatches.forEach(swatch => {
     swatch.addEventListener('click', () => selectColor(swatch.dataset.color));
   });
-  elements.strokeBtns.forEach(btn => {
-    btn.addEventListener('click', () => selectStrokeWidth(parseInt(btn.dataset.width)));
-  });
+  bindStrokePicker();
+  on(elements.recordingPreviewSave, 'click', saveRecordingPreview);
+  on(elements.recordingPreviewDiscard, 'click', discardRecordingPreview);
+  on(elements.recordingPreviewClose, 'click', discardRecordingPreview);
   on(elements.textFontFamily, 'change', () => selectTextFontFamily(elements.textFontFamily.value));
   on(elements.textFontSize, 'change', () => selectTextFontSize(parseInt(elements.textFontSize.value)));
+}
+
+
+function bindStrokePicker() {
+  let closeTimer = null;
+  const setOpen = (open) => {
+    if (!elements.strokePicker || !elements.strokeMenu) return;
+    elements.strokePicker.classList.toggle('open', open);
+    elements.strokeMenu.setAttribute('aria-hidden', open ? 'false' : 'true');
+  };
+  const scheduleClose = () => {
+    clearTimeout(closeTimer);
+    closeTimer = setTimeout(() => setOpen(false), 180);
+  };
+
+  on(elements.strokePicker, 'mouseenter', () => { clearTimeout(closeTimer); setOpen(true); });
+  on(elements.strokePicker, 'mouseleave', scheduleClose);
+  on(elements.strokePicker, 'focusin', () => { clearTimeout(closeTimer); setOpen(true); });
+  on(elements.strokePicker, 'focusout', scheduleClose);
+
+  elements.strokeBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectStrokeWidth(parseInt(btn.dataset.width));
+      setOpen(false);
+    });
+  });
 }
 
 
@@ -215,7 +253,7 @@ function bindTooltips() {
     const rect = target.getBoundingClientRect();
     const tooltipRect = tooltip.getBoundingClientRect();
     const x = Math.max(8, Math.min(window.innerWidth - tooltipRect.width - 8, rect.left + (rect.width - tooltipRect.width) / 2));
-    const y = Math.max(8, rect.bottom + 10);
+    const y = Math.max(8, rect.top - tooltipRect.height - 10);
     tooltip.style.left = `${x}px`;
     tooltip.style.top = `${y}px`;
   };
@@ -572,7 +610,12 @@ function onRecordButtonClick(event) {
 async function startRecordingWithFormat(format = 'mp4', mode = 'region') {
   hideRecordingFormatMenu();
   try {
-    const started = await window.pico.startRecording({ format, mode, autoZoom: mode === 'region' ? state.recordingSettings.autoZoom : false });
+    const started = await window.pico.startRecording({
+      format,
+      mode,
+      autoZoom: mode === 'region' ? state.recordingSettings.autoZoom : false,
+      hideDesktopIcons: state.captureSettings.hideDesktopIcons,
+    });
     state.isRecording = true;
     state.recordingFormat = format;
     state.recordingMode = mode;
@@ -635,17 +678,68 @@ async function toggleRecording(event) {
     const result = await window.pico.stopRecording({ format: state.recordingFormat || (event?.shiftKey ? 'gif' : 'mp4') });
     state.isRecording = false;
     setRecordingIndicator(false);
+    showRecordingPreview(result);
+    showToast('Recording ready to review', 'success');
+  } catch (err) {
+    state.isRecording = false;
+    setRecordingIndicator(false);
+    showToast(`Recording failed: ${err.message}`, 'error');
+  } finally {
+    setRecordingSaveProgress(false);
+  }
+}
+
+function showRecordingPreview(result = {}) {
+  if (!result?.data || !elements.recordingPreview || !elements.recordingPreviewVideo) return;
+  discardRecordingPreview({ silent: true });
+  const bytes = result.data instanceof Uint8Array ? result.data : new Uint8Array(result.data);
+  const blob = new Blob([bytes], { type: result.mimeType || 'video/webm' });
+  const url = URL.createObjectURL(blob);
+  state.recordingPreview = {
+    data: bytes,
+    url,
+    format: result.format || state.recordingFormat || 'mp4',
+    mimeType: result.mimeType || 'video/webm',
+  };
+  elements.recordingPreviewVideo.src = url;
+  elements.recordingPreviewVideo.load();
+  elements.recordingPreviewMeta.textContent = `Unsaved ${state.recordingPreview.format.toUpperCase()} export · previewing captured WebM source`;
+  elements.recordingPreview.classList.remove('hidden');
+  elements.recordingPreview.setAttribute('aria-hidden', 'false');
+}
+
+function discardRecordingPreview(options = {}) {
+  if (state.recordingPreview?.url) URL.revokeObjectURL(state.recordingPreview.url);
+  state.recordingPreview = null;
+  if (elements.recordingPreviewVideo) {
+    elements.recordingPreviewVideo.pause();
+    elements.recordingPreviewVideo.removeAttribute('src');
+    elements.recordingPreviewVideo.load();
+  }
+  elements.recordingPreview?.classList.add('hidden');
+  elements.recordingPreview?.setAttribute('aria-hidden', 'true');
+  if (!options?.silent) showToast('Recording discarded', 'info');
+}
+
+async function saveRecordingPreview() {
+  if (!state.recordingPreview || state.isSavingRecording) return;
+  try {
+    setRecordingSaveProgress(true);
+    showToast('Saving recording…', 'info');
+    const result = await window.pico.saveRecording({
+      data: state.recordingPreview.data,
+      format: state.recordingPreview.format,
+    });
     if (result.canceled) {
-      showToast('Recording discarded', 'info');
+      showToast('Save canceled', 'info');
       return;
     }
     const savedPath = result.gif || result.mp4 || result.webm;
     const warning = result.warning ? ` (${result.warning})` : '';
     showToast(`Saved recording: ${savedPath}${warning}`, result.warning ? 'info' : 'success');
+    discardRecordingPreview({ silent: true });
   } catch (err) {
-    state.isRecording = false;
-    setRecordingIndicator(false);
-    showToast(`Recording failed: ${err.message}`, 'error');
+    showToast(`Recording save failed: ${err.message}`, 'error');
   } finally {
     setRecordingSaveProgress(false);
   }
@@ -871,6 +965,10 @@ function selectColor(color) {
 function selectStrokeWidth(width) {
   state.strokeWidth = width;
   elements.strokeBtns.forEach(btn => btn.classList.toggle('active', parseInt(btn.dataset.width) === width));
+  if (elements.strokeCurrentPreview) {
+    const previewHeight = width === 2 ? 1.5 : width === 8 ? 5 : 3;
+    elements.strokeCurrentPreview.style.height = `${previewHeight}px`;
+  }
 }
 
 function selectTextFontSize(size) {
@@ -1490,7 +1588,7 @@ function updateStatus() {
 function setRecordingIndicator(isRecording) {
   elements.btnRecordScreen?.classList.toggle('recording', isRecording);
   if (elements.btnRecordScreen) {
-    elements.btnRecordScreen.title = isRecording ? 'Stop recording and choose save location' : 'Record screen video';
+    elements.btnRecordScreen.title = isRecording ? 'Stop recording and preview video' : 'Record screen video';
     elements.btnRecordScreen.setAttribute('aria-pressed', String(isRecording));
   }
 }
