@@ -500,6 +500,7 @@ contextBridge.exposeInMainWorld('pico', {
   onTriggerCapture: (callback) => ipcRenderer.on('trigger-capture', () => callback()),
   onTriggerCaptureMenu: (callback) => ipcRenderer.on('trigger-capture-menu', () => callback()),
   onTriggerCaptureWindow: (callback) => ipcRenderer.on('trigger-capture-window', () => callback()),
+  onTriggerRecordScreen: (callback) => ipcRenderer.on('trigger-record-screen', () => callback()),
   onTriggerCaptureFullscreen: (callback) => ipcRenderer.on('trigger-capture-fullscreen', () => callback()),
   onShortcutCaptureReady: (callback) => ipcRenderer.on('trigger-shortcut-capture-ready', () => callback()),
   onOpenPreferences: (callback) => ipcRenderer.on('open-preferences', () => callback()),

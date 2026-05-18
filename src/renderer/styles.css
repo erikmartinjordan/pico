@@ -18,7 +18,7 @@ html, body { height: 100%; overflow: hidden; }
 body {
   display: flex;
   flex-direction: column;
-  background: var(--bg);
+  background: transparent;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "DM Mono", monospace;
   color: var(--text);
 }
@@ -31,7 +31,7 @@ body {
   align-items: center;
   justify-content: center;
   overflow: auto;
-  background: var(--canvas);
+  background: transparent;
 }
 
 .canvas-container::before {
@@ -67,6 +67,7 @@ body {
     0 -1px 0 rgba(255,255,255,0.08) inset;
   backdrop-filter: blur(28px) saturate(180%);
   -webkit-backdrop-filter: blur(28px) saturate(180%);
+  -webkit-app-region: drag;
   z-index: 20;
 }
 
@@ -94,6 +95,7 @@ body {
   cursor: pointer;
   transition: background 0.12s, color 0.12s;
   flex-shrink: 0;
+  -webkit-app-region: no-drag;
 }
 
 .toolbar-btn svg { width: 15px; height: 15px; }

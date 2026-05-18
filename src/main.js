@@ -933,10 +933,11 @@ function createMainWindow() {
     height: 800,
     minWidth: 900,
     minHeight: 600,
-    backgroundColor: '#0a0a0b',
+    transparent: true,
+    frame: false,
+    backgroundColor: '#00000000',
     autoHideMenuBar: true,
     titleBarStyle: 'default',
-    frame: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -1639,6 +1640,7 @@ function setupTray() {
     { label: 'Capture Region', click: () => mainWindow?.webContents.send('trigger-capture') },
     { label: 'Capture Window', click: () => mainWindow?.webContents.send('trigger-capture-window') },
     { label: 'Capture Fullscreen', click: () => mainWindow?.webContents.send('trigger-capture-fullscreen') },
+    { label: 'Record Screen', click: () => mainWindow?.webContents.send('trigger-record-screen') },
     { type: 'separator' },
     { label: 'Preferences', click: () => openPreferencesWindow() },
     { type: 'separator' },
@@ -1647,9 +1649,7 @@ function setupTray() {
 
   tray.setContextMenu(trayMenu);
   tray.on('click', () => {
-    if (!mainWindow || mainWindow.isDestroyed()) createMainWindow();
-    mainWindow.show();
-    mainWindow.focus();
+    tray.popUpContextMenu();
   });
 }
 
