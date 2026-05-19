@@ -86,6 +86,16 @@ const elements = {
   btnCaptureRegion: $('#btn-capture-region'),
   btnCaptureWindow: $('#btn-capture-window'),
   btnCaptureFullscreen: $('#btn-capture-fullscreen'),
+  topbarBtnCaptureRegion: $('#topbar-btn-capture-region'),
+  topbarBtnCaptureWindow: $('#topbar-btn-capture-window'),
+  topbarBtnCaptureFullscreen: $('#topbar-btn-capture-fullscreen'),
+  topbarBtnRecordScreen: $('#topbar-btn-record-screen'),
+  btnSave: $('#btn-save'),
+  pillWrap: $('.pill-wrap'),
+  toolbar: $('#toolbar'),
+  topbar: $('.topbar'),
+  pillHint: $('.toolbar-dismiss-hint'),
+  pillRestoreBtn: $('#pill-restore-btn'),
   emptyCapture: $('#empty-capture'),
   emptyOpen: $('#empty-open'),
   macosBtnClose: $('#macos-btn-close'),
@@ -148,25 +158,16 @@ function init() {
 // Event Binding
 // ══════════════════════════════════════════════════════════════════════════════
 
-function setCaptureModeButton(mode = null) {
-  const selected = mode === 'window'
-    ? elements.btnCaptureWindow
-    : mode === 'fullscreen'
-      ? elements.btnCaptureFullscreen
-      : mode === 'region'
-        ? elements.btnCaptureRegion
-        : null;
-  [elements.btnCaptureRegion, elements.btnCaptureWindow, elements.btnCaptureFullscreen].forEach((btn) => {
-    if (!btn) return;
-    btn.classList.toggle('active', btn === selected);
-  });
-}
-
 function bindToolbar() {
-  on(elements.btnCaptureRegion, 'click', () => { setCaptureModeButton('region'); startCapture(); });
-  on(elements.btnCaptureWindow, 'click', () => { setCaptureModeButton('window'); startCaptureWindow(); });
-  on(elements.btnCaptureFullscreen, 'click', () => { setCaptureModeButton('fullscreen'); startCaptureFullscreen(); });
+  const bindCapture = (btn, handler) => on(btn, 'click', handler);
+  bindCapture(elements.btnCaptureRegion, startCapture);
+  bindCapture(elements.btnCaptureWindow, startCaptureWindow);
+  bindCapture(elements.btnCaptureFullscreen, startCaptureFullscreen);
+  bindCapture(elements.topbarBtnCaptureRegion, startCapture);
+  bindCapture(elements.topbarBtnCaptureWindow, startCaptureWindow);
+  bindCapture(elements.topbarBtnCaptureFullscreen, startCaptureFullscreen);
   on(elements.btnRecordScreen, 'click', onRecordButtonClick);
+  on(elements.topbarBtnRecordScreen, 'click', onRecordButtonClick);
   on(elements.recordingFormatSetting, 'change', () => {
     state.recordingSettings.format = elements.recordingFormatSetting.value === 'gif' ? 'gif' : 'mp4';
     saveRecordingSettings();
@@ -189,6 +190,7 @@ function bindToolbar() {
   });
   
   on(elements.btnCopy, 'click', copyToClipboard);
+  on(elements.btnSave, 'click', saveFile);
   on(elements.btnCrop, 'click', toggleCrop);
   on(elements.btnUndo, 'click', undo);
   on(elements.btnRedo, 'click', redo);
@@ -783,8 +785,6 @@ async function startCapture() {
     if (!result.success) showToast(result.error || 'Failed to start capture', 'error');
   } catch (err) {
     showToast(err?.message || 'Failed to start capture', 'error');
-  } finally {
-    setCaptureModeButton();
   }
 }
 
@@ -795,8 +795,6 @@ async function startCaptureWindow() {
     if (!result.success) showToast(result.error || 'Failed to capture window', 'error');
   } catch (err) {
     showToast(err?.message || 'Failed to capture window', 'error');
-  } finally {
-    setCaptureModeButton();
   }
 }
 
@@ -812,8 +810,6 @@ async function startCaptureFullscreen() {
   } catch (err) {
     state.pendingFullscreenPreview = false;
     showToast(err?.message || 'Failed to capture screen', 'error');
-  } finally {
-    setCaptureModeButton();
   }
 }
 
@@ -854,6 +850,35 @@ async function pasteFromClipboard() {
   }
 }
 
+
+function showTopbar() {
+  if (!elements.pillWrap || !elements.topbar) return;
+  elements.pillWrap.style.transition = 'transform 300ms ease, opacity 300ms ease';
+  elements.pillWrap.style.transform = 'translateX(-50%) translateY(-24px)';
+  elements.pillWrap.style.opacity = '0';
+  setTimeout(() => {
+    elements.pillWrap.style.pointerEvents = 'none';
+    elements.topbar.style.pointerEvents = 'auto';
+    elements.topbar.style.transition = 'transform 400ms cubic-bezier(0.34,1.56,0.64,1), opacity 400ms cubic-bezier(0.34,1.56,0.64,1)';
+    elements.topbar.style.transform = 'translateY(0)';
+    elements.topbar.style.opacity = '1';
+  }, 220);
+}
+
+function showPill() {
+  if (!elements.pillWrap || !elements.topbar) return;
+  elements.topbar.style.transition = 'transform 300ms ease, opacity 300ms ease';
+  elements.topbar.style.transform = 'translateY(-100%)';
+  elements.topbar.style.opacity = '0';
+  elements.topbar.style.pointerEvents = 'none';
+  setTimeout(() => {
+    elements.pillWrap.style.pointerEvents = 'auto';
+    elements.pillWrap.style.transition = 'transform 500ms cubic-bezier(0.34,1.56,0.64,1), opacity 500ms cubic-bezier(0.34,1.56,0.64,1)';
+    elements.pillWrap.style.transform = 'translateX(-50%) translateY(0)';
+    elements.pillWrap.style.opacity = '1';
+  }, 220);
+}
+
 function clearCanvas() {
   if (!state.image) return;
   if (state.cropActive) cancelCrop();
@@ -873,6 +898,7 @@ function clearCanvas() {
   elements.ctx.clearRect(0, 0, elements.canvas.width, elements.canvas.height);
   updateStatus();
   updateToolbarState();
+  showPill();
   showToast('Canvas cleared', 'success');
 }
 
@@ -934,6 +960,7 @@ function loadImage(dataUrl, options = {}) {
     render();
     updateStatus();
     updateToolbarState();
+    showTopbar();
     if (options.autoSelectRect) selectTool('rect');
     if (options.showPreview || state.pendingFullscreenPreview) {
       showCapturePreview(dataUrl, options.captureMode || 'fullscreen');
@@ -1930,92 +1957,34 @@ function bindContextMenu() {
 }
 
 
-let isDismissed = false;
-
-function initToolbarDismiss() {
-  const toolbar = document.querySelector('.toolbar');
-  const grip = toolbar?.querySelector('.toolbar-grip');
-  if (!toolbar || !grip) return;
-
-  const hint = toolbar.querySelector('.toolbar-dismiss-hint');
-  if (!hint) return;
-
-  const threshold = 80;
-  const resistance = 0.85;
-  let dragging = false;
-  let startY = 0;
-  let currentOffset = 0;
-
-  const setToolbarTransform = (offset) => {
-    toolbar.style.transform = `translateX(-50%) translateY(${offset}px)`;
-    };
-
-  const restoreToolbar = () => {
-    isDismissed = false;
-    toolbar.classList.remove('dismissed', 'past-threshold', 'dragging');
-    toolbar.style.transition = 'transform 0.5s cubic-bezier(0.34,1.56,0.64,1), opacity 0.5s cubic-bezier(0.34,1.56,0.64,1)';
-    toolbar.style.opacity = '';
-    toolbar.style.pointerEvents = '';
-    setToolbarTransform(0);
-    hint.textContent = 'Drag down to dismiss';
+function initPill() {
+  const wrap = elements.pillWrap;
+  const toolbar = elements.toolbar;
+  const grip = document.querySelector('.toolbar-grip');
+  const hint = elements.pillHint;
+  const restoreBtn = elements.pillRestoreBtn;
+  if (!wrap || !toolbar || !grip || !hint) return;
+  let dragging = false, startY = 0, delta = 0, dismissed = false;
+  const setVisual = (d) => {
+    wrap.style.transform = `translateX(-50%) translateY(${d}px)`;
+    const alpha = d <= 30 ? 1 : Math.max(0.15, 1 - ((d - 30) / 80) * 0.85);
+    wrap.style.opacity = String(alpha);
   };
-
-  grip.addEventListener('mousedown', (event) => {
-    if (isDismissed) return;
-    event.preventDefault();
-    dragging = true;
-    startY = event.clientY;
-    currentOffset = 0;
-    toolbar.classList.add('dragging');
-    toolbar.classList.remove('past-threshold');
-    toolbar.style.transition = 'none';
-    hint.textContent = 'Drag down to dismiss';
-  });
-
-  window.addEventListener('mousemove', (event) => {
-    if (!dragging) return;
-    const deltaY = Math.max(0, event.clientY - startY);
-    currentOffset = deltaY * resistance;
-    setToolbarTransform(currentOffset);
-
-    const isPastThreshold = currentOffset > threshold;
-    toolbar.classList.toggle('past-threshold', isPastThreshold);
-    hint.textContent = isPastThreshold ? 'Release to dismiss' : 'Drag down to dismiss';
-  });
-
-  window.addEventListener('mouseup', () => {
-    if (!dragging) return;
-    dragging = false;
-    toolbar.classList.remove('dragging');
-    const isPastThreshold = currentOffset > threshold;
-
-    if (isPastThreshold) {
-      isDismissed = true;
-      toolbar.classList.add('dismissed');
-      toolbar.classList.remove('past-threshold');
-      toolbar.style.transition = 'transform 0.4s cubic-bezier(0.4,0,1,1), opacity 0.4s cubic-bezier(0.4,0,1,1)';
-      setToolbarTransform(120);
-      hint.textContent = 'Drag down to dismiss';
-      return;
-    }
-
-    toolbar.classList.remove('past-threshold');
-    toolbar.style.transition = 'transform 0.5s cubic-bezier(0.34,1.56,0.64,1), opacity 0.5s cubic-bezier(0.34,1.56,0.64,1)';
-    setToolbarTransform(0);
-    hint.textContent = 'Drag down to dismiss';
-  });
-
-  toolbar.querySelectorAll('.capture-modes .toolbar-btn').forEach((button) => {
-    button.addEventListener('click', (event) => {
-      if (!isDismissed) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      restoreToolbar();
-    }, true);
-  });
+  const restore = (animated = true) => {
+    dismissed = false; wrap.classList.remove('past-threshold', 'show-restore');
+    hint.textContent = 'Arrastra hacia abajo para ocultar';
+    wrap.style.pointerEvents = 'auto';
+    if (animated) wrap.style.transition = 'transform 500ms cubic-bezier(0.34,1.56,0.64,1), opacity 500ms cubic-bezier(0.34,1.56,0.64,1)';
+    setVisual(0);
+  };
+  grip.addEventListener('mousedown', (e)=>{ dragging=true; startY=e.clientY; delta=0; wrap.style.transition='none'; e.preventDefault();});
+  document.addEventListener('mousemove', (e)=>{ if(!dragging||dismissed) return; const raw=e.clientY-startY; delta=raw>0?Math.max(0,raw)*0.78:0; setVisual(delta); const past=delta>72; wrap.classList.toggle('past-threshold',past); hint.textContent=past?'Suelta para ocultar':'Arrastra hacia abajo para ocultar'; });
+  document.addEventListener('mouseup', ()=>{ if(!dragging) return; dragging=false; if(delta>72){ dismissed=true; wrap.classList.add('show-restore'); wrap.style.transition='transform 360ms cubic-bezier(0.4,0,1,1), opacity 360ms cubic-bezier(0.4,0,1,1)'; setVisual(110); setTimeout(()=>{ wrap.style.pointerEvents='none'; wrap.classList.add('show-restore'); if (restoreBtn) restoreBtn.style.display='block';},300);} else {restore(true);} });
+  restoreBtn?.addEventListener('click', ()=>{ restore(true); restoreBtn.style.display='none'; });
+  document.querySelectorAll('.capture-modes .toolbar-btn').forEach((button)=>{ button.addEventListener('click', ()=>{ if(!dismissed) return; restore(true); }); });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
   init();
-  initToolbarDismiss();
+  initPill();
 });
