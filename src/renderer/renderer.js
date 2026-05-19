@@ -1934,25 +1934,13 @@ let isDismissed = false;
 
 function initToolbarDismiss() {
   const toolbar = document.querySelector('.toolbar');
-  const canvasContainer = document.querySelector('.canvas-container');
   const grip = toolbar?.querySelector('.toolbar-grip');
-  if (!toolbar || !canvasContainer || !grip) return;
+  if (!toolbar || !grip) return;
 
   const hint = document.createElement('span');
   hint.className = 'toolbar-drag-hint';
   hint.textContent = 'drag down to dismiss';
   toolbar.appendChild(hint);
-
-  const restorePill = document.createElement('div');
-  restorePill.id = 'toolbar-restore-pill';
-  restorePill.className = 'liquidGlass-wrapper';
-  restorePill.innerHTML = `
-    <div class="liquidGlass-effect" aria-hidden="true"></div>
-    <div class="liquidGlass-tint" aria-hidden="true"></div>
-    <div class="liquidGlass-shine" aria-hidden="true"></div>
-    <span class="restore-pill-label">⬆ Toolbar</span>
-  `;
-  canvasContainer.appendChild(restorePill);
 
   const threshold = 80;
   const resistance = 0.85;
@@ -1962,6 +1950,16 @@ function initToolbarDismiss() {
 
   const setToolbarTransform = (offset) => {
     toolbar.style.transform = `translateX(-50%) translateY(${offset}px)`;
+  };
+
+  const restoreToolbar = () => {
+    isDismissed = false;
+    toolbar.classList.remove('dismissed', 'past-threshold', 'dragging');
+    toolbar.style.transition = 'transform 0.5s cubic-bezier(0.34,1.56,0.64,1), opacity 0.5s cubic-bezier(0.34,1.56,0.64,1)';
+    toolbar.style.opacity = '';
+    toolbar.style.pointerEvents = '';
+    setToolbarTransform(0);
+    hint.textContent = 'drag down to dismiss';
   };
 
   grip.addEventListener('mousedown', (event) => {
@@ -1999,7 +1997,6 @@ function initToolbarDismiss() {
       toolbar.classList.remove('past-threshold');
       toolbar.style.transition = 'transform 0.4s cubic-bezier(0.4,0,1,1), opacity 0.4s cubic-bezier(0.4,0,1,1)';
       setToolbarTransform(120);
-      restorePill.classList.add('visible');
       hint.textContent = 'drag down to dismiss';
       return;
     }
@@ -2010,15 +2007,13 @@ function initToolbarDismiss() {
     hint.textContent = 'drag down to dismiss';
   });
 
-  restorePill.addEventListener('click', () => {
-    if (!isDismissed) return;
-    isDismissed = false;
-    restorePill.classList.remove('visible');
-    toolbar.classList.remove('dismissed', 'past-threshold', 'dragging');
-    toolbar.style.transition = 'transform 0.5s cubic-bezier(0.34,1.56,0.64,1), opacity 0.5s cubic-bezier(0.34,1.56,0.64,1)';
-    toolbar.style.opacity = '';
-    toolbar.style.pointerEvents = '';
-    setToolbarTransform(0);
+  toolbar.querySelectorAll('.capture-modes .toolbar-btn').forEach((button) => {
+    button.addEventListener('click', (event) => {
+      if (!isDismissed) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      restoreToolbar();
+    }, true);
   });
 }
 
