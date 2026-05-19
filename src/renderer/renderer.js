@@ -1929,4 +1929,100 @@ function bindContextMenu() {
   });
 }
 
-document.addEventListener('DOMContentLoaded', init);
+
+let isDismissed = false;
+
+function initToolbarDismiss() {
+  const toolbar = document.querySelector('.toolbar');
+  const canvasContainer = document.querySelector('.canvas-container');
+  const grip = toolbar?.querySelector('.toolbar-grip');
+  if (!toolbar || !canvasContainer || !grip) return;
+
+  const hint = document.createElement('span');
+  hint.className = 'toolbar-drag-hint';
+  hint.textContent = 'drag down to dismiss';
+  toolbar.appendChild(hint);
+
+  const restorePill = document.createElement('div');
+  restorePill.id = 'toolbar-restore-pill';
+  restorePill.className = 'liquidGlass-wrapper';
+  restorePill.innerHTML = `
+    <div class="liquidGlass-effect" aria-hidden="true"></div>
+    <div class="liquidGlass-tint" aria-hidden="true"></div>
+    <div class="liquidGlass-shine" aria-hidden="true"></div>
+    <span class="restore-pill-label">⬆ Toolbar</span>
+  `;
+  canvasContainer.appendChild(restorePill);
+
+  const threshold = 80;
+  const resistance = 0.85;
+  let dragging = false;
+  let startY = 0;
+  let currentOffset = 0;
+
+  const setToolbarTransform = (offset) => {
+    toolbar.style.transform = `translateX(-50%) translateY(${offset}px)`;
+  };
+
+  grip.addEventListener('mousedown', (event) => {
+    if (isDismissed) return;
+    event.preventDefault();
+    dragging = true;
+    startY = event.clientY;
+    currentOffset = 0;
+    toolbar.classList.add('dragging');
+    toolbar.classList.remove('past-threshold');
+    toolbar.style.transition = 'none';
+    hint.textContent = 'drag down to dismiss';
+  });
+
+  window.addEventListener('mousemove', (event) => {
+    if (!dragging) return;
+    const deltaY = Math.max(0, event.clientY - startY);
+    currentOffset = deltaY * resistance;
+    setToolbarTransform(currentOffset);
+
+    const isPastThreshold = currentOffset > threshold;
+    toolbar.classList.toggle('past-threshold', isPastThreshold);
+    hint.textContent = isPastThreshold ? 'release to dismiss' : 'drag down to dismiss';
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    toolbar.classList.remove('dragging');
+    const isPastThreshold = currentOffset > threshold;
+
+    if (isPastThreshold) {
+      isDismissed = true;
+      toolbar.classList.add('dismissed');
+      toolbar.classList.remove('past-threshold');
+      toolbar.style.transition = 'transform 0.4s cubic-bezier(0.4,0,1,1), opacity 0.4s cubic-bezier(0.4,0,1,1)';
+      setToolbarTransform(120);
+      restorePill.classList.add('visible');
+      hint.textContent = 'drag down to dismiss';
+      return;
+    }
+
+    toolbar.classList.remove('past-threshold');
+    toolbar.style.transition = 'transform 0.5s cubic-bezier(0.34,1.56,0.64,1), opacity 0.5s cubic-bezier(0.34,1.56,0.64,1)';
+    setToolbarTransform(0);
+    hint.textContent = 'drag down to dismiss';
+  });
+
+  restorePill.addEventListener('click', () => {
+    if (!isDismissed) return;
+    isDismissed = false;
+    restorePill.classList.remove('visible');
+    toolbar.classList.remove('dismissed', 'past-threshold', 'dragging');
+    toolbar.style.transition = 'transform 0.5s cubic-bezier(0.34,1.56,0.64,1), opacity 0.5s cubic-bezier(0.34,1.56,0.64,1)';
+    toolbar.style.opacity = '';
+    toolbar.style.pointerEvents = '';
+    setToolbarTransform(0);
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  init();
+  initToolbarDismiss();
+});
