@@ -500,6 +500,7 @@ contextBridge.exposeInMainWorld('pico', {
   onTriggerCapture: (callback) => ipcRenderer.on('trigger-capture', () => callback()),
   onTriggerCaptureMenu: (callback) => ipcRenderer.on('trigger-capture-menu', () => callback()),
   onTriggerCaptureWindow: (callback) => ipcRenderer.on('trigger-capture-window', () => callback()),
+  onTriggerRecordScreen: (callback) => ipcRenderer.on('trigger-record-screen', () => callback()),
   onTriggerCaptureFullscreen: (callback) => ipcRenderer.on('trigger-capture-fullscreen', () => callback()),
   onShortcutCaptureReady: (callback) => ipcRenderer.on('trigger-shortcut-capture-ready', () => callback()),
   onOpenPreferences: (callback) => ipcRenderer.on('open-preferences', () => callback()),
@@ -531,6 +532,11 @@ contextBridge.exposeInMainWorld('pico', {
   chooseDefaultSavePath: (currentPath) => ipcRenderer.invoke('choose-default-save-path', currentPath),
   copyToClipboard: (dataUrl) => ipcRenderer.invoke('copy-to-clipboard', dataUrl),
   readClipboardImage: () => ipcRenderer.invoke('read-clipboard-image'),
+
+  // Window controls
+  closeWindow: () => ipcRenderer.invoke('window-close'),
+  minimizeWindow: () => ipcRenderer.invoke('window-minimize'),
+  toggleMaximizeWindow: () => ipcRenderer.invoke('window-toggle-maximize'),
 
   // Display info
   getDisplays: () => ipcRenderer.invoke('get-displays'),

@@ -933,10 +933,11 @@ function createMainWindow() {
     height: 800,
     minWidth: 900,
     minHeight: 600,
-    backgroundColor: '#0a0a0b',
+    transparent: true,
+    frame: false,
+    backgroundColor: '#00000000',
     autoHideMenuBar: true,
     titleBarStyle: 'default',
-    frame: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -950,6 +951,7 @@ function createMainWindow() {
     icon: path.join(__dirname, 'assets', 'icons', 'linux', 'icons', '512x512.png'),
     show: false,
   });
+
 
   mainWindow.setContentProtection(true);
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
@@ -1424,6 +1426,23 @@ ipcMain.handle('read-clipboard-image', async () => {
   }
 });
 
+ipcMain.handle('window-close', async () => {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
+  return { success: true };
+});
+
+ipcMain.handle('window-minimize', async () => {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.minimize();
+  return { success: true };
+});
+
+ipcMain.handle('window-toggle-maximize', async () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return { success: false };
+  if (mainWindow.isMaximized()) mainWindow.unmaximize();
+  else mainWindow.maximize();
+  return { success: true, maximized: mainWindow.isMaximized() };
+});
+
 ipcMain.handle('get-displays', () => screen.getAllDisplays());
 ipcMain.handle('get-cursor-screen-point', () => screen.getCursorScreenPoint());
 
@@ -1639,6 +1658,7 @@ function setupTray() {
     { label: 'Capture Region', click: () => mainWindow?.webContents.send('trigger-capture') },
     { label: 'Capture Window', click: () => mainWindow?.webContents.send('trigger-capture-window') },
     { label: 'Capture Fullscreen', click: () => mainWindow?.webContents.send('trigger-capture-fullscreen') },
+    { label: 'Record Screen', click: () => mainWindow?.webContents.send('trigger-record-screen') },
     { type: 'separator' },
     { label: 'Preferences', click: () => openPreferencesWindow() },
     { type: 'separator' },
@@ -1647,9 +1667,7 @@ function setupTray() {
 
   tray.setContextMenu(trayMenu);
   tray.on('click', () => {
-    if (!mainWindow || mainWindow.isDestroyed()) createMainWindow();
-    mainWindow.show();
-    mainWindow.focus();
+    tray.popUpContextMenu();
   });
 }
 

@@ -88,6 +88,9 @@ const elements = {
   btnCaptureFullscreen: $('#btn-capture-fullscreen'),
   emptyCapture: $('#empty-capture'),
   emptyOpen: $('#empty-open'),
+  macosBtnClose: $('#macos-btn-close'),
+  macosBtnMinimize: $('#macos-btn-minimize'),
+  macosBtnZoom: $('#macos-btn-zoom'),
   toolBtns: $$('.tool-btn'),
   colorSwatches: $$('.color-swatch'),
   strokePicker: $('#stroke-picker'),
@@ -193,6 +196,9 @@ function bindToolbar() {
 
   elements.emptyCapture.addEventListener('click', startCapture);
   elements.emptyOpen.addEventListener('click', openFile);
+  on(elements.macosBtnClose, 'click', () => window.pico.closeWindow());
+  on(elements.macosBtnMinimize, 'click', () => window.pico.minimizeWindow());
+  on(elements.macosBtnZoom, 'click', () => window.pico.toggleMaximizeWindow());
   
   elements.toolBtns.forEach(btn => {
     btn.addEventListener('click', () => selectTool(btn.dataset.tool));
@@ -327,9 +333,10 @@ function bindIPC() {
   window.pico.onTriggerCaptureMenu(() => {
     console.log('[pico][renderer] received trigger-capture-menu');
     showWindow();
-    document.dispatchEvent(new CustomEvent('pico:show-capture-menu'));
+    startCapture();
   });
   window.pico.onTriggerCaptureWindow(() => startCaptureWindow());
+  window.pico.onTriggerRecordScreen(() => startRecordingWithFormat(state.recordingSettings.format, 'region'));
   window.pico.onTriggerCaptureFullscreen(() => startCaptureFullscreen());
   window.pico.onShortcutCaptureReady(() => {
     showWindow();
@@ -860,7 +867,9 @@ function clearCanvas() {
   state.windowContainerApplied = false;
   state.originalImageBeforeContainer = null;
   elements.canvas.classList.remove('visible');
-  elements.emptyState.classList.remove('hidden');
+  elements.emptyState.classList.add('hidden');
+  document.body.classList.remove('has-image');
+  elements.statusTool?.parentElement?.classList.remove('visible');
   elements.ctx.clearRect(0, 0, elements.canvas.width, elements.canvas.height);
   updateStatus();
   updateToolbarState();
@@ -919,6 +928,8 @@ function loadImage(dataUrl, options = {}) {
     elements.canvas.height = img.height;
     elements.canvas.classList.add('visible');
     elements.emptyState.classList.add('hidden');
+    document.body.classList.add('has-image');
+    elements.statusTool?.parentElement?.classList.add('visible');
     fitToWindow();
     render();
     updateStatus();
