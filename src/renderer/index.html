@@ -14,23 +14,38 @@
       <button type="button" class="traffic-dot minimize" id="macos-btn-minimize" aria-label="Minimize window"></button>
       <button type="button" class="traffic-dot zoom" id="macos-btn-zoom" aria-label="Zoom window"></button>
     </div>
-    <div class="toolbar liquidGlass-wrapper">
-      <div class="toolbar-dismiss-hint" aria-hidden="true">Drag down to dismiss</div>
+    <div class="pill-wrap">
       <div class="toolbar-grip" aria-hidden="true"></div>
+      <div class="toolbar liquidGlass-wrapper" id="toolbar">
+        <div class="liquidGlass-effect" aria-hidden="true"></div>
+        <div class="liquidGlass-tint" aria-hidden="true"></div>
+        <div class="liquidGlass-shine" aria-hidden="true"></div>
+        <div class="toolbar-group capture-modes">
+          <button class="toolbar-btn" id="btn-capture-region" data-tooltip="Capture region"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 8V4h4"/><path d="M4 16v4h4"/><path d="M16 4h4v4"/><path d="M16 20h4v-4"/><rect x="8" y="8" width="8" height="8" rx="1" stroke-dasharray="2 2"/></svg></button>
+          <button class="toolbar-btn" id="btn-capture-window" data-tooltip="Capture window"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 8h18"/><circle cx="5.5" cy="6" r=".5" fill="currentColor"/><circle cx="7.5" cy="6" r=".5" fill="currentColor"/><circle cx="9.5" cy="6" r=".5" fill="currentColor"/></svg></button>
+          <button class="toolbar-btn" id="btn-capture-fullscreen" data-tooltip="Capture fullscreen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M6 21h12"/><path d="M12 17v4"/></svg></button>
+          <div class="recording-format-wrap">
+            <button class="toolbar-btn pro-feature" id="btn-record-screen" data-tooltip="Record screen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="5" width="13" height="14" rx="2"/><path d="M16 10l5-3v10l-5-3z"/></svg></button>
+            <div class="recording-format-menu" id="recording-format-menu" role="menu" aria-label="Recording format" aria-hidden="true">
+              <button type="button" data-mode="region" data-format="mp4" role="menuitem" tabindex="-1">Region MP4 + autozoom</button>
+              <button type="button" data-mode="region" data-format="gif" role="menuitem" tabindex="-1">Region GIF + autozoom</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="toolbar-dismiss-hint" aria-hidden="true">Arrastra hacia abajo para ocultar</div>
+      <button type="button" class="pill-restore-btn" id="pill-restore-btn">↑ Mostrar barra</button>
+    </div>
+
+    <div class="topbar liquidGlass-wrapper" aria-label="Toolbar">
       <div class="liquidGlass-effect" aria-hidden="true"></div>
       <div class="liquidGlass-tint" aria-hidden="true"></div>
       <div class="liquidGlass-shine" aria-hidden="true"></div>
       <div class="toolbar-group capture-modes">
-        <button class="toolbar-btn" id="btn-capture-region" data-tooltip="Capture region"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 8V4h4"/><path d="M4 16v4h4"/><path d="M16 4h4v4"/><path d="M16 20h4v-4"/><rect x="8" y="8" width="8" height="8" rx="1" stroke-dasharray="2 2"/></svg></button>
-        <button class="toolbar-btn" id="btn-capture-window" data-tooltip="Capture window"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 8h18"/><circle cx="5.5" cy="6" r=".5" fill="currentColor"/><circle cx="7.5" cy="6" r=".5" fill="currentColor"/><circle cx="9.5" cy="6" r=".5" fill="currentColor"/></svg></button>
-        <button class="toolbar-btn" id="btn-capture-fullscreen" data-tooltip="Capture fullscreen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M6 21h12"/><path d="M12 17v4"/></svg></button>
-        <div class="recording-format-wrap">
-          <button class="toolbar-btn pro-feature" id="btn-record-screen" data-tooltip="Record screen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="5" width="13" height="14" rx="2"/><path d="M16 10l5-3v10l-5-3z"/></svg></button>
-          <div class="recording-format-menu" id="recording-format-menu" role="menu" aria-label="Recording format" aria-hidden="true">
-            <button type="button" data-mode="region" data-format="mp4" role="menuitem" tabindex="-1">Region MP4 + autozoom</button>
-            <button type="button" data-mode="region" data-format="gif" role="menuitem" tabindex="-1">Region GIF + autozoom</button>
-          </div>
-        </div>
+        <button class="toolbar-btn" id="topbar-btn-capture-region" data-tooltip="Capture region"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 8V4h4"/><path d="M4 16v4h4"/><path d="M16 4h4v4"/><path d="M16 20h4v-4"/><rect x="8" y="8" width="8" height="8" rx="1" stroke-dasharray="2 2"/></svg></button>
+        <button class="toolbar-btn" id="topbar-btn-capture-window" data-tooltip="Capture window"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 8h18"/><circle cx="5.5" cy="6" r=".5" fill="currentColor"/><circle cx="7.5" cy="6" r=".5" fill="currentColor"/><circle cx="9.5" cy="6" r=".5" fill="currentColor"/></svg></button>
+        <button class="toolbar-btn" id="topbar-btn-capture-fullscreen" data-tooltip="Capture fullscreen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M6 21h12"/><path d="M12 17v4"/></svg></button>
+        <button class="toolbar-btn pro-feature" id="topbar-btn-record-screen" data-tooltip="Record screen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="5" width="13" height="14" rx="2"/><path d="M16 10l5-3v10l-5-3z"/></svg></button>
       </div>
       <div class="toolbar-separator"></div>
       <div class="toolbar-group tools">
@@ -73,6 +88,8 @@
         <button class="toolbar-btn" id="btn-redo" data-tooltip="Redo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 10H8a4 4 0 000 8h9"/><path d="M17 6l4 4-4 4"/></svg></button>
         <button class="toolbar-btn" id="btn-clear" data-tooltip="Clear canvas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M5 6v14a2 2 0 002 2h10a2 2 0 002-2V6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
       </div>
+      <div class="topbar-spacer"></div>
+      <button class="toolbar-btn" id="btn-save" data-tooltip="Save image"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg></button>
     </div>
 
     <!-- Crop overlay UI -->

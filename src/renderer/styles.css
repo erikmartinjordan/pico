@@ -71,7 +71,7 @@ body.has-image .canvas-container::before {
   -webkit-app-region: no-drag;
 }
 
-body.platform-darwin.has-image .macos-traffic {
+body.platform-darwin .macos-traffic {
   display: inline-flex;
 }
 
@@ -90,16 +90,25 @@ body.platform-darwin.has-image .macos-traffic {
 .traffic-dot.zoom { background: #28c840; }
 
 /* ── Floating Pill Toolbar ── */
-.toolbar {
+.pill-wrap {
   position: absolute;
   top: 14px;
   left: 50%;
   transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 20;
+}
+body.platform-darwin .pill-wrap { top: 50px; }
+
+.toolbar {
+  position: absolute;
   display: inline-flex;
   align-items: center;
   width: fit-content;
   min-height: 52px;
-  padding: 14px 12px 0;
+  padding: 7px 10px;
   gap: 6px;
   border: 1px solid rgba(255,255,255,0.34);
   color: rgba(16, 18, 22, 0.9);
@@ -201,11 +210,6 @@ body.platform-darwin.has-image .macos-traffic {
 .toolbar-btn.pro-feature {
   position: relative;
   width: 42px;
-}
-
-body:not(.has-image) .toolbar .toolbar-group:not(.capture-modes),
-body:not(.has-image) .toolbar .toolbar-separator {
-  display: none;
 }
 
 .toolbar-btn.pro-feature.recording {
@@ -1130,40 +1134,35 @@ body:not(.has-image) .toolbar .toolbar-separator {
 
 /* Grip zone */
 .toolbar-grip {
-  position: absolute;
-  top: -8px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 56px;
-  height: 14px;
-  z-index: 6;
-  -webkit-app-region: drag;
-}
-
-.toolbar-grip::before {
-  content: "";
-  position: absolute;
-  top: 6px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 32px;
+  width: 30px;
   height: 4px;
   border-radius: 999px;
   background: rgba(17, 23, 35, 0.32);
+  margin-bottom: 6px;
+  z-index: 6;
 }
 
 .toolbar-dismiss-hint {
-  position: absolute;
-  left: 50%;
-  top: calc(100% + 7px);
-  transform: translateX(-50%);
   font-size: 10px;
   letter-spacing: 0.04em;
   color: rgba(255,255,255,0.5);
   white-space: nowrap;
   pointer-events: none;
-  z-index: 7;
+  margin-top: 6px;
 }
+.pill-restore-btn { margin-top: 6px; display:none; }
+.pill-wrap.show-restore .pill-restore-btn { display:block; }
+.topbar-spacer { flex: 1; }
+
+.topbar {
+  position: absolute; top: 0; left: 0; right: 0; height: 48px;
+  display:flex; align-items:center; gap:6px; padding:0 12px;
+  border-bottom:1px solid rgba(255,255,255,0.10);
+  background: rgba(255, 255, 255, 0.50);
+  opacity: 0; transform: translateY(-100%); pointer-events:none;
+  z-index: 25;
+}
+body.platform-darwin .topbar { top: 28px; }
 
 /* State classes */
 .toolbar.dragging {
@@ -1175,7 +1174,7 @@ body:not(.has-image) .toolbar .toolbar-separator {
     0 12px 32px rgba(0,0,0,0.45);
   transform: translateX(-50%) rotate(1.5deg) !important;
 }
-.toolbar.past-threshold .toolbar-dismiss-hint { color: rgba(255,80,80,0.75); }
+.pill-wrap.past-threshold .toolbar-dismiss-hint { color: rgba(255,80,80,0.75); }
 .toolbar.dismissed {
   opacity: 0;
   pointer-events: none;
