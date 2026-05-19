@@ -536,6 +536,7 @@ contextBridge.exposeInMainWorld('pico', {
   // Window controls
   closeWindow: () => ipcRenderer.invoke('window-close'),
   minimizeWindow: () => ipcRenderer.invoke('window-minimize'),
+  setWindowMode: (mode) => ipcRenderer.invoke('window-set-mode', mode),
   toggleMaximizeWindow: () => ipcRenderer.invoke('window-toggle-maximize'),
 
   // Display info

@@ -19,13 +19,16 @@ body {
   display: flex;
   flex-direction: column;
   background: transparent;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "DM Mono", monospace;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
   color: var(--text);
 }
 
 
-body.has-image {
-  background: var(--bg);
+body.has-image,
+body.has-content {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.035), transparent 150px),
+    #0a0b0f;
 }
 
 /* ── Canvas Container ── */
@@ -39,8 +42,10 @@ body.has-image {
   background: transparent;
 }
 
-body.has-image .canvas-container {
-  background: var(--canvas);
+body.has-image .canvas-container,
+body.has-content .canvas-container {
+  padding: 88px 24px 24px;
+  background: transparent;
 }
 
 .canvas-container::before {
@@ -52,32 +57,49 @@ body.has-image .canvas-container {
     linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
   background-size: 20px 20px;
   pointer-events: none;
-  opacity: 0.42;
+  opacity: 0;
 }
 
-body.has-image .canvas-container::before {
-  opacity: 1;
+body.has-image .canvas-container::before,
+body.has-content .canvas-container::before {
+  opacity: 0.55;
 }
 
+.window-drag-strip {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 78px;
+  z-index: 12;
+  -webkit-app-region: drag;
+}
+
+body.has-image .window-drag-strip,
+body.has-content .window-drag-strip {
+  display: block;
+}
 
 .macos-traffic {
   display: none;
   align-items: center;
   gap: 6px;
   position: fixed;
-  top: 12px;
-  left: 12px;
+  top: 22px;
+  left: 18px;
   z-index: 40;
   -webkit-app-region: no-drag;
 }
 
-body.platform-darwin.has-image .macos-traffic {
+body.platform-darwin.has-image .macos-traffic,
+body.platform-darwin.has-content .macos-traffic {
   display: inline-flex;
 }
 
 .traffic-dot {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   box-shadow: 0 0 0 1px rgba(0,0,0,0.2) inset;
   border: 0;
@@ -91,26 +113,34 @@ body.platform-darwin.has-image .macos-traffic {
 
 /* ── Floating Pill Toolbar ── */
 .toolbar {
-  position: absolute;
-  top: 14px;
+  --toolbar-offset: 0px;
+  position: fixed;
+  top: 12px;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translateX(-50%) translateY(var(--toolbar-offset));
   display: inline-flex;
   align-items: center;
   width: fit-content;
-  min-height: 52px;
-  padding: 14px 12px 0;
+  min-height: 54px;
+  padding: 8px 10px;
   gap: 6px;
-  border: 1px solid rgba(255,255,255,0.34);
-  color: rgba(16, 18, 22, 0.9);
-  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 2.2);
+  border: 1px solid rgba(255,255,255,0.44);
+  border-radius: 999px;
+  color: rgba(17, 23, 35, 0.88);
+  isolation: isolate;
+  overflow: visible;
+  transition:
+    transform 0.42s cubic-bezier(0.19, 1, 0.22, 1),
+    opacity 0.24s ease,
+    border-color 0.24s ease,
+    box-shadow 0.24s ease;
   -webkit-app-region: no-drag;
   z-index: 20;
 }
 
 .toolbar,
 .toolbar > div {
-  border-radius: 0.875rem;
+  border-radius: inherit;
 }
 
 .liquidGlass-wrapper {
@@ -118,25 +148,31 @@ body.platform-darwin.has-image .macos-traffic {
   display: inline-flex;
   font-weight: 600;
   overflow: visible;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), 0 0 24px rgba(0, 0, 0, 0.12);
+  box-shadow:
+    0 16px 34px rgba(0, 0, 0, 0.26),
+    0 6px 18px rgba(0, 0, 0, 0.18),
+    0 1px 0 rgba(255, 255, 255, 0.54) inset;
 }
 
 .liquidGlass-effect {
   position: absolute;
   z-index: 0;
   inset: 0;
-  backdrop-filter: blur(18px) saturate(170%);
-  -webkit-backdrop-filter: blur(18px) saturate(170%);
+  backdrop-filter: blur(28px) saturate(190%) brightness(1.08);
+  -webkit-backdrop-filter: blur(28px) saturate(190%) brightness(1.08);
   filter: url(#glass-distortion);
   overflow: hidden;
   pointer-events: none;
+  opacity: 0.46;
 }
 
 .liquidGlass-tint {
   z-index: 1;
   position: absolute;
   inset: 0;
-  background: rgba(255, 255, 255, 0.50);
+  background:
+    linear-gradient(135deg, rgba(255,255,255,0.72), rgba(244,247,255,0.42) 45%, rgba(201,215,255,0.28)),
+    rgba(255,255,255,0.28);
   pointer-events: none;
 }
 
@@ -145,8 +181,11 @@ body.platform-darwin.has-image .macos-traffic {
   inset: 0;
   z-index: 2;
   overflow: hidden;
-  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.65),
-    inset -1px -1px 0 rgba(255, 255, 255, 0.42);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.84),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.28),
+    inset 1px 0 0 rgba(255, 255, 255, 0.22),
+    inset -1px 0 0 rgba(255, 255, 255, 0.18);
   pointer-events: none;
 }
 
@@ -160,7 +199,7 @@ body.platform-darwin.has-image .macos-traffic {
 .toolbar-separator {
   width: 1px;
   height: 20px;
-  background: rgba(255,255,255,0.20);
+  background: rgba(22, 28, 38, 0.14);
   margin: 0 5px;
   flex-shrink: 0;
 }
@@ -170,14 +209,14 @@ body.platform-darwin.has-image .macos-traffic {
   width: 38px;
   height: 38px;
   border: none;
-  border-radius: 12px;
+  border-radius: 999px;
   background: transparent;
-  color: rgba(17, 23, 35, 0.78);
+  color: rgba(17, 23, 35, 0.74);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background 0.12s, color 0.12s;
+  transition: background 0.16s ease, color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
   flex-shrink: 0;
   -webkit-app-region: no-drag;
 }
@@ -185,15 +224,18 @@ body.platform-darwin.has-image .macos-traffic {
 .toolbar-btn svg { width: 21px; height: 21px; }
 
 .toolbar-btn:hover:not(:disabled) {
-  background: transparent;
-  color: rgba(13, 18, 30, 0.96);
+  background: rgba(255, 255, 255, 0.36);
+  color: rgba(9, 13, 20, 0.96);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.38) inset;
 }
 
 .toolbar-btn.active,
 .tool-btn.active {
-  background: linear-gradient(135deg, rgba(255,255,255,0.28), rgba(240,125,32,0.24));
-  box-shadow: 0 0 0 1px rgba(255,255,255,0.24), 0 8px 22px rgba(240,125,32,0.20);
-  color: #fff7ed;
+  background: linear-gradient(135deg, rgba(255,255,255,0.58), rgba(120,155,255,0.36));
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.40),
+    0 8px 22px rgba(54,96,180,0.18);
+  color: rgba(4, 10, 22, 0.92);
 }
 
 .toolbar-btn:disabled { opacity: 0.3; cursor: default; }
@@ -502,7 +544,7 @@ body:not(.has-image) .toolbar .toolbar-separator {
   border: none;
   border-radius: 10px;
   background: transparent;
-  color: rgba(255,255,255,0.78);
+  color: rgba(17, 23, 35, 0.72);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -517,8 +559,8 @@ body:not(.has-image) .toolbar .toolbar-separator {
 
 .stroke-btn:hover:not(:disabled),
 .stroke-picker.open .stroke-current {
-  background: transparent;
-  color: #fff;
+  background: rgba(255,255,255,0.32);
+  color: rgba(9, 13, 20, 0.94);
 }
 
 .stroke-btn.active {
@@ -528,7 +570,7 @@ body:not(.has-image) .toolbar .toolbar-separator {
 
 .stroke-btn .stroke-preview {
   width: 16px;
-  background: rgba(255,255,255,0.72);
+  background: rgba(17, 23, 35, 0.52);
   border-radius: 999px;
   display: block;
 }
@@ -569,6 +611,15 @@ body:not(.has-image) .toolbar .toolbar-separator {
   width: 100%;
   justify-content: flex-start;
   padding: 0 10px;
+  color: rgba(255,255,255,0.78);
+}
+
+.stroke-menu .stroke-btn:hover {
+  color: #fff;
+}
+
+.stroke-menu .stroke-preview {
+  background: rgba(255,255,255,0.72);
 }
 
 /* ── Canvas ── */
@@ -985,8 +1036,10 @@ body:not(.has-image) .toolbar .toolbar-separator {
 }
 
 /* ── Platform specific ── */
-.platform-darwin .toolbar {
-  top: 50px;
+.platform-darwin .toolbar,
+.platform-darwin.has-image .toolbar,
+.platform-darwin.has-content .toolbar {
+  top: 12px;
 }
 
 
@@ -1131,13 +1184,15 @@ body:not(.has-image) .toolbar .toolbar-separator {
 /* Grip zone */
 .toolbar-grip {
   position: absolute;
-  top: -8px;
+  top: -10px;
   left: 50%;
   transform: translateX(-50%);
-  width: 56px;
-  height: 14px;
+  width: 64px;
+  height: 16px;
   z-index: 6;
-  -webkit-app-region: drag;
+  cursor: ns-resize;
+  touch-action: none;
+  -webkit-app-region: no-drag;
 }
 
 .toolbar-grip::before {
@@ -1146,37 +1201,37 @@ body:not(.has-image) .toolbar .toolbar-separator {
   top: 6px;
   left: 50%;
   transform: translateX(-50%);
-  width: 32px;
-  height: 4px;
+  width: 34px;
+  height: 3px;
   border-radius: 999px;
-  background: rgba(17, 23, 35, 0.32);
+  background: rgba(17, 23, 35, 0.24);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.38);
 }
 
 .toolbar-dismiss-hint {
-  position: absolute;
-  left: 50%;
-  top: calc(100% + 7px);
-  transform: translateX(-50%);
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  color: rgba(255,255,255,0.5);
-  white-space: nowrap;
-  pointer-events: none;
-  z-index: 7;
+  display: none;
 }
 
 /* State classes */
 .toolbar.dragging {
-  box-shadow: 0 12px 32px rgba(0,0,0,0.45), 0 0 20px rgba(0,0,0,0.1);
+  box-shadow:
+    0 18px 42px rgba(0,0,0,0.34),
+    0 10px 22px rgba(0,0,0,0.20),
+    0 1px 0 rgba(255,255,255,0.62) inset;
 }
 .toolbar.past-threshold {
   box-shadow:
-    0 0 0 1.5px rgba(255,80,80,0.7),
-    0 12px 32px rgba(0,0,0,0.45);
-  transform: translateX(-50%) rotate(1.5deg) !important;
+    0 0 0 1px rgba(255,255,255,0.52),
+    0 18px 42px rgba(0,0,0,0.34),
+    0 10px 22px rgba(0,0,0,0.20);
+  opacity: 0.72;
 }
-.toolbar.past-threshold .toolbar-dismiss-hint { color: rgba(255,80,80,0.75); }
 .toolbar.dismissed {
   opacity: 0;
   pointer-events: none;
+}
+
+body.has-image .toolbar-grip,
+body.has-content .toolbar-grip {
+  display: none;
 }

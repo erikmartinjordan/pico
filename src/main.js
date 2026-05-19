@@ -22,6 +22,13 @@ let tray = null;
 let desktopIconsHidden = false;
 let desktopIconsVisibleBeforeRecording = true;
 let preferencesWindow = null;
+let mainWindowMode = 'toolbar';
+let lastEditorBounds = null;
+
+const TOOLBAR_WINDOW_SIZE = { width: 340, height: 108 };
+const TOOLBAR_MIN_SIZE = { width: 280, height: 86 };
+const EDITOR_DEFAULT_SIZE = { width: 1200, height: 800 };
+const EDITOR_MIN_SIZE = { width: 900, height: 600 };
 
 const SETTINGS_FILE = 'settings.json';
 const DEFAULT_SETTINGS = {
@@ -76,6 +83,117 @@ function getAppWebPreferences() {
     nodeIntegration: false,
     sandbox: true,
   };
+}
+
+function centeredBounds(size, display = screen.getPrimaryDisplay()) {
+  const { workArea } = display;
+  return {
+    width: Math.min(size.width, workArea.width),
+    height: Math.min(size.height, workArea.height),
+    x: Math.round(workArea.x + (workArea.width - Math.min(size.width, workArea.width)) / 2),
+    y: Math.round(workArea.y + (workArea.height - Math.min(size.height, workArea.height)) / 2),
+  };
+}
+
+function getToolbarWindowBounds() {
+  const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()) || screen.getPrimaryDisplay();
+  const { workArea } = display;
+  return {
+    width: TOOLBAR_WINDOW_SIZE.width,
+    height: TOOLBAR_WINDOW_SIZE.height,
+    x: Math.round(workArea.x + (workArea.width - TOOLBAR_WINDOW_SIZE.width) / 2),
+    y: Math.round(workArea.y + 12),
+  };
+}
+
+function constrainBoundsToWorkArea(bounds, minimum = EDITOR_MIN_SIZE) {
+  const center = {
+    x: Math.round(bounds.x + bounds.width / 2),
+    y: Math.round(bounds.y + bounds.height / 2),
+  };
+  const display = screen.getDisplayNearestPoint(center) || screen.getPrimaryDisplay();
+  const { workArea } = display;
+  const width = Math.min(Math.max(bounds.width, Math.min(minimum.width, workArea.width)), workArea.width);
+  const height = Math.min(Math.max(bounds.height, Math.min(minimum.height, workArea.height)), workArea.height);
+  return {
+    width,
+    height,
+    x: Math.round(Math.min(Math.max(bounds.x, workArea.x), workArea.x + workArea.width - width)),
+    y: Math.round(Math.min(Math.max(bounds.y, workArea.y), workArea.y + workArea.height - height)),
+  };
+}
+
+function getEditorWindowBounds() {
+  return constrainBoundsToWorkArea(lastEditorBounds || centeredBounds(EDITOR_DEFAULT_SIZE));
+}
+
+function rememberEditorBounds() {
+  if (!mainWindow || mainWindow.isDestroyed() || mainWindowMode !== 'editor' || mainWindow.isMinimized()) return;
+  const bounds = mainWindow.getBounds();
+  if (bounds.width >= TOOLBAR_WINDOW_SIZE.width && bounds.height >= TOOLBAR_WINDOW_SIZE.height) {
+    lastEditorBounds = bounds;
+  }
+}
+
+function applyToolbarWindowMode(options = {}) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindowMode === 'editor') rememberEditorBounds();
+  mainWindowMode = 'toolbar';
+
+  if (mainWindow.isFullScreen()) mainWindow.setFullScreen(false);
+  if (mainWindow.isMaximized()) mainWindow.unmaximize();
+  mainWindow.setMinimumSize(TOOLBAR_MIN_SIZE.width, TOOLBAR_MIN_SIZE.height);
+  mainWindow.setResizable(false);
+  mainWindow.setMaximizable(false);
+  if (typeof mainWindow.setFullScreenable === 'function') mainWindow.setFullScreenable(false);
+  mainWindow.setSkipTaskbar(process.platform === 'darwin');
+  mainWindow.setBackgroundColor('#00000000');
+  try { mainWindow.setHasShadow(false); } catch (_) {}
+  try { mainWindow.setAlwaysOnTop(true, process.platform === 'darwin' ? 'floating' : 'normal'); } catch (_) { mainWindow.setAlwaysOnTop(true); }
+  if (process.platform === 'darwin') {
+    try { mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch (_) {}
+  }
+  mainWindow.setBounds(getToolbarWindowBounds(), false);
+
+  if (options.show) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  }
+}
+
+function applyEditorWindowMode(options = {}) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const wasEditor = mainWindowMode === 'editor';
+  mainWindowMode = 'editor';
+
+  mainWindow.setResizable(true);
+  mainWindow.setMaximizable(true);
+  if (typeof mainWindow.setFullScreenable === 'function') mainWindow.setFullScreenable(true);
+  mainWindow.setMinimumSize(EDITOR_MIN_SIZE.width, EDITOR_MIN_SIZE.height);
+  mainWindow.setSkipTaskbar(false);
+  mainWindow.setBackgroundColor('#09090b');
+  try { mainWindow.setAlwaysOnTop(false); } catch (_) {}
+  if (process.platform === 'darwin') {
+    try { mainWindow.setVisibleOnAllWorkspaces(false); } catch (_) {}
+  }
+  try { mainWindow.setHasShadow(true); } catch (_) {}
+
+  if (!wasEditor || !mainWindow.isVisible()) {
+    mainWindow.setBounds(getEditorWindowBounds(), false);
+  }
+
+  if (options.show) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.moveTop();
+    mainWindow.focus();
+  }
+}
+
+function showMainWindowForCurrentMode() {
+  if (mainWindowMode === 'editor') applyEditorWindowMode({ show: true });
+  else applyToolbarWindowMode({ show: true });
 }
 
 function openPreferencesWindow() {
@@ -217,6 +335,7 @@ function readImageFileAsDataUrl(filePath) {
 async function captureNativeMacWindow() {
   if (process.platform !== 'darwin') return null;
   const filePath = nativeMacWindowCapturePath();
+  let completed = false;
   try {
     await runNativeMacWindowCapture(filePath);
     if (!fs.existsSync(filePath) || fs.statSync(filePath).size === 0) {
@@ -225,13 +344,13 @@ async function captureNativeMacWindow() {
     const dataUrl = readImageFileAsDataUrl(filePath);
     copyDataUrlToClipboard(dataUrl);
     if (mainWindow) {
-      mainWindow.show();
-      mainWindow.focus();
+      applyEditorWindowMode({ show: true });
       mainWindow.webContents.send('load-capture', {
         dataUrl,
         source: 'capture',
         captureMode: 'window',
       });
+      completed = true;
     }
     return { success: true };
   } catch (err) {
@@ -242,7 +361,7 @@ async function captureNativeMacWindow() {
     throw err;
   } finally {
     try { fs.unlinkSync(filePath); } catch (e) {}
-    if (mainWindow && !mainWindow.isVisible()) mainWindow.show();
+    if (!completed && mainWindow && !mainWindow.isVisible()) showMainWindowForCurrentMode();
   }
 }
 
@@ -334,7 +453,7 @@ async function openWindowPickerFallback() {
   windowPickerWindow.loadFile(path.join(__dirname, 'renderer', 'window-picker.html'));
   windowPickerWindow.on('closed', () => {
     windowPickerWindow = null;
-    if (!recordingSourceSelection && mainWindow) mainWindow.show();
+    if (!recordingSourceSelection && mainWindow) showMainWindowForCurrentMode();
   });
 
   windowPickerWindow.webContents.once('did-finish-load', async () => {
@@ -900,16 +1019,15 @@ function hideRecordingIndicator() {
 
   // Restore pico main window when recording ends
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.restore();
-    mainWindow.show();
+    showMainWindowForCurrentMode();
   }
 }
 
 function createMainWindow() {
+  mainWindowMode = 'toolbar';
   const triggerCaptureRegion = () => {
     if (!mainWindow || mainWindow.isDestroyed()) createMainWindow();
-    mainWindow.show();
-    mainWindow.focus();
+    showMainWindowForCurrentMode();
     mainWindow.webContents.send('trigger-capture');
   };
   const menu = Menu.buildFromTemplate([
@@ -928,16 +1046,26 @@ function createMainWindow() {
   ]);
   Menu.setApplicationMenu(menu);
 
+  const toolbarBounds = getToolbarWindowBounds();
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    minWidth: 900,
-    minHeight: 600,
+    ...toolbarBounds,
+    minWidth: TOOLBAR_MIN_SIZE.width,
+    minHeight: TOOLBAR_MIN_SIZE.height,
+    resizable: false,
+    maximizable: false,
+    fullscreenable: false,
     transparent: true,
     frame: false,
     backgroundColor: '#00000000',
     autoHideMenuBar: true,
     titleBarStyle: 'default',
+    alwaysOnTop: true,
+    skipTaskbar: process.platform === 'darwin',
+    hasShadow: false,
+    ...(process.platform === 'darwin' ? {
+      vibrancy: 'under-window',
+      visualEffectState: 'active',
+    } : {}),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -955,7 +1083,7 @@ function createMainWindow() {
 
   mainWindow.setContentProtection(true);
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
-  mainWindow.once('ready-to-show', () => mainWindow.show());
+  mainWindow.once('ready-to-show', () => showMainWindowForCurrentMode());
   mainWindow.webContents.on('did-finish-load', () => console.log('[pico][main] did-finish-load'));
   mainWindow.webContents.on('render-process-gone', (_, details) => console.error('[pico][main] render-process-gone', details));
   mainWindow.webContents.on('did-fail-load', (_, code, desc) => console.error('[pico][main] did-fail-load', code, desc));
@@ -965,6 +1093,8 @@ function createMainWindow() {
       mainWindow.hide();
     }
   });
+  mainWindow.on('resize', rememberEditorBounds);
+  mainWindow.on('move', rememberEditorBounds);
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
@@ -1166,7 +1296,7 @@ ipcMain.handle('start-capture', async (event, options = {}) => {
     const status = process.platform === 'darwin' ? getMacScreenRecordingStatus() : 'granted';
     console.log('[pico][capture] permission status:', status);
     if (!await ensureMacScreenRecordingPermission()) {
-      if (mainWindow) mainWindow.show();
+      if (mainWindow) showMainWindowForCurrentMode();
       return { success: false, error: 'Screen Recording permission is required.' };
     }
     const captureData = await withHiddenDesktopIcons(options, async () => captureAllScreens());
@@ -1175,7 +1305,7 @@ ipcMain.handle('start-capture', async (event, options = {}) => {
     return { success: true };
   } catch (err) {
     console.error('[pico][capture] start-capture failed:', err.message);
-    if (mainWindow) mainWindow.show();
+    if (mainWindow) showMainWindowForCurrentMode();
     return { success: false, error: err.message };
   }
 });
@@ -1208,7 +1338,7 @@ ipcMain.handle('start-capture-window', async (event, options = {}) => {
     createCaptureOverlays(captureData, 'window', winBounds);
     return { success: true };
   } catch (err) {
-    if (mainWindow) mainWindow.show();
+    if (mainWindow) showMainWindowForCurrentMode();
     return { success: false, error: err.message };
   }
 });
@@ -1218,18 +1348,18 @@ ipcMain.handle('start-capture-fullscreen', async (event, options = {}) => {
   await new Promise(r => setTimeout(r, 200));
   try {
     if (!await ensureMacScreenRecordingPermission()) {
-      if (mainWindow) mainWindow.show();
+      if (mainWindow) showMainWindowForCurrentMode();
       return { success: false, error: 'Screen Recording permission is required.' };
     }
     const captureData = await withHiddenDesktopIcons(options, async () => captureAllScreens());
     copyCaptureDataToClipboard(captureData);
     if (mainWindow) {
-      mainWindow.show();
+      applyEditorWindowMode({ show: true });
       mainWindow.webContents.send('load-capture-data', captureData);
     }
     return { success: true };
   } catch (err) {
-    if (mainWindow) mainWindow.show();
+    if (mainWindow) showMainWindowForCurrentMode();
     return { success: false, error: err.message };
   }
 });
@@ -1261,7 +1391,7 @@ ipcMain.on('window-overlay-select', async (event, windowName) => {
       windowPickerSources = [];
       copyDataUrlToClipboard(dataUrl);
       if (mainWindow) {
-        mainWindow.show();
+        applyEditorWindowMode({ show: true });
         mainWindow.webContents.send('load-capture', { dataUrl, source: 'capture', captureMode: 'window' });
       }
       return;
@@ -1272,7 +1402,7 @@ ipcMain.on('window-overlay-select', async (event, windowName) => {
 
   // Fallback: if no matching source found, just show main window
   windowPickerSources = [];
-  if (mainWindow) mainWindow.show();
+  if (mainWindow) showMainWindowForCurrentMode();
 });
 
 ipcMain.on('capture-complete', (event, imageDataUrl) => {
@@ -1280,7 +1410,7 @@ ipcMain.on('capture-complete', (event, imageDataUrl) => {
   captureWindows = [];
   copyDataUrlToClipboard(imageDataUrl);
   if (mainWindow) {
-    mainWindow.show();
+    applyEditorWindowMode({ show: true });
     mainWindow.webContents.send('load-capture', {
       dataUrl: imageDataUrl, source: 'capture', captureMode: 'region',
     });
@@ -1293,10 +1423,10 @@ ipcMain.on('capture-cancel', () => {
   if (recordingRegionSelection) {
     recordingRegionSelection.resolve(null);
     recordingRegionSelection = null;
-    if (mainWindow) mainWindow.show();
+    if (mainWindow) showMainWindowForCurrentMode();
     return;
   }
-  if (mainWindow) mainWindow.show();
+  if (mainWindow) showMainWindowForCurrentMode();
 });
 
 ipcMain.on('recording-region-complete', (event, region) => {
@@ -1325,7 +1455,7 @@ ipcMain.on('window-source-select', async (event, sourceId) => {
       windowPickerSources = [];
       recordingSourceSelection?.resolve(null);
       recordingSourceSelection = null;
-      if (mainWindow) mainWindow.show();
+      if (mainWindow) showMainWindowForCurrentMode();
       return;
     }
     if (windowPickerWindow && !windowPickerWindow.isDestroyed()) windowPickerWindow.close();
@@ -1338,14 +1468,14 @@ ipcMain.on('window-source-select', async (event, sourceId) => {
     }
 
     if (!selected.thumbnail || selected.thumbnail.isEmpty()) {
-      if (mainWindow) mainWindow.show();
+      if (mainWindow) showMainWindowForCurrentMode();
       return;
     }
 
     const dataUrl = selected.thumbnail.toDataURL();
     copyDataUrlToClipboard(dataUrl);
     if (mainWindow) {
-      mainWindow.show();
+      applyEditorWindowMode({ show: true });
       mainWindow.webContents.send('load-capture', { dataUrl, source: 'capture', captureMode: 'window' });
     }
   } catch (err) {
@@ -1353,7 +1483,7 @@ ipcMain.on('window-source-select', async (event, sourceId) => {
     windowPickerSources = [];
     recordingSourceSelection?.reject(err);
     recordingSourceSelection = null;
-    if (mainWindow) mainWindow.show();
+    if (mainWindow) showMainWindowForCurrentMode();
   }
 });
 
@@ -1362,7 +1492,7 @@ ipcMain.on('window-source-cancel', () => {
   windowPickerSources = [];
   recordingSourceSelection?.resolve(null);
   recordingSourceSelection = null;
-  if (mainWindow) mainWindow.show();
+  if (mainWindow) showMainWindowForCurrentMode();
 });
 ipcMain.handle('get-settings', async () => readSettings());
 
@@ -1432,12 +1562,23 @@ ipcMain.handle('window-close', async () => {
 });
 
 ipcMain.handle('window-minimize', async () => {
-  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.minimize();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (process.platform === 'darwin') mainWindow.hide();
+    else mainWindow.minimize();
+  }
   return { success: true };
+});
+
+ipcMain.handle('window-set-mode', async (event, mode) => {
+  if (!mainWindow || mainWindow.isDestroyed()) return { success: false };
+  if (mode === 'editor') applyEditorWindowMode();
+  else applyToolbarWindowMode();
+  return { success: true, mode: mainWindowMode };
 });
 
 ipcMain.handle('window-toggle-maximize', async () => {
   if (!mainWindow || mainWindow.isDestroyed()) return { success: false };
+  if (mainWindowMode !== 'editor') applyEditorWindowMode({ show: true });
   if (mainWindow.isMaximized()) mainWindow.unmaximize();
   else mainWindow.maximize();
   return { success: true, maximized: mainWindow.isMaximized() };
@@ -1498,7 +1639,7 @@ async function chooseRecordingRegionSource(options = {}) {
       createCaptureOverlays(captureData, 'record-region', []);
     } catch (error) {
       recordingRegionSelection = null;
-      if (mainWindow) mainWindow.show();
+      if (mainWindow) showMainWindowForCurrentMode();
       reject(error);
     }
   });
@@ -1650,8 +1791,7 @@ function setupTray() {
       label: 'Open pico',
       click: () => {
         if (!mainWindow || mainWindow.isDestroyed()) createMainWindow();
-        mainWindow.show();
-        mainWindow.focus();
+        showMainWindowForCurrentMode();
       },
     },
     { type: 'separator' },
@@ -1689,10 +1829,8 @@ app.whenReady().then(() => {
       if (app.dock && typeof app.dock.show === 'function') app.dock.show();
       app.focus({ steal: true });
     }
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.show();
+    showMainWindowForCurrentMode();
     mainWindow.moveTop();
-    mainWindow.focus();
   };
   const triggerCaptureFromShortcut = () => {
     const wasMissingWindow = !mainWindow || mainWindow.isDestroyed();
@@ -1729,6 +1867,7 @@ app.whenReady().then(() => {
   });
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
+    else showMainWindowForCurrentMode();
   });
 });
 

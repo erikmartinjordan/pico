@@ -66,6 +66,8 @@ const state = {
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
 
+let resetToolbarDismissState = () => {};
+
 const elements = {
   canvas: $('#canvas'),
   ctx: null,
@@ -119,6 +121,14 @@ const elements = {
 };
 
 function on(el, event, handler) { if (el) el.addEventListener(event, handler); }
+
+function setAppWindowMode(mode) {
+  window.pico?.setWindowMode?.(mode)?.catch?.(() => {});
+}
+
+function resetFloatingToolbar() {
+  resetToolbarDismissState();
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Initialization
@@ -700,6 +710,9 @@ async function toggleRecording(event) {
 function showRecordingPreview(result = {}) {
   if (!result?.data || !elements.recordingPreview || !elements.recordingPreviewVideo) return;
   discardRecordingPreview({ silent: true });
+  document.body.classList.add('has-content');
+  resetFloatingToolbar();
+  setAppWindowMode('editor');
   const bytes = result.data instanceof Uint8Array ? result.data : new Uint8Array(result.data);
   const blob = new Blob([bytes], { type: result.mimeType || 'video/webm' });
   const url = URL.createObjectURL(blob);
@@ -735,11 +748,19 @@ function discardRecordingPreview(options = {}) {
   elements.recordingPreview?.classList.add('hidden');
   elements.recordingPreview?.setAttribute('aria-hidden', 'true');
   elements.container?.classList.remove('recording-preview-active');
+  if (!state.image) {
+    document.body.classList.remove('has-content');
+    resetFloatingToolbar();
+    setAppWindowMode('toolbar');
+  }
   if (!options?.silent) showToast('Recording discarded', 'info');
 }
 
 function showLiveRecordingPreview(started = {}, format = state.recordingFormat) {
   if (!elements.recordingPreview || !elements.recordingPreviewVideo) return;
+  document.body.classList.add('has-content');
+  resetFloatingToolbar();
+  setAppWindowMode('editor');
   if (state.recordingPreview?.url) URL.revokeObjectURL(state.recordingPreview.url);
   state.recordingPreview = null;
   elements.recordingPreviewVideo.removeAttribute('src');
@@ -869,6 +890,9 @@ function clearCanvas() {
   elements.canvas.classList.remove('visible');
   elements.emptyState.classList.add('hidden');
   document.body.classList.remove('has-image');
+  document.body.classList.remove('has-content');
+  resetFloatingToolbar();
+  setAppWindowMode('toolbar');
   elements.statusTool?.parentElement?.classList.remove('visible');
   elements.ctx.clearRect(0, 0, elements.canvas.width, elements.canvas.height);
   updateStatus();
@@ -929,6 +953,9 @@ function loadImage(dataUrl, options = {}) {
     elements.canvas.classList.add('visible');
     elements.emptyState.classList.add('hidden');
     document.body.classList.add('has-image');
+    document.body.classList.remove('has-content');
+    resetFloatingToolbar();
+    setAppWindowMode('editor');
     elements.statusTool?.parentElement?.classList.add('visible');
     fitToWindow();
     render();
@@ -962,9 +989,11 @@ function applyZoom() {
 function fitToWindow() {
   if (!state.image) return;
   const container = elements.container;
-  const padding = 40;
-  const availW = container.clientWidth - padding * 2;
-  const availH = container.clientHeight - padding * 2;
+  const styles = getComputedStyle(container);
+  const horizontalPadding = parseFloat(styles.paddingLeft || '0') + parseFloat(styles.paddingRight || '0');
+  const verticalPadding = parseFloat(styles.paddingTop || '0') + parseFloat(styles.paddingBottom || '0');
+  const availW = container.clientWidth - horizontalPadding - 48;
+  const availH = container.clientHeight - verticalPadding - 48;
   // If container hasn't laid out yet, retry on next frame
   if (availW <= 0 || availH <= 0) {
     requestAnimationFrame(() => fitToWindow());
@@ -1937,81 +1966,102 @@ function initToolbarDismiss() {
   const grip = toolbar?.querySelector('.toolbar-grip');
   if (!toolbar || !grip) return;
 
-  const hint = toolbar.querySelector('.toolbar-dismiss-hint');
-  if (!hint) return;
-
-  const threshold = 80;
-  const resistance = 0.85;
+  const threshold = 42;
+  const dismissOffset = 94;
   let dragging = false;
+  let pointerId = null;
   let startY = 0;
   let currentOffset = 0;
 
-  const setToolbarTransform = (offset) => {
-    toolbar.style.transform = `translateX(-50%) translateY(${offset}px)`;
-    };
+  const isFloatingMode = () =>
+    !document.body.classList.contains('has-image') &&
+    !document.body.classList.contains('has-content') &&
+    !state.image;
 
-  const restoreToolbar = () => {
+  const setToolbarTransform = (offset) => {
+    toolbar.style.setProperty('--toolbar-offset', `${offset}px`);
+  };
+
+  const restoreToolbar = (options = {}) => {
     isDismissed = false;
     toolbar.classList.remove('dismissed', 'past-threshold', 'dragging');
-    toolbar.style.transition = 'transform 0.5s cubic-bezier(0.34,1.56,0.64,1), opacity 0.5s cubic-bezier(0.34,1.56,0.64,1)';
+    if (options.animate === false) toolbar.style.transition = 'none';
+    else toolbar.style.transition = '';
     toolbar.style.opacity = '';
     toolbar.style.pointerEvents = '';
     setToolbarTransform(0);
-    hint.textContent = 'Drag down to dismiss';
+    if (options.animate === false) requestAnimationFrame(() => { toolbar.style.transition = ''; });
   };
 
-  grip.addEventListener('mousedown', (event) => {
-    if (isDismissed) return;
+  resetToolbarDismissState = () => restoreToolbar({ animate: false });
+
+  const finishDismiss = () => {
+    isDismissed = true;
+    toolbar.classList.add('dismissed');
+    toolbar.classList.remove('past-threshold');
+    toolbar.style.transition = '';
+    setToolbarTransform(dismissOffset);
+    window.setTimeout(() => {
+      window.pico.minimizeWindow().finally(() => restoreToolbar({ animate: false }));
+    }, 150);
+  };
+
+  const cancelDrag = () => {
+    dragging = false;
+    pointerId = null;
+    toolbar.classList.remove('dragging', 'past-threshold');
+    toolbar.style.transition = '';
+    setToolbarTransform(0);
+  };
+
+  grip.addEventListener('pointerdown', (event) => {
+    if (isDismissed || !isFloatingMode()) return;
     event.preventDefault();
+    event.stopPropagation();
     dragging = true;
+    pointerId = event.pointerId;
     startY = event.clientY;
     currentOffset = 0;
+    grip.setPointerCapture?.(event.pointerId);
     toolbar.classList.add('dragging');
     toolbar.classList.remove('past-threshold');
     toolbar.style.transition = 'none';
-    hint.textContent = 'Drag down to dismiss';
   });
 
-  window.addEventListener('mousemove', (event) => {
-    if (!dragging) return;
+  grip.addEventListener('pointermove', (event) => {
+    if (!dragging || event.pointerId !== pointerId) return;
     const deltaY = Math.max(0, event.clientY - startY);
-    currentOffset = deltaY * resistance;
+    currentOffset = Math.min(dismissOffset, deltaY);
     setToolbarTransform(currentOffset);
 
     const isPastThreshold = currentOffset > threshold;
     toolbar.classList.toggle('past-threshold', isPastThreshold);
-    hint.textContent = isPastThreshold ? 'Release to dismiss' : 'Drag down to dismiss';
   });
 
-  window.addEventListener('mouseup', () => {
-    if (!dragging) return;
+  grip.addEventListener('pointerup', (event) => {
+    if (!dragging || event.pointerId !== pointerId) return;
+    grip.releasePointerCapture?.(event.pointerId);
     dragging = false;
+    pointerId = null;
     toolbar.classList.remove('dragging');
     const isPastThreshold = currentOffset > threshold;
 
     if (isPastThreshold) {
-      isDismissed = true;
-      toolbar.classList.add('dismissed');
-      toolbar.classList.remove('past-threshold');
-      toolbar.style.transition = 'transform 0.4s cubic-bezier(0.4,0,1,1), opacity 0.4s cubic-bezier(0.4,0,1,1)';
-      setToolbarTransform(120);
-      hint.textContent = 'Drag down to dismiss';
+      finishDismiss();
       return;
     }
 
-    toolbar.classList.remove('past-threshold');
-    toolbar.style.transition = 'transform 0.5s cubic-bezier(0.34,1.56,0.64,1), opacity 0.5s cubic-bezier(0.34,1.56,0.64,1)';
-    setToolbarTransform(0);
-    hint.textContent = 'Drag down to dismiss';
+    cancelDrag();
   });
 
-  toolbar.querySelectorAll('.capture-modes .toolbar-btn').forEach((button) => {
-    button.addEventListener('click', (event) => {
-      if (!isDismissed) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      restoreToolbar();
-    }, true);
+  grip.addEventListener('pointercancel', (event) => {
+    if (!dragging || event.pointerId !== pointerId) return;
+    cancelDrag();
+  });
+
+  window.addEventListener('focus', () => {
+    if (!isDismissed) return;
+    restoreToolbar({ animate: false });
   });
 }
 
