@@ -470,7 +470,7 @@ body:not(.has-image) .toolbar .toolbar-separator {
 /* ── Color Swatches (rounded squares) ── */
 .color-swatch {
   width: 14px;
-  height: 14px;
+  height: 16px;
   border: none;
   border-radius: 4px;
   background: var(--swatch-color);
@@ -1131,7 +1131,7 @@ body:not(.has-image) .toolbar .toolbar-separator {
 /* Grip zone */
 .toolbar-grip {
   position: absolute;
-  top: 0;
+  top: -8px;
   left: 50%;
   transform: translateX(-50%);
   width: 56px;
@@ -1143,7 +1143,7 @@ body:not(.has-image) .toolbar .toolbar-separator {
 .toolbar-grip::before {
   content: "";
   position: absolute;
-  top: 5px;
+  top: 6px;
   left: 50%;
   transform: translateX(-50%);
   width: 32px;
