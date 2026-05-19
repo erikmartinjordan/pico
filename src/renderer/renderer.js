@@ -1934,14 +1934,11 @@ let isDismissed = false;
 
 function initToolbarDismiss() {
   const toolbar = document.querySelector('.toolbar');
-  const canvasContainer = document.querySelector('.canvas-container');
   const grip = toolbar?.querySelector('.toolbar-grip');
-  if (!toolbar || !canvasContainer || !grip) return;
+  if (!toolbar || !grip) return;
 
-  const hint = document.createElement('span');
-  hint.className = 'toolbar-drag-hint';
-  hint.textContent = 'drag down to dismiss';
-  canvasContainer.insertBefore(hint, toolbar.nextSibling);
+  const hint = toolbar.querySelector('.toolbar-dismiss-hint');
+  if (!hint) return;
 
   const threshold = 80;
   const resistance = 0.85;
@@ -1951,8 +1948,7 @@ function initToolbarDismiss() {
 
   const setToolbarTransform = (offset) => {
     toolbar.style.transform = `translateX(-50%) translateY(${offset}px)`;
-    hint.style.setProperty('--toolbar-drag-offset', `${offset}px`);
-  };
+    };
 
   const restoreToolbar = () => {
     isDismissed = false;
@@ -1961,8 +1957,7 @@ function initToolbarDismiss() {
     toolbar.style.opacity = '';
     toolbar.style.pointerEvents = '';
     setToolbarTransform(0);
-    hint.style.setProperty('--toolbar-drag-offset', '0px');
-    hint.textContent = 'drag down to dismiss';
+    hint.textContent = 'Drag down to dismiss';
   };
 
   grip.addEventListener('mousedown', (event) => {
@@ -1974,7 +1969,7 @@ function initToolbarDismiss() {
     toolbar.classList.add('dragging');
     toolbar.classList.remove('past-threshold');
     toolbar.style.transition = 'none';
-    hint.textContent = 'drag down to dismiss';
+    hint.textContent = 'Drag down to dismiss';
   });
 
   window.addEventListener('mousemove', (event) => {
@@ -1985,7 +1980,7 @@ function initToolbarDismiss() {
 
     const isPastThreshold = currentOffset > threshold;
     toolbar.classList.toggle('past-threshold', isPastThreshold);
-    hint.textContent = isPastThreshold ? 'release to dismiss' : 'drag down to dismiss';
+    hint.textContent = isPastThreshold ? 'Release to dismiss' : 'Drag down to dismiss';
   });
 
   window.addEventListener('mouseup', () => {
@@ -2000,14 +1995,14 @@ function initToolbarDismiss() {
       toolbar.classList.remove('past-threshold');
       toolbar.style.transition = 'transform 0.4s cubic-bezier(0.4,0,1,1), opacity 0.4s cubic-bezier(0.4,0,1,1)';
       setToolbarTransform(120);
-      hint.textContent = 'drag down to dismiss';
+      hint.textContent = 'Drag down to dismiss';
       return;
     }
 
     toolbar.classList.remove('past-threshold');
     toolbar.style.transition = 'transform 0.5s cubic-bezier(0.34,1.56,0.64,1), opacity 0.5s cubic-bezier(0.34,1.56,0.64,1)';
     setToolbarTransform(0);
-    hint.textContent = 'drag down to dismiss';
+    hint.textContent = 'Drag down to dismiss';
   });
 
   toolbar.querySelectorAll('.capture-modes .toolbar-btn').forEach((button) => {

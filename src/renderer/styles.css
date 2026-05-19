@@ -97,34 +97,39 @@ body.platform-darwin.has-image .macos-traffic {
   transform: translateX(-50%);
   display: inline-flex;
   align-items: center;
-  height: 52px;
-  padding: 0 12px;
+  width: fit-content;
+  min-height: 52px;
+  padding: 14px 12px 0;
   gap: 6px;
   border: 1px solid rgba(255,255,255,0.34);
-  border-radius: 14px;
-  overflow: hidden;
+  color: rgba(16, 18, 22, 0.9);
   transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 2.2);
-  -webkit-app-region: drag;
+  -webkit-app-region: no-drag;
   z-index: 20;
+}
+
+.toolbar,
+.toolbar > div {
+  border-radius: 0.875rem;
 }
 
 .liquidGlass-wrapper {
   position: relative;
-  display: flex;
+  display: inline-flex;
   font-weight: 600;
-  overflow: hidden;
-  box-shadow: 0 6px 6px rgba(0, 0, 0, 0.2), 0 0 20px rgba(0, 0, 0, 0.1);
-  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 2.2);
+  overflow: visible;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), 0 0 24px rgba(0, 0, 0, 0.12);
 }
 
 .liquidGlass-effect {
   position: absolute;
   z-index: 0;
   inset: 0;
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(18px) saturate(170%);
+  -webkit-backdrop-filter: blur(18px) saturate(170%);
   filter: url(#glass-distortion);
   overflow: hidden;
+  pointer-events: none;
 }
 
 .liquidGlass-tint {
@@ -132,6 +137,7 @@ body.platform-darwin.has-image .macos-traffic {
   position: absolute;
   inset: 0;
   background: rgba(255, 255, 255, 0.50);
+  pointer-events: none;
 }
 
 .liquidGlass-shine {
@@ -139,8 +145,9 @@ body.platform-darwin.has-image .macos-traffic {
   inset: 0;
   z-index: 2;
   overflow: hidden;
-  box-shadow: inset 2px 2px 1px 0 rgba(255, 255, 255, 0.5),
-    inset -1px -1px 1px 1px rgba(255, 255, 255, 0.5);
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.65),
+    inset -1px -1px 0 rgba(255, 255, 255, 0.42);
+  pointer-events: none;
 }
 
 .toolbar-group { display: flex; align-items: center; gap: 2px; }
@@ -165,7 +172,7 @@ body.platform-darwin.has-image .macos-traffic {
   border: none;
   border-radius: 12px;
   background: transparent;
-  color: rgba(255,255,255,0.74);
+  color: rgba(17, 23, 35, 0.78);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -179,7 +186,7 @@ body.platform-darwin.has-image .macos-traffic {
 
 .toolbar-btn:hover:not(:disabled) {
   background: transparent;
-  color: rgba(255,255,255,0.96);
+  color: rgba(13, 18, 30, 0.96);
 }
 
 .toolbar-btn.active,
@@ -463,7 +470,7 @@ body:not(.has-image) .toolbar .toolbar-separator {
 /* ── Color Swatches (rounded squares) ── */
 .color-swatch {
   width: 14px;
-  height: 14px;
+  height: 16px;
   border: none;
   border-radius: 4px;
   background: var(--swatch-color);
@@ -1124,30 +1131,39 @@ body:not(.has-image) .toolbar .toolbar-separator {
 /* Grip zone */
 .toolbar-grip {
   position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 18px;
-  cursor: grab;
-  -webkit-app-region: no-drag;
-  z-index: 5;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 56px;
+  height: 14px;
+  z-index: 6;
+  -webkit-app-region: drag;
 }
-.toolbar-grip::before,
-.toolbar-grip::after {
+
+.toolbar-grip::before {
   content: "";
-  width: 28px;
-  height: 1.5px;
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 32px;
+  height: 4px;
   border-radius: 999px;
-  background: rgba(255,255,255,0.22);
-  opacity: 0;
-  transition: opacity 0.2s ease;
+  background: rgba(17, 23, 35, 0.32);
 }
-.toolbar:hover .toolbar-grip::before,
-.toolbar:hover .toolbar-grip::after { opacity: 1; }
-.toolbar.dragging .toolbar-grip { cursor: grabbing; }
+
+.toolbar-dismiss-hint {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 7px);
+  transform: translateX(-50%);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: rgba(255,255,255,0.5);
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 7;
+}
 
 /* State classes */
 .toolbar.dragging {
@@ -1159,27 +1175,8 @@ body:not(.has-image) .toolbar .toolbar-separator {
     0 12px 32px rgba(0,0,0,0.45);
   transform: translateX(-50%) rotate(1.5deg) !important;
 }
+.toolbar.past-threshold .toolbar-dismiss-hint { color: rgba(255,80,80,0.75); }
 .toolbar.dismissed {
   opacity: 0;
   pointer-events: none;
 }
-
-/* Drag hint */
-.toolbar-drag-hint {
-  position: absolute;
-  top: calc(var(--toolbar-top, 14px) + 60px);
-  left: 50%;
-  transform: translateX(-50%) translateY(var(--toolbar-drag-offset, 0px));
-  font-size: 11px;
-  color: rgba(255,255,255,0.44);
-  letter-spacing: 0.05em;
-  white-space: nowrap;
-  pointer-events: none;
-  opacity: 1;
-  transition: color 0.2s ease, opacity 0.2s ease;
-  z-index: 19;
-}
-.platform-darwin .toolbar-drag-hint { --toolbar-top: 50px; }
-.toolbar.dismissed + .toolbar-drag-hint { opacity: 0; }
-.toolbar.past-threshold + .toolbar-drag-hint { color: rgba(255,80,80,0.75); }
-
