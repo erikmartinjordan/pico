@@ -937,7 +937,7 @@ function createMainWindow() {
     frame: false,
     backgroundColor: '#00000000',
     autoHideMenuBar: true,
-    titleBarStyle: 'default',
+    titleBarStyle: 'hiddenInset',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -951,6 +951,11 @@ function createMainWindow() {
     icon: path.join(__dirname, 'assets', 'icons', 'linux', 'icons', '512x512.png'),
     show: false,
   });
+
+  if (process.platform === 'darwin') {
+    mainWindow.setWindowButtonVisibility(true);
+    mainWindow.setTrafficLightPosition({ x: 14, y: 14 });
+  }
 
   mainWindow.setContentProtection(true);
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
