@@ -52,7 +52,7 @@ body.has-image .canvas-container {
     linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
   background-size: 20px 20px;
   pointer-events: none;
-  opacity: 0;
+  opacity: 0.42;
 }
 
 body.has-image .canvas-container::before {
@@ -101,7 +101,7 @@ body.platform-darwin.has-image .macos-traffic {
   padding: 0 12px;
   gap: 6px;
   border: 1px solid rgba(255,255,255,0.34);
-  border-radius: 12px;
+  border-radius: 14px;
   overflow: hidden;
   transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 2.2);
   -webkit-app-region: drag;
@@ -110,8 +110,10 @@ body.platform-darwin.has-image .macos-traffic {
 
 .liquidGlass-wrapper {
   position: relative;
+  display: flex;
+  font-weight: 600;
   overflow: hidden;
-  box-shadow: 0 6px 6px rgba(0,0,0,0.2), 0 0 20px rgba(0,0,0,0.1);
+  box-shadow: 0 6px 6px rgba(0, 0, 0, 0.2), 0 0 20px rgba(0, 0, 0, 0.1);
   transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 2.2);
 }
 
@@ -119,8 +121,8 @@ body.platform-darwin.has-image .macos-traffic {
   position: absolute;
   z-index: 0;
   inset: 0;
-  backdrop-filter: blur(3px) saturate(180%);
-  -webkit-backdrop-filter: blur(3px) saturate(180%);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
   filter: url(#glass-distortion);
   overflow: hidden;
 }
@@ -129,7 +131,7 @@ body.platform-darwin.has-image .macos-traffic {
   z-index: 1;
   position: absolute;
   inset: 0;
-  background: rgba(255,255,255,0.50);
+  background: rgba(255, 255, 255, 0.50);
 }
 
 .liquidGlass-shine {
@@ -137,9 +139,8 @@ body.platform-darwin.has-image .macos-traffic {
   inset: 0;
   z-index: 2;
   overflow: hidden;
-  box-shadow:
-    inset 2px 2px 1px 0 rgba(255,255,255,0.50),
-    inset -1px -1px 1px 1px rgba(255,255,255,0.50);
+  box-shadow: inset 2px 2px 1px 0 rgba(255, 255, 255, 0.5),
+    inset -1px -1px 1px 1px rgba(255, 255, 255, 0.5);
 }
 
 .toolbar-group { display: flex; align-items: center; gap: 2px; }
@@ -1127,7 +1128,7 @@ body:not(.has-image) .toolbar .toolbar-separator {
   height: 18px;
   cursor: grab;
   -webkit-app-region: no-drag;
-  z-index: 4;
+  z-index: 5;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1166,11 +1167,11 @@ body:not(.has-image) .toolbar .toolbar-separator {
 /* Drag hint */
 .toolbar-drag-hint {
   position: absolute;
-  top: 74px;
+  top: calc(var(--toolbar-top, 14px) + 60px);
   left: 50%;
-  transform: translateX(-50%);
+  transform: translateX(-50%) translateY(var(--toolbar-drag-offset, 0px));
   font-size: 11px;
-  color: rgba(255,255,255,0.42);
+  color: rgba(255,255,255,0.44);
   letter-spacing: 0.05em;
   white-space: nowrap;
   pointer-events: none;
@@ -1178,7 +1179,7 @@ body:not(.has-image) .toolbar .toolbar-separator {
   transition: color 0.2s ease, opacity 0.2s ease;
   z-index: 19;
 }
-.platform-darwin .toolbar-drag-hint { top: 110px; }
+.platform-darwin .toolbar-drag-hint { --toolbar-top: 50px; }
 .toolbar.dismissed + .toolbar-drag-hint { opacity: 0; }
 .toolbar.past-threshold + .toolbar-drag-hint { color: rgba(255,80,80,0.75); }
 

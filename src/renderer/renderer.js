@@ -1951,6 +1951,7 @@ function initToolbarDismiss() {
 
   const setToolbarTransform = (offset) => {
     toolbar.style.transform = `translateX(-50%) translateY(${offset}px)`;
+    hint.style.setProperty('--toolbar-drag-offset', `${offset}px`);
   };
 
   const restoreToolbar = () => {
@@ -1960,6 +1961,7 @@ function initToolbarDismiss() {
     toolbar.style.opacity = '';
     toolbar.style.pointerEvents = '';
     setToolbarTransform(0);
+    hint.style.setProperty('--toolbar-drag-offset', '0px');
     hint.textContent = 'drag down to dismiss';
   };
 
