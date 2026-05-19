@@ -1934,13 +1934,14 @@ let isDismissed = false;
 
 function initToolbarDismiss() {
   const toolbar = document.querySelector('.toolbar');
+  const canvasContainer = document.querySelector('.canvas-container');
   const grip = toolbar?.querySelector('.toolbar-grip');
-  if (!toolbar || !grip) return;
+  if (!toolbar || !canvasContainer || !grip) return;
 
   const hint = document.createElement('span');
   hint.className = 'toolbar-drag-hint';
   hint.textContent = 'drag down to dismiss';
-  toolbar.appendChild(hint);
+  canvasContainer.insertBefore(hint, toolbar.nextSibling);
 
   const threshold = 80;
   const resistance = 0.85;

@@ -101,7 +101,7 @@ body.platform-darwin.has-image .macos-traffic {
   padding: 0 12px;
   gap: 6px;
   border: 1px solid rgba(255,255,255,0.34);
-  border-radius: 2rem;
+  border-radius: 12px;
   overflow: hidden;
   transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 2.2);
   -webkit-app-region: drag;
@@ -1166,17 +1166,19 @@ body:not(.has-image) .toolbar .toolbar-separator {
 /* Drag hint */
 .toolbar-drag-hint {
   position: absolute;
-  top: calc(100% + 8px);
+  top: 74px;
   left: 50%;
   transform: translateX(-50%);
   font-size: 11px;
-  color: rgba(255,255,255,0.25);
+  color: rgba(255,255,255,0.42);
   letter-spacing: 0.05em;
   white-space: nowrap;
   pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.2s ease, color 0.2s ease;
+  opacity: 1;
+  transition: color 0.2s ease, opacity 0.2s ease;
+  z-index: 19;
 }
-.toolbar:hover .toolbar-drag-hint { opacity: 1; }
-.toolbar.past-threshold .toolbar-drag-hint { color: rgba(255,80,80,0.75); }
+.platform-darwin .toolbar-drag-hint { top: 110px; }
+.toolbar.dismissed + .toolbar-drag-hint { opacity: 0; }
+.toolbar.past-threshold + .toolbar-drag-hint { color: rgba(255,80,80,0.75); }
 
