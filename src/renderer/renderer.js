@@ -862,6 +862,8 @@ function clearCanvas() {
   state.originalImageBeforeContainer = null;
   elements.canvas.classList.remove('visible');
   elements.emptyState.classList.remove('hidden');
+  document.body.classList.remove('has-image');
+  elements.statusTool?.parentElement?.classList.remove('visible');
   elements.ctx.clearRect(0, 0, elements.canvas.width, elements.canvas.height);
   updateStatus();
   updateToolbarState();
@@ -920,6 +922,8 @@ function loadImage(dataUrl, options = {}) {
     elements.canvas.height = img.height;
     elements.canvas.classList.add('visible');
     elements.emptyState.classList.add('hidden');
+    document.body.classList.add('has-image');
+    elements.statusTool?.parentElement?.classList.add('visible');
     fitToWindow();
     render();
     updateStatus();

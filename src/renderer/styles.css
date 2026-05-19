@@ -23,6 +23,11 @@ body {
   color: var(--text);
 }
 
+
+body.has-image {
+  background: var(--bg);
+}
+
 /* ── Canvas Container ── */
 .canvas-container {
   flex: 1;
@@ -34,6 +39,10 @@ body {
   background: transparent;
 }
 
+body.has-image .canvas-container {
+  background: var(--canvas);
+}
+
 .canvas-container::before {
   content: "";
   position: absolute;
@@ -43,6 +52,11 @@ body {
     linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
   background-size: 20px 20px;
   pointer-events: none;
+  opacity: 0;
+}
+
+body.has-image .canvas-container::before {
+  opacity: 1;
 }
 
 /* ── Floating Pill Toolbar ── */
@@ -601,10 +615,14 @@ body {
   height: 28px;
   border-top: 1px solid var(--border-subtle);
   background: #0d0d10;
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: space-between;
   padding: 0 14px;
+}
+
+.statusbar.visible {
+  display: flex;
 }
 
 .status-tool {
