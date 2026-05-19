@@ -1426,6 +1426,23 @@ ipcMain.handle('read-clipboard-image', async () => {
   }
 });
 
+ipcMain.handle('window-close', async () => {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
+  return { success: true };
+});
+
+ipcMain.handle('window-minimize', async () => {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.minimize();
+  return { success: true };
+});
+
+ipcMain.handle('window-toggle-maximize', async () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return { success: false };
+  if (mainWindow.isMaximized()) mainWindow.unmaximize();
+  else mainWindow.maximize();
+  return { success: true, maximized: mainWindow.isMaximized() };
+});
+
 ipcMain.handle('get-displays', () => screen.getAllDisplays());
 ipcMain.handle('get-cursor-screen-point', () => screen.getCursorScreenPoint());
 

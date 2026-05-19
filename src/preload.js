@@ -533,6 +533,11 @@ contextBridge.exposeInMainWorld('pico', {
   copyToClipboard: (dataUrl) => ipcRenderer.invoke('copy-to-clipboard', dataUrl),
   readClipboardImage: () => ipcRenderer.invoke('read-clipboard-image'),
 
+  // Window controls
+  closeWindow: () => ipcRenderer.invoke('window-close'),
+  minimizeWindow: () => ipcRenderer.invoke('window-minimize'),
+  toggleMaximizeWindow: () => ipcRenderer.invoke('window-toggle-maximize'),
+
   // Display info
   getDisplays: () => ipcRenderer.invoke('get-displays'),
 

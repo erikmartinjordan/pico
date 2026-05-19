@@ -64,7 +64,10 @@ body.has-image .canvas-container::before {
   display: none;
   align-items: center;
   gap: 6px;
-  margin-right: 8px;
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 40;
   -webkit-app-region: no-drag;
 }
 
@@ -77,6 +80,9 @@ body.platform-darwin.has-image .macos-traffic {
   height: 10px;
   border-radius: 50%;
   box-shadow: 0 0 0 1px rgba(0,0,0,0.2) inset;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
 }
 
 .traffic-dot.close { background: #ff5f57; }
