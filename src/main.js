@@ -937,7 +937,7 @@ function createMainWindow() {
     frame: false,
     backgroundColor: '#00000000',
     autoHideMenuBar: true,
-    titleBarStyle: 'hiddenInset',
+    titleBarStyle: 'default',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -952,10 +952,6 @@ function createMainWindow() {
     show: false,
   });
 
-  if (process.platform === 'darwin') {
-    mainWindow.setWindowButtonVisibility(true);
-    mainWindow.setTrafficLightPosition({ x: 14, y: 14 });
-  }
 
   mainWindow.setContentProtection(true);
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
