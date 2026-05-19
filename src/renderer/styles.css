@@ -126,7 +126,7 @@ body.platform-darwin.has-content .macos-traffic {
   gap: 6px;
   border: 1px solid rgba(255,255,255,0.44);
   border-radius: 999px;
-  color: rgba(17, 23, 35, 0.88);
+  color: var(--toolbar-icon-color, rgba(17, 23, 35, 0.88));
   isolation: isolate;
   overflow: visible;
   transition:
@@ -192,7 +192,7 @@ body.platform-darwin.has-content .macos-traffic {
   border: none;
   border-radius: 999px;
   background: transparent;
-  color: rgba(17, 23, 35, 0.74);
+  color: var(--toolbar-icon-muted, rgba(17, 23, 35, 0.74));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -206,7 +206,7 @@ body.platform-darwin.has-content .macos-traffic {
 
 .toolbar-btn:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.36);
-  color: rgba(9, 13, 20, 0.96);
+  color: var(--toolbar-icon-hover, rgba(9, 13, 20, 0.96));
   box-shadow: 0 1px 0 rgba(255,255,255,0.38) inset;
 }
 
@@ -216,7 +216,7 @@ body.platform-darwin.has-content .macos-traffic {
   box-shadow:
     0 0 0 1px rgba(255,255,255,0.40),
     0 8px 22px rgba(54,96,180,0.18);
-  color: rgba(4, 10, 22, 0.92);
+  color: var(--toolbar-icon-active, rgba(4, 10, 22, 0.92));
 }
 
 .toolbar-btn:disabled { opacity: 0.3; cursor: default; }
@@ -1165,11 +1165,11 @@ body:not(.has-image) .toolbar .toolbar-separator {
 /* Grip zone */
 .toolbar-grip {
   position: absolute;
-  top: -10px;
+  top: -14px;
   left: 50%;
   transform: translateX(-50%);
-  width: 64px;
-  height: 16px;
+  width: 68px;
+  height: 18px;
   z-index: 6;
   cursor: ns-resize;
   touch-action: none;
@@ -1179,11 +1179,11 @@ body:not(.has-image) .toolbar .toolbar-separator {
 .toolbar-grip::before {
   content: "";
   position: absolute;
-  top: 6px;
+  top: 7px;
   left: 50%;
   transform: translateX(-50%);
-  width: 34px;
-  height: 3px;
+  width: 36px;
+  height: 4px;
   border-radius: 999px;
   background: rgba(17, 23, 35, 0.24);
   box-shadow: 0 1px 0 rgba(255,255,255,0.38);
@@ -1215,4 +1215,28 @@ body:not(.has-image) .toolbar .toolbar-separator {
 body.has-image .toolbar-grip,
 body.has-content .toolbar-grip {
   display: none;
+}
+
+
+/* Adaptive icon contrast for light/dark desktop backgrounds */
+@media (prefers-color-scheme: dark) {
+  .toolbar {
+    --toolbar-icon-color: rgba(241, 245, 255, 0.94);
+    --toolbar-icon-muted: rgba(226, 233, 250, 0.88);
+    --toolbar-icon-hover: rgba(255, 255, 255, 0.99);
+    --toolbar-icon-active: rgba(255, 255, 255, 0.99);
+  }
+
+  .toolbar-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.22);
+  }
+}
+
+@media (prefers-color-scheme: light) {
+  .toolbar {
+    --toolbar-icon-color: rgba(15, 23, 42, 0.9);
+    --toolbar-icon-muted: rgba(15, 23, 42, 0.78);
+    --toolbar-icon-hover: rgba(2, 6, 23, 0.97);
+    --toolbar-icon-active: rgba(2, 6, 23, 0.97);
+  }
 }
