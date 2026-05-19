@@ -333,6 +333,7 @@ function bindIPC() {
   window.pico.onTriggerCaptureMenu(() => {
     console.log('[pico][renderer] received trigger-capture-menu');
     showWindow();
+    setCaptureModeButton('region');
     startCapture();
   });
   window.pico.onTriggerCaptureWindow(() => startCaptureWindow());
@@ -867,7 +868,7 @@ function clearCanvas() {
   state.windowContainerApplied = false;
   state.originalImageBeforeContainer = null;
   elements.canvas.classList.remove('visible');
-  elements.emptyState.classList.add('hidden');
+  elements.emptyState.classList.remove('hidden');
   document.body.classList.remove('has-image');
   elements.statusTool?.parentElement?.classList.remove('visible');
   elements.ctx.clearRect(0, 0, elements.canvas.width, elements.canvas.height);

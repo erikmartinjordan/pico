@@ -1082,3 +1082,31 @@ body.platform-darwin.has-image .macos-traffic {
 .recording-preview.is-live .recording-preview__close {
   display: none;
 }
+
+
+.macos-traffic .traffic-dot::after {
+  content: '';
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  color: rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+.macos-traffic:hover .traffic-dot.close::after {
+  content: '×';
+  opacity: 1;
+}
+.macos-traffic:hover .traffic-dot.minimize::after {
+  content: '−';
+  opacity: 1;
+}
+.macos-traffic:hover .traffic-dot.zoom::after {
+  content: '+';
+  opacity: 1;
+}

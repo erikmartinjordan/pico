@@ -512,6 +512,9 @@ contextBridge.exposeInMainWorld('pico', {
   captureComplete: (imageDataUrl) => ipcRenderer.send('capture-complete', imageDataUrl),
   selectWindowByName: (name) => ipcRenderer.send('window-overlay-select', name),
   captureCancel: () => ipcRenderer.send('capture-cancel'),
+  switchCaptureMode: (mode) => ipcRenderer.send('capture-mode-switch', mode),
+  onTriggerCaptureModeSwitch: (callback) =>
+    ipcRenderer.on('trigger-capture-mode-switch', (_, mode) => callback(mode)),
   recordingRegionComplete: (region) => ipcRenderer.send('recording-region-complete', region),
 
   // Window picker fallback

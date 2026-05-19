@@ -1299,6 +1299,26 @@ ipcMain.on('capture-cancel', () => {
   if (mainWindow) mainWindow.show();
 });
 
+
+ipcMain.on('capture-mode-switch', async (_event, mode) => {
+  // Close whatever overlay is currently open
+  captureWindows.forEach(w => { if (!w.isDestroyed()) w.close(); });
+  captureWindows = [];
+
+  // Wait for the overlay windows to disappear from the compositor before
+  // taking a fresh screenshot, otherwise they appear in the new capture.
+  await new Promise(r => setTimeout(r, 180));
+
+  if (mode === 'window') {
+    if (mainWindow) mainWindow.webContents.send('trigger-capture-window');
+  } else if (mode === 'fullscreen') {
+    if (mainWindow) mainWindow.webContents.send('trigger-capture-fullscreen');
+  } else {
+    // 'region' — default
+    if (mainWindow) mainWindow.webContents.send('trigger-capture');
+  }
+});
+
 ipcMain.on('recording-region-complete', (event, region) => {
   captureWindows.forEach(w => { if (!w.isDestroyed()) w.close(); });
   captureWindows = [];
