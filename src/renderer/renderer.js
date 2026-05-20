@@ -1758,12 +1758,12 @@ function applyWindowContainer() {
   const cornerRadius = 12;
   const padding = 40;
   const shadowBlur = 30;
-  const shadowColor = 'rgba(0, 0, 0, 0.5)';
-  const titleBarColor = '#2a2a2e';
-  const windowBgColor = '#1c1c1e';
+  const shadowColor = 'rgba(82, 52, 28, 0.26)';
+  const titleBarColor = '#e4ceb4';
+  const windowBgColor = '#d7bea2';
 
   const gradients = {
-    none: null,
+    none: ['#dfc8ac', '#cfb18f'],
     sunset: ['#f97316', '#ec4899'],
     ocean: ['#06b6d4', '#3b82f6'],
     forest: ['#22c55e', '#14b8a6'],
@@ -1804,7 +1804,7 @@ function applyWindowContainer() {
       grad.addColorStop(1, gradientColors[1]);
       ctx.fillStyle = grad;
     } else {
-      ctx.fillStyle = '#09090b';
+      ctx.fillStyle = '#d7bea2';
     }
     ctx.fillRect(0, 0, canvasW, canvasH);
 
