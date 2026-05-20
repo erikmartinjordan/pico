@@ -1233,7 +1233,8 @@ body:not(.has-image) .toolbar .toolbar-separator {
 
 /* Grip zone */
 .toolbar-grip {
-  cursor: grab;   /* era: pointer */
+  cursor: grab;
+  pointer-events: auto;   /* añadir esta línea */
   position: absolute;
   top: -14px;
   left: 50%;
@@ -1263,10 +1264,11 @@ body:not(.has-image) .toolbar .toolbar-separator {
 .toolbar-grip::after {
   content: "";
   position: absolute;
-  top: 5px;
+  top: 50%;
   left: 0;
   width: 100%;
-  height: 8px;
+  height: 4px;
+  transform: translateX(-100%) translateY(-50%);
   border-radius: 999px;
   background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.92) 50%, transparent 100%);
   opacity: 0;
@@ -1295,10 +1297,10 @@ body:not(.has-image) .toolbar .toolbar-separator {
 }
 
 @keyframes slideToUnlockShine {
-  0%   { transform: translateX(-100%); opacity: 0; }
+  0%   { transform: translateX(-100%) translateY(-50%); opacity: 0; }
   10%  { opacity: 1; }
   90%  { opacity: 1; }
-  100% { transform: translateX(100%);  opacity: 0; }
+  100% { transform: translateX(100%) translateY(-50%);  opacity: 0; }
 }
 
 .toolbar-dismiss-hint {
