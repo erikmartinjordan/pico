@@ -3,787 +3,171 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="pico: lightweight screen-capture & annotation app for macOS and Windows. Portable, fast, modern." />
-  <meta property="og:title" content="pico — Capture, annotate, share" />
-  <meta property="og:description" content="Cross-platform screenshot tool with annotation. Rectangles, arrows, text, blur — export to PNG in seconds." />
-  <meta property="og:type" content="website" />
-  <title>pico · Capture, annotate, share</title>
+  <meta name="description" content="pico: lightweight capture app for macOS and Windows." />
+  <title>pico · Download</title>
   <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png" />
   <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png" />
-  <link rel="apple-touch-icon" sizes="256x256" href="256x256.png" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=DM+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --bg: #09090b;
-      --bg-soft: #111114;
-      --surface: #18181b;
-      --border: #2a2a2e;
-      --text: #f5f0eb;
-      --text-sec: #a09890;
-      --text-mut: #6b6560;
-      --accent: #f07d20;
-      --accent-2: #ffaa55;
-      --radius: 16px;
+      --bg: #d7bea2;
+      --bg-soft: #c9aa86;
+      --text: #2e1c11;
+      --muted: rgba(46, 28, 17, 0.68);
+      --glass: rgba(255, 255, 255, 0.34);
+      --glass-border: rgba(255, 255, 255, 0.68);
+      --shadow: 0 24px 80px rgba(72, 40, 20, 0.18);
+      --pill-shadow: 0 10px 30px rgba(72, 40, 20, 0.15);
     }
 
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    * { box-sizing: border-box; margin: 0; }
+    html, body { height: 100%; overflow: hidden; }
 
     body {
-      font-family: "Sora", system-ui, -apple-system, sans-serif;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       color: var(--text);
-      background: var(--bg);
-      min-height: 100vh;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    body::before {
-      content: "";
-      position: fixed;
-      inset: 0;
       background:
-        radial-gradient(ellipse 60% 50% at 50% 0%, rgba(240, 125, 32, 0.10), transparent 60%);
-      pointer-events: none;
-    }
-
-    .container { width: min(1000px, 90%); margin: 0 auto; }
-
-    /* Header */
-    header {
-      position: sticky;
-      top: 0;
-      z-index: 50;
-      background: rgba(9, 9, 11, 0.8);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid rgba(255,255,255,0.05);
-    }
-
-    .nav { display: flex; align-items: center; justify-content: space-between; height: 64px; }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      text-decoration: none;
-      color: var(--text);
-      font-weight: 700;
-      font-size: 1.1rem;
-    }
-
-    .brand-icon {
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
-      background: #1c1a16;
-      border: 1px solid rgba(240,125,32,0.2);
+        radial-gradient(circle at 50% 16%, rgba(255,255,255,0.42), transparent 40%),
+        radial-gradient(circle at 15% 86%, rgba(190, 150, 108, 0.22), transparent 45%),
+        radial-gradient(circle at 85% 88%, rgba(173, 129, 90, 0.24), transparent 43%),
+        linear-gradient(180deg, #dfc8ac, #d7bea2 60%, #cfb18f 100%);
       display: grid;
       place-items: center;
-      overflow: hidden;
+      position: relative;
     }
 
-    .brand-icon img { width: 26px; height: 26px; object-fit: contain; }
-
-    nav a {
-      color: var(--text-mut);
-      text-decoration: none;
-      font-size: 0.9rem;
-      font-weight: 500;
-      padding: 8px 14px;
-      border-radius: 8px;
-      transition: all 0.15s;
-    }
-
-    nav a:hover { color: var(--text); background: rgba(255,255,255,0.05); }
-
-    /* Hero */
     .hero {
-      padding: 120px 0 80px;
+      height: 100vh;
+      width: min(980px, 92vw);
+      display: grid;
+      place-items: center;
       text-align: center;
+      padding-bottom: 132px;
     }
 
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 0.8rem;
-      font-weight: 600;
-      color: var(--accent-2);
-      background: rgba(240, 125, 32, 0.1);
-      border: 1px solid rgba(240, 125, 32, 0.25);
-      padding: 6px 14px;
-      border-radius: 999px;
-      margin-bottom: 24px;
+    .mascot {
+      width: clamp(180px, 28vw, 290px);
+      filter: drop-shadow(0 18px 36px rgba(68, 41, 22, 0.22));
+      animation: hover 5.4s ease-in-out infinite;
+      user-select: none;
+      -webkit-user-drag: none;
     }
 
     h1 {
-      font-size: clamp(2.5rem, 6vw, 4rem);
-      font-weight: 800;
-      line-height: 1.1;
-      letter-spacing: -0.03em;
-      margin-bottom: 20px;
+      margin-top: 20px;
+      font-size: clamp(1.55rem, 3vw, 2.25rem);
+      letter-spacing: 0.02em;
+      font-weight: 650;
     }
 
-    .lead {
-      font-size: 1.15rem;
-      color: var(--text-sec);
-      max-width: 500px;
-      margin: 0 auto 36px;
-      line-height: 1.6;
-    }
+    p { margin-top: 10px; color: var(--muted); font-size: clamp(0.95rem, 1.5vw, 1.05rem); }
 
-    .actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
-
-    .btn {
+    .app-pill {
+      margin-top: 22px;
       display: inline-flex;
       align-items: center;
       gap: 10px;
-      padding: 14px 28px;
-      border-radius: 10px;
-      font-weight: 600;
-      font-size: 0.95rem;
-      text-decoration: none;
-      transition: all 0.15s;
-      border: none;
-      cursor: pointer;
+      padding: 10px;
+      border-radius: 999px;
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      backdrop-filter: blur(20px) saturate(130%);
+      -webkit-backdrop-filter: blur(20px) saturate(130%);
+      box-shadow: var(--pill-shadow), inset 0 1px 0 rgba(255,255,255,0.7);
     }
 
-    .btn svg { width: 18px; height: 18px; }
-
-    .btn-primary {
-      background: var(--accent);
-      color: #0a0808;
-      box-shadow: 0 0 30px rgba(240, 125, 32, 0.3);
-    }
-
-    .btn-primary:hover {
-      background: var(--accent-2);
-      transform: translateY(-1px);
-      box-shadow: 0 0 40px rgba(240, 125, 32, 0.45);
-    }
-
-    .btn-secondary {
-      background: rgba(255,255,255,0.05);
-      color: var(--text-sec);
-      border: 1px solid var(--border);
-    }
-
-    .btn-secondary:hover {
-      background: rgba(255,255,255,0.08);
-      color: var(--text);
-    }
-
-    /* Isometric hero */
-    .iso-scene {
-      perspective: 1200px;
-      margin: 60px auto 0;
-      width: 100%;
-      max-width: 640px;
-      display: flex;
-      justify-content: center;
-      padding-bottom: 60px;
-    }
-    .iso-wrap {
-      transform: rotateX(52deg) rotateZ(-45deg);
-      transform-style: preserve-3d;
-      width: 580px;
-      position: relative;
-    }
-    .window-group {
-      animation: rise-in 0.9s cubic-bezier(0.34,1.4,0.64,1) both, float-loop 5s ease-in-out 1.2s infinite;
-      transform-style: preserve-3d;
-      position: relative;
-      width: 580px;
-      height: 380px;
-    }
-    @keyframes rise-in {
-      from { transform: translateZ(-100px); opacity: 0; }
-      to   { transform: translateZ(0px); opacity: 1; }
-    }
-    @keyframes float-loop {
-      0%,100% { transform: translateZ(0px); }
-      50%      { transform: translateZ(12px); }
-    }
-
-    /* 3-D side faces */
-    .win-left   { position: absolute; width: 28px; height: 380px; background: #0a0a0c; top: 0; left: -28px; transform: rotateY(90deg); transform-origin: right center; }
-    .win-bottom { position: absolute; width: 580px; height: 28px; background: #070709; top: 380px; left: 0; transform: rotateX(-90deg); transform-origin: top center; }
-
-    /* Main window face */
-    .win-top {
-      position: absolute; top: 0; left: 0; width: 580px; height: 380px;
-      background: #09090b;
-      border: 1px solid rgba(255,255,255,0.10);
-      border-radius: 10px 10px 0 0;
-      overflow: hidden;
-      box-shadow: 0 0 0 1px rgba(255,255,255,0.04) inset;
-    }
-
-    /* macOS-style title bar */
-    .titlebar {
-      position: absolute; top: 0; left: 0; right: 0; height: 32px;
-      background: #1a1a1e;
-      border-bottom: 1px solid rgba(255,255,255,0.06);
-      display: flex; align-items: center;
-      padding: 0 12px; gap: 6px;
-      z-index: 2;
-    }
-    .tl { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
-    .tl.close  { background: #ff5f57; }
-    .tl.min    { background: #febc2e; }
-    .tl.max    { background: #28c840; }
-
-    /* Toolbar-wrap */
-    .toolbar-wrap {
-      position: absolute; top: 44px; left: 0; right: 0;
-      display: flex; justify-content: center;
-      padding: 0 16px;
-      z-index: 10; pointer-events: none;
-    }
-    .toolbar-wrap .toolbar { pointer-events: all; max-width: 100%; }
-
-    /* Floating pill toolbar */
-    .toolbar {
-      height: 36px;
-      background: #1e1f24;
-      border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 11px;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.7), 0 1px 0 rgba(255,255,255,0.06) inset;
-      display: inline-flex; align-items: center; padding: 0 6px; gap: 1px;
-      transform: scale(0.92);
-      transform-origin: center center;
-    }
-    .tbtn {
-      width: 24px; height: 24px; border-radius: 6px;
-      display: flex; align-items: center; justify-content: center;
-      background: transparent; cursor: pointer; flex-shrink: 0;
-      transition: background 0.12s;
-    }
-    .tbtn:hover { background: rgba(255,255,255,0.07); }
-    .tbtn.act   { background: rgba(240,125,32,0.22); box-shadow: 0 0 0 1px rgba(240,125,32,0.55); }
-    .tbtn svg   { width: 11px; height: 11px; stroke: rgba(255,255,255,0.5); fill: none; stroke-width: 1.5; }
-    .tbtn.act svg { stroke: #ffaa55; }
-    .tsep { width: 1px; height: 14px; background: rgba(255,255,255,0.10); margin: 0 2px; flex-shrink: 0; }
-
-    /* Color swatches */
-    .sw { width: 14px; height: 14px; border-radius: 4px; flex-shrink: 0; cursor: pointer; transition: transform 0.12s; }
-    .sw:hover { transform: scale(1.15); }
-    .sw.sel   { box-shadow: 0 0 0 2px #fff, 0 0 0 3px rgba(255,255,255,0.25); }
-
-    /* Stroke-width lines */
-    .spill {
-      display: flex; align-items: center; justify-content: center;
-      border-radius: 5px; flex-shrink: 0; cursor: pointer;
-      padding: 0 3px; height: 24px; min-width: 24px;
-      background: transparent; transition: background 0.12s;
-    }
-    .spill:hover { background: rgba(255,255,255,0.07); }
-    .spill.sel { background: rgba(240,125,32,0.22); box-shadow: 0 0 0 1px rgba(240,125,32,0.55); }
-    .spill-line { background: rgba(255,255,255,0.5); border-radius: 2px; height: 1.5px; width: 16px; }
-    .spill.med .spill-line { height: 3px; background: rgba(255,255,255,0.7); }
-    .spill.thick .spill-line { height: 5px; background: rgba(255,255,255,0.7); }
-
-    /* Canvas */
-    .canvas-area {
-      position: absolute; top: 32px; left: 0; right: 0; bottom: 28px;
-      background: #09090b;
-      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
-    }
-    .canvas-area::before {
-      content: ""; position: absolute; inset: 0;
-      background-image: linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
-                        linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
-      background-size: 20px 20px;
-    }
-
-    /* Empty state icon */
-    .empty-icon {
-      width: 34px; height: 34px; border-radius: 8px;
-      border: 1.5px solid rgba(255,255,255,0.12);
-      display: flex; align-items: center; justify-content: center;
-      animation: ring-pulse 3.5s ease-in-out infinite;
-      position: relative; z-index: 1;
-    }
-    .empty-icon svg { width: 16px; height: 16px; stroke: rgba(255,255,255,0.25); fill: none; stroke-width: 1.5; }
-    @keyframes ring-pulse {
-      0%,100% { border-color: rgba(255,255,255,0.08); }
-      50%      { border-color: rgba(255,255,255,0.3); }
-    }
-    .empty-title { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.7); position: relative; z-index: 1; }
-    .empty-sub   { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 9.5px; color: rgba(255,255,255,0.28); letter-spacing: 0.02em; position: relative; z-index: 1; }
-    .cta-row { display: flex; gap: 8px; margin-top: 4px; position: relative; z-index: 1; }
-
-    .bcap {
-      background: var(--accent); color: #0a0808; border: none; border-radius: 6px;
-      padding: 6px 14px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 10.5px; font-weight: 600; cursor: pointer;
-      display: flex; align-items: center; gap: 6px; white-space: nowrap;
-      animation: cap-pulse 3s ease-in-out infinite;
-      transition: background 0.15s, transform 0.1s;
-    }
-    .bcap:hover { background: var(--accent-2); transform: scale(1.03); }
-    @keyframes cap-pulse {
-      0%,100% { box-shadow: 0 0 0 0 rgba(240,125,32,0); }
-      50%      { box-shadow: 0 0 14px 4px rgba(240,125,32,0.45); }
-    }
-    .bcap svg { width: 11px; height: 11px; stroke: #0a0808; fill: none; stroke-width: 1.8; flex-shrink: 0; }
-
-    .bopen {
-      background: transparent; color: rgba(255,255,255,0.65);
-      border: 1px solid rgba(255,255,255,0.2); border-radius: 6px;
-      padding: 6px 14px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 10.5px; font-weight: 500; cursor: pointer;
-      display: flex; align-items: center; gap: 6px; white-space: nowrap;
-      transition: background 0.15s, border-color 0.15s, transform 0.1s;
-    }
-    .bopen:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.38); transform: scale(1.03); }
-    .bopen svg { width: 11px; height: 11px; stroke: rgba(255,255,255,0.5); fill: none; stroke-width: 1.8; flex-shrink: 0; }
-
-    /* Animated draw box */
-    .draw-anim {
-      position: absolute; border: 1.5px solid var(--accent); border-radius: 2px;
-      opacity: 0; pointer-events: none;
-      animation: draw-box 4.5s ease-in-out 2s infinite;
-    }
-    @keyframes draw-box {
-      0%   { left:40%; top:42%; width:0; height:0; opacity:0; }
-      8%   { opacity:1; }
-      55%  { left:30%; top:28%; width:38%; height:40%; opacity:1; }
-      85%  { left:30%; top:28%; width:38%; height:40%; opacity:0.4; }
-      100% { left:30%; top:28%; width:38%; height:40%; opacity:0; }
-    }
-
-    /* Status bar */
-    .statusbar {
-      position: absolute; bottom: 0; left: 0; right: 0; height: 28px;
-      background: #0d0d10; border-top: 1px solid rgba(255,255,255,0.06);
-      display: flex; align-items: center; justify-content: space-between; padding: 0 12px;
-    }
-    .statusbar span {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 9.5px; color: rgba(255,255,255,0.25); letter-spacing: 0.05em;
-    }
-
-    /* Responsive */
-    @media (max-width: 900px) {
-      .iso-scene { max-width: 520px; }
-      .iso-wrap  { width: 480px; }
-      .window-group { width: 480px; height: 320px; }
-      .win-left  { height: 320px; }
-      .win-bottom { width: 480px; top: 320px; }
-      .win-top   { width: 480px; height: 320px; }
-      .canvas-area { top: 32px; }
-      .toolbar-wrap { top: 42px; padding: 0; }
-      .toolbar { transform: scale(0.82); transform-origin: center center; }
-    }
-
-    /* Features */
-    .features {
-      padding: 100px 0;
-    }
-
-    .features h2 {
-      font-size: 2rem;
-      font-weight: 700;
-      text-align: center;
-      margin-bottom: 48px;
-    }
-
-    .feature-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 20px;
-    }
-
-    .feature {
-      background: var(--bg-soft);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 24px;
-      transition: border-color 0.2s;
-    }
-
-    .feature:hover { border-color: rgba(240, 125, 32, 0.35); }
-
-    .feature-icon {
+    .app-icon {
       width: 40px;
       height: 40px;
-      border-radius: 10px;
-      background: rgba(240, 125, 32, 0.1);
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.85);
+      background: rgba(255,255,255,0.5);
       display: grid;
       place-items: center;
-      margin-bottom: 16px;
-      color: var(--accent-2);
+      color: #4a2916;
     }
 
-    .feature-icon svg { width: 20px; height: 20px; }
+    .app-icon svg { width: 19px; height: 19px; }
 
-    .feature h3 {
-      font-size: 1rem;
-      font-weight: 600;
-      margin-bottom: 8px;
-    }
-
-    .feature p {
-      font-size: 0.9rem;
-      color: var(--text-sec);
-      line-height: 1.6;
-    }
-
-    /* Platforms */
-    .platforms {
-      padding: 60px 0 100px;
-      text-align: center;
-    }
-
-    .platforms h2 {
-      font-size: 1.5rem;
-      font-weight: 700;
-      margin-bottom: 12px;
-    }
-
-    .platforms p {
-      color: var(--text-mut);
-      margin-bottom: 32px;
-    }
-
-    .platform-btns {
+    .download-pill {
+      position: fixed;
+      left: 50%;
+      bottom: 24px;
+      transform: translateX(-50%);
+      width: min(820px, calc(100vw - 20px));
+      border-radius: 999px;
+      padding: 10px;
       display: flex;
-      gap: 16px;
+      gap: 10px;
       justify-content: center;
-      flex-wrap: wrap;
-    }
-
-    .platform-btn {
-      display: flex;
       align-items: center;
-      gap: 12px;
-      padding: 16px 28px;
-      background: var(--bg-soft);
-      border: 1px solid var(--border);
-      border-radius: 12px;
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      backdrop-filter: blur(22px) saturate(140%);
+      -webkit-backdrop-filter: blur(22px) saturate(140%);
+      box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,0.7);
+    }
+
+    .download-link {
+      flex: 1;
+      min-width: 170px;
+      max-width: 250px;
+      border-radius: 999px;
+      padding: 11px 14px;
       text-decoration: none;
-      color: var(--text);
-      transition: all 0.15s;
+      color: #3b2518;
+      background: rgba(255,255,255,0.54);
+      border: 1px solid rgba(255,255,255,0.88);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      font-weight: 600;
+      transition: 170ms ease;
     }
 
-    .platform-btn:hover {
-      border-color: var(--accent);
-      background: rgba(240, 125, 32, 0.06);
+    .download-link:hover {
+      transform: translateY(-1px);
+      background: rgba(255,255,255,0.72);
     }
 
-    .platform-btn svg { width: 24px; height: 24px; }
-    .platform-btn span { font-weight: 600; }
-    .platform-btn small { color: var(--text-mut); font-size: 0.8rem; }
+    .download-link svg { width: 18px; height: 18px; }
 
-    /* Footer */
-    footer {
-      padding: 24px 0;
-      border-top: 1px solid var(--border);
-      text-align: center;
-      font-size: 0.85rem;
-      color: var(--text-mut);
-    }
+    @keyframes hover { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
 
-    footer a { color: var(--text-sec); text-decoration: none; }
-    footer a:hover { color: var(--text); }
-
-    @media (max-width: 640px) {
-      .hero { padding: 80px 0 40px; }
-      .actions { gap: 10px; }
-      .btn { flex: 1; justify-content: center; min-width: 0; padding: 14px 18px; }
-      .iso-scene {
-        max-width: 100%;
-        padding: 0 0 40px;
-        overflow: visible;
-      }
-      .iso-wrap {
-        transform: translateX(-50%) rotateX(52deg) rotateZ(-45deg) scale(0.5);
-        transform-origin: center top;
-        position: relative;
-        left: 50%;
-        margin: -20px 0 -120px;
-      }
-      .toolbar-wrap { top: 42px; padding: 0; }
-      .toolbar { transform: scale(0.82); transform-origin: center center; }
+    @media (max-width: 760px) {
+      .download-pill { flex-wrap: wrap; border-radius: 26px; }
+      .download-link { max-width: none; }
     }
   </style>
 </head>
 <body>
-  <header>
-    <div class="container">
-      <nav class="nav">
-        <a class="brand" href="#">
-          <span class="brand-icon">
-            <img src="256x256.png" alt="pico icon" />
-          </span>
-          pico
-        </a>
-        <div>
-          <a href="#features">Features</a>
-          <a href="https://github.com" id="github-link">GitHub</a>
-        </div>
-      </nav>
-    </div>
-  </header>
-
-  <main>
-    <section class="hero">
-      <div class="container">
-        <span class="badge">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="2" y="3" width="20" height="14" rx="2"/>
-            <path d="M8 21h8M12 17v4"/>
-          </svg>
-          macOS & Windows
-        </span>
-        <h1>Capture, annotate, share.</h1>
-        <p class="lead">A minimal, cross-platform screenshot tool. Grab your screen, mark it up, export a PNG. That's it.</p>
-        <div class="actions">
-          <a class="btn btn-primary" href="#download">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 3v12M8 11l4 4 4-4"/>
-              <path d="M3 17v2a2 2 0 002 2h14a2 2 0 002-2v-2"/>
-            </svg>
-            Download
-          </a>
-          <a class="btn btn-secondary" href="https://github.com" id="github-btn">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 .3a12 12 0 00-3.8 23.4c.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.5-1.4-1.3-1.8-1.3-1.8-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.7-.3-5.5-1.3-5.5-6 0-1.3.5-2.4 1.2-3.2-.1-.3-.5-1.5.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 016 0c2.3-1.5 3.3-1.2 3.3-1.2.7 1.7.3 2.9.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.7-2.8 5.7-5.5 6 .4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0012 .3"/>
-            </svg>
-            View Source
-          </a>
-        </div>
-
-     </div>
-    </section>
-
-    <div class="iso-scene">
-      <div class="iso-wrap"><div class="window-group">
-        <div class="win-left"></div>
-        <div class="win-bottom"></div>
-
-        <!-- Toolbar floats above the window -->
-        <div class="toolbar-wrap">
-          <div class="toolbar">
-            <!-- Capture group -->
-            <div class="tbtn" title="Capture screen"><svg viewBox="0 0 16 16"><path d="M1 4V2h3M12 2h3v2M1 12v2h3M12 14h3v-2" stroke-linecap="round"/></svg></div>
-            <div class="tbtn" title="Window"><svg viewBox="0 0 16 16"><rect x="1" y="3" width="14" height="10" rx="1.5"/><line x1="1" y1="6" x2="15" y2="6"/></svg></div>
-            <div class="tbtn" title="Monitor"><svg viewBox="0 0 16 16"><rect x="1" y="2" width="14" height="9" rx="1"/><path d="M5 14h6M8 11v3"/></svg></div>
-            <div class="tsep"></div>
-            <!-- Drawing tools -->
-            <div class="tbtn" title="Select"><svg viewBox="0 0 16 16"><path d="M3 1l10 6-5 1.5L6 14z" stroke-linejoin="round"/></svg></div>
-            <div class="tbtn act" id="tool-rect" title="Rectangle"><svg viewBox="0 0 16 16"><rect x="2" y="4" width="12" height="8" rx="1.5"/></svg></div>
-            <div class="tbtn" id="tool-ellipse" title="Ellipse"><svg viewBox="0 0 16 16"><ellipse cx="8" cy="8" rx="6" ry="4"/></svg></div>
-            <div class="tbtn" id="tool-arrow" title="Arrow"><svg viewBox="0 0 16 16"><line x1="3" y1="13" x2="12" y2="4"/><path d="M7 4h5v5"/></svg></div>
-            <div class="tbtn" id="tool-line" title="Line"><svg viewBox="0 0 16 16"><line x1="3" y1="13" x2="13" y2="3"/></svg></div>
-            <div class="tbtn" id="tool-text" title="Text"><svg viewBox="0 0 16 16"><path d="M4 3h8M8 3v10" stroke-linecap="round"/><path d="M5 13h6"/></svg></div>
-            <div class="tsep"></div>
-            <!-- Colors -->
-            <div class="sw sel" style="background:#f97316;"></div>
-            <div class="sw" style="background:#ef4444;"></div>
-            <div class="sw" style="background:#22c55e;"></div>
-            <div class="sw" style="background:#3b82f6;"></div>
-            <div class="sw" style="background:#a855f7;"></div>
-            <div class="sw" style="background:#111;border:1px solid rgba(255,255,255,0.2);"></div>
-            <div class="tsep"></div>
-            <!-- Stroke widths -->
-            <div class="spill sel" title="Thin"><span class="spill-line"></span></div>
-            <div class="spill med" title="Medium"><span class="spill-line"></span></div>
-            <div class="spill thick" title="Thick"><span class="spill-line"></span></div>
-            <div class="tsep"></div>
-            <!-- Copy / undo / redo -->
-            <div class="tbtn" title="Copy"><svg viewBox="0 0 16 16"><rect x="5" y="5" width="8" height="8" rx="1"/><path d="M3 11V3h8"/></svg></div>
-            <div class="tbtn" title="Undo"><svg viewBox="0 0 16 16"><path d="M2 7h8a3 3 0 010 6H5"/><path d="M5 4L2 7l3 3"/></svg></div>
-            <div class="tbtn" title="Redo"><svg viewBox="0 0 16 16"><path d="M14 7H6a3 3 0 000 6h5"/><path d="M11 4l3 3-3 3"/></svg></div>
-          </div>
-        </div>
-
-        <div class="win-top">
-
-          <!-- macOS title bar -->
-          <div class="titlebar">
-            <span class="tl close"></span>
-            <span class="tl min"></span>
-            <span class="tl max"></span>
-          </div>
-
-          <!-- Canvas -->
-          <div class="canvas-area">
-            <div class="draw-anim"></div>
-            <div class="empty-icon">
-              <svg viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="9" rx="1"/><path d="M5 14h6M8 12v2"/></svg>
-            </div>
-            <div class="empty-title">No image loaded</div>
-            <div class="empty-sub">Capture your screen or open an image to begin</div>
-            <div class="cta-row">
-              <button class="bcap">
-                <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="3"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2"/></svg>
-                Capture screen
-              </button>
-              <button class="bopen">
-                <svg viewBox="0 0 16 16"><rect x="1" y="4" width="14" height="10" rx="1"/><path d="M1 7h14M5 4V2h6v2"/></svg>
-                Open image
-              </button>
-            </div>
-          </div>
-
-          <div class="statusbar">
-            <span id="status-left">Select &middot; 0 annotations</span>
-            <span>100%</span>
-          </div>
-
-        </div>
-      </div></div>
-    </div>
-
-    <section class="features" id="features">
-      <div class="container">
-        <h2>Everything you need</h2>
-        <div class="feature-grid">
-          <div class="feature">
-            <div class="feature-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="2" y="3" width="20" height="14" rx="2"/>
-                <path d="M8 21h8M12 17v4"/>
-              </svg>
-            </div>
-            <h3>Multi-monitor capture</h3>
-            <p>Seamlessly capture across all connected displays with a single shortcut.</p>
-          </div>
-          <div class="feature">
-            <div class="feature-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="3" width="18" height="18" rx="2"/>
-                <path d="M9 3v18M3 9h18"/>
-              </svg>
-            </div>
-            <h3>Region selection</h3>
-            <p>Drag to crop the exact area you need. Shows dimensions in real-time.</p>
-          </div>
-          <div class="feature">
-            <div class="feature-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
-              </svg>
-            </div>
-            <h3>Annotation tools</h3>
-            <p>Rectangles, ellipses, arrows, lines, text, highlighter, and blur tool.</p>
-          </div>
-          <div class="feature">
-            <div class="feature-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"/>
-                <path d="M12 6v6l4 2"/>
-              </svg>
-            </div>
-            <h3>Undo & redo</h3>
-            <p>Full history support. Made a mistake? Just undo it.</p>
-          </div>
-          <div class="feature">
-            <div class="feature-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-                <path d="M17 8l-5-5-5 5M12 3v12"/>
-              </svg>
-            </div>
-            <h3>Quick export</h3>
-            <p>Save to PNG or copy directly to clipboard. Drag into Slack, email, anywhere.</p>
-          </div>
-          <div class="feature">
-            <div class="feature-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-              </svg>
-            </div>
-            <h3>Portable</h3>
-            <p>Single executable, no installation required. Run from anywhere.</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="platforms" id="download">
-      <div class="container">
-        <h2>Download for your platform</h2>
-        <p>Available for macOS (Intel & Apple Silicon) and Windows</p>
-        <div class="platform-btns">
-          <a class="platform-btn" href="#" id="download-mac">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
-            </svg>
-            <div>
-              <span>macOS</span><br>
-              <small>Universal (Intel + Apple Silicon)</small>
-            </div>
-          </a>
-          <a class="platform-btn" href="#" id="download-win">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M3 12V6.75l6-1.32v6.48L3 12zm17-9v8.75l-10 .15V5.21L20 3zM3 13l6 .09v6.81l-6-1.15V13zm17 .25V22l-10-1.91V13.1l10 .15z"/>
-            </svg>
-            <div>
-              <span>Windows</span><br>
-              <small>Portable (.exe)</small>
-            </div>
-          </a>
-        </div>
+  <main class="hero" aria-label="pico landing page">
+    <section>
+      <img class="mascot" src="256x256.png" alt="pico mascot" />
+      <h1>pico</h1>
+      <p>Fast captures. Clean marks. Zero friction.</p>
+      <div class="app-pill" aria-label="pico tools">
+        <span class="app-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8 9h8M8 13h5"/></svg></span>
+        <span class="app-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 8V4h4"/><path d="M20 8V4h-4"/><path d="M4 16v4h4"/><path d="M20 16v4h-4"/></svg></span>
+        <span class="app-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 19L19 5"/><path d="M14 5h5v5"/></svg></span>
+        <span class="app-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14"/><path d="M5 12h14"/></svg></span>
       </div>
     </section>
   </main>
 
-  <footer>
-    <div class="container">
-      Built with love <span aria-hidden="true">&hearts;</span> by <a href="https://erikmartinjordan.com" target="_blank" rel="noopener noreferrer">Erik Mart&iacute;n</a>
-    </div>
-  </footer>
-
-  <script>
-    const tools = ['tool-rect','tool-ellipse','tool-arrow','tool-line','tool-text'];
-    const names = { 'tool-rect':'Rectangle','tool-ellipse':'Ellipse','tool-arrow':'Arrow','tool-line':'Line','tool-text':'Text' };
-    tools.forEach(id => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      el.addEventListener('click', () => {
-        tools.forEach(t => document.getElementById(t)?.classList.remove('act'));
-        el.classList.add('act');
-        const status = document.getElementById('status-left');
-        if (status) status.textContent = names[id] + ' \u00b7 0 annotations';
-      });
-    });
-    document.querySelectorAll('.sw').forEach(s => {
-      s.addEventListener('click', () => {
-        document.querySelectorAll('.sw').forEach(x => x.classList.remove('sel'));
-        s.classList.add('sel');
-      });
-    });
-    document.querySelectorAll('.spill').forEach(s => {
-      s.addEventListener('click', () => {
-        document.querySelectorAll('.spill').forEach(x => x.classList.remove('sel'));
-        s.classList.add('sel');
-      });
-    });
-
-    // Auto-detect GitHub repo from URL
-    const host = window.location.hostname;
-    const path = window.location.pathname.split('/').filter(Boolean);
-    
-    let owner = '', repo = '';
-    if (host.endsWith('github.io')) {
-      owner = host.split('.')[0];
-      repo = path[0] || '';
-    }
-    
-    if (owner && repo) {
-      const repoUrl = `https://github.com/${owner}/${repo}`;
-      const releaseUrl = `https://github.com/${owner}/${repo}/releases/latest`;
-      
-      document.querySelectorAll('#github-link, #github-btn').forEach(el => {
-        el.href = repoUrl;
-      });
-      
-      document.getElementById('download-mac').href = releaseUrl;
-      document.getElementById('download-win').href = releaseUrl;
-    }
-  </script>
+  <nav class="download-pill" aria-label="Download options">
+    <a class="download-link" href="#" aria-label="Download for macOS">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.36 12.04c.01 2.38 2.08 3.17 2.1 3.18-.02.06-.33 1.13-1.1 2.24-.66.96-1.34 1.92-2.42 1.94-1.05.02-1.39-.63-2.6-.63-1.22 0-1.59.61-2.58.65-1.04.04-1.83-1.04-2.49-1.99-1.37-1.98-2.42-5.6-1.01-8.08.7-1.23 1.96-2.01 3.32-2.03 1.03-.02 2 .69 2.6.69.6 0 1.73-.85 2.92-.73.5.02 1.9.2 2.8 1.52-.07.05-1.67.98-1.65 3.24ZM14.92 4.3c.55-.66.93-1.58.83-2.5-.8.03-1.77.54-2.34 1.2-.52.6-.97 1.54-.85 2.44.9.07 1.8-.46 2.36-1.14Z"/></svg>
+      macOS
+    </a>
+    <a class="download-link" href="#" aria-label="Download for Windows">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 4.6 10.7 3.4v8H2V4.6Zm9.8-1.35L22 2v9.4h-10.2V3.25ZM2 12.6h8.7v8L2 19.4v-6.8Zm9.8 0H22V22l-10.2-1.25V12.6Z"/></svg>
+      Windows
+    </a>
+    <a class="download-link" href="#" aria-label="Download for Linux">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c-2.17 0-3.93 1.79-3.93 4 0 1.15.48 2.18 1.24 2.91-.63 1.34-1 2.9-1 4.59 0 1.08.15 2.11.42 3.08-.82.1-1.52.75-1.7 1.61l-.3 1.42c-.2.97.54 1.89 1.53 1.89h7.48c.99 0 1.73-.92 1.53-1.89l-.3-1.42c-.18-.86-.88-1.5-1.7-1.61.27-.97.42-2 .42-3.08 0-1.69-.37-3.25-1-4.59A3.97 3.97 0 0 0 15.93 6c0-2.21-1.76-4-3.93-4Zm-1.7 4.8a.9.9 0 1 1 0-1.8.9.9 0 0 1 0 1.8Zm3.4 0a.9.9 0 1 1 0-1.8.9.9 0 0 1 0 1.8Z"/></svg>
+      Linux
+    </a>
+  </nav>
 </body>
 </html>
