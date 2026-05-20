@@ -1236,7 +1236,7 @@ body:not(.has-image) .toolbar .toolbar-separator {
   cursor: grab;
   pointer-events: auto;
   position: absolute;
-  top: 0;
+  top: -14px;
   left: 50%;
   transform: translateX(-50%);
   width: 68px;
@@ -1266,11 +1266,11 @@ body:not(.has-image) .toolbar .toolbar-separator {
   position: absolute;
   top: 50%;
   left: 0;
-  width: 100%;
+  width: 200%;
   height: 4px;
-  transform: translateX(-100%) translateY(-50%);
+  transform: translateX(-75%) translateY(-50%);
   border-radius: 999px;
-  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.92) 50%, transparent 100%);
+  background: linear-gradient(90deg, transparent 35%, rgba(255,255,255,0.92) 50%, transparent 65%);
   opacity: 0;
   pointer-events: none;
   clip-path: inset(0 round 999px);
@@ -1298,10 +1298,10 @@ body:not(.has-image) .toolbar .toolbar-separator {
 }
 
 @keyframes slideToUnlockShine {
-  0%   { transform: translateX(-100%) translateY(-50%); opacity: 0; }
+  0%   { transform: translateX(-75%) translateY(-50%); opacity: 0; }
   10%  { opacity: 1; }
   90%  { opacity: 1; }
-  100% { transform: translateX(100%) translateY(-50%);  opacity: 0; }
+  100% { transform: translateX(-25%) translateY(-50%); opacity: 0; }
 }
 
 .toolbar-dismiss-hint {
