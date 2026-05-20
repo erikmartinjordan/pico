@@ -17,12 +17,11 @@
     h1{margin-top:22px;font-size:clamp(1.55rem,3vw,2.25rem);letter-spacing:.02em;font-weight:650;color:var(--text)}
     p{margin-top:10px;color:var(--muted);font-size:clamp(.9rem,1.4vw,1rem)}
     .app-pill{margin-top:24px;display:inline-flex;align-items:center;gap:4px;padding:8px 10px;border-radius:20px;background:var(--glass-bg);border:1px solid var(--glass-border);backdrop-filter:blur(24px) saturate(180%) brightness(1.08);-webkit-backdrop-filter:blur(24px) saturate(180%) brightness(1.08);position:relative;isolation:isolate}
-    .app-pill::after,.download-pill::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;box-shadow:inset 0 2px 0 rgba(255,255,255,.85),inset 0 -1px 0 rgba(255,255,255,.18),inset 1px 0 0 rgba(255,255,255,.22),inset -1px 0 0 rgba(255,255,255,.14)}
     .app-icon{width:36px;height:36px;border-radius:999px;background:transparent;display:grid;place-items:center;color:rgba(46,28,17,.72);cursor:default}
     .app-icon svg{width:18px;height:18px}
     .download-wrapper{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;width:min(820px,calc(100vw - 20px));z-index:10}
     .download-label{font-size:.68rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:rgba(46,28,17,.52);text-align:center;width:100%}
-    .download-pill{width:100%;border-radius:20px;padding:9px;display:flex;gap:8px;justify-content:center;align-items:center;background:var(--glass-bg);border:1px solid var(--glass-border);backdrop-filter:blur(24px) saturate(180%) brightness(1.08);-webkit-backdrop-filter:blur(24px) saturate(180%) brightness(1.08);box-shadow:var(--shadow);position:relative;isolation:isolate}
+    .download-pill{width:100%;border-radius:20px;padding:9px;display:flex;gap:8px;justify-content:center;align-items:center;}
     .download-link{flex:1;min-width:160px;max-width:240px;border-radius:12px;padding:10px 16px;text-decoration:none;color:#3b2518;background:var(--btn-bg);border:1px solid var(--btn-border);display:inline-flex;align-items:center;justify-content:center;gap:9px;font-weight:600;font-size:.88rem;transition:background .16s ease,color .16s ease,transform .16s ease,box-shadow .16s ease;position:relative;z-index:1}
     .download-link:hover{transform:translateY(-1px);background:var(--btn-hover);box-shadow:0 1px 0 rgba(255,255,255,.7) inset}
     .platform-icon{display:flex;align-items:center;justify-content:center;width:18px;height:18px;flex-shrink:0}
