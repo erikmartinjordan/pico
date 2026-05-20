@@ -1234,9 +1234,9 @@ body:not(.has-image) .toolbar .toolbar-separator {
 /* Grip zone */
 .toolbar-grip {
   cursor: grab;
-  pointer-events: auto;   /* añadir esta línea */
+  pointer-events: auto;
   position: absolute;
-  top: -14px;
+  top: 0;
   left: 50%;
   transform: translateX(-50%);
   width: 68px;
@@ -1273,6 +1273,7 @@ body:not(.has-image) .toolbar .toolbar-separator {
   background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.92) 50%, transparent 100%);
   opacity: 0;
   pointer-events: none;
+  clip-path: inset(0 round 999px);
 }
 
 .toolbar-grip:hover::before {
