@@ -271,7 +271,10 @@ function bindTooltips() {
     const rect = target.getBoundingClientRect();
     const tooltipRect = tooltip.getBoundingClientRect();
     const x = Math.max(8, Math.min(window.innerWidth - tooltipRect.width - 8, rect.left + (rect.width - tooltipRect.width) / 2));
-    const y = Math.max(8, rect.top - tooltipRect.height - 10);
+    let y = rect.bottom + 10;
+    if (y + tooltipRect.height > window.innerHeight - 8) {
+      y = Math.max(8, rect.top - tooltipRect.height - 10);
+    }
     tooltip.style.left = `${x}px`;
     tooltip.style.top = `${y}px`;
   };
