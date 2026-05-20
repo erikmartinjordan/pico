@@ -18,7 +18,8 @@ html, body { height: 100%; overflow: hidden; }
 body {
   display: flex;
   flex-direction: column;
-  background: transparent!important;
+  background: transparent !important;
+  transition: none;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
   color: var(--text);
 }
@@ -26,6 +27,7 @@ body {
 
 body.has-image,
 body.has-content {
+  transition: background 0.18s ease;
   background:
     radial-gradient(circle at 50% 16%, rgba(255,255,255,.42), transparent 40%),
     radial-gradient(circle at 15% 86%, rgba(190,150,108,.22), transparent 45%),
@@ -822,6 +824,10 @@ body:not(.has-image) .toolbar .toolbar-separator {
   gap: 8px;
 }
 
+body:not(.has-image):not(.has-content) .toast-container {
+  display: none;
+}
+
 .toast {
   min-width: 240px;
   max-width: 360px;
@@ -1224,7 +1230,36 @@ body:not(.has-image) .toolbar .toolbar-separator {
   box-shadow: 0 0 0 1px rgba(255,255,255,0.12);
 }
 
-.recording-preview__actions { justify-content: flex-end; }
+.recording-preview__actions {
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.recording-preview__actions .btn {
+  min-width: 96px;
+  justify-content: center;
+}
+
+#recording-preview-discard {
+  color: rgba(255, 255, 255, 0.5);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+#recording-preview-discard:hover {
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.45);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+#recording-preview-save {
+  background: rgba(249, 115, 22, 0.18);
+  border-color: rgba(249, 115, 22, 0.5);
+  color: #fed7aa;
+}
+
+#recording-preview-save:hover {
+  background: rgba(249, 115, 22, 0.28);
+}
 
 .recording-preview.is-live .recording-preview__actions,
 .recording-preview.is-live .recording-preview__close {
@@ -1329,6 +1364,22 @@ body.has-content .toolbar-grip {
   display: none;
 }
 
+
+body.has-image .toolbar,
+body.has-content .toolbar {
+  animation: toolbarExpand 0.32s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+@keyframes toolbarExpand {
+  from {
+    opacity: 0.6;
+    transform: translateX(-50%) translateY(-6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
 
 /* Adaptive icon contrast for light/dark desktop backgrounds */
 @media (prefers-color-scheme: dark) {

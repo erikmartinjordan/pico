@@ -894,6 +894,7 @@ function clearCanvas() {
   elements.emptyState.classList.add('hidden');
   document.body.classList.remove('has-image');
   document.body.classList.remove('has-content');
+  document.body.offsetHeight; // force reflow
   resetFloatingToolbar();
   setAppWindowMode('toolbar');
   elements.statusTool?.parentElement?.classList.remove('visible');
@@ -1729,6 +1730,7 @@ function showCapturePreview(dataUrl, captureMode = 'region') {
 }
 
 function showToast(message, type = 'info') {
+  if (!document.body.classList.contains('has-image') && !document.body.classList.contains('has-content')) return;
   const toast = document.createElement('div');
   toast.className = `toast toast-${type}`;
   toast.textContent = message;
