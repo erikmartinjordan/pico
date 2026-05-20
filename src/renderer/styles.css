@@ -1233,6 +1233,7 @@ body:not(.has-image) .toolbar .toolbar-separator {
 
 /* Grip zone */
 .toolbar-grip {
+  cursor: pointer;
   position: absolute;
   top: -14px;
   left: 50%;
@@ -1240,7 +1241,6 @@ body:not(.has-image) .toolbar .toolbar-separator {
   width: 68px;
   height: 18px;
   z-index: 6;
-  cursor: pointer;
   touch-action: none;
   -webkit-app-region: no-drag;
   overflow: hidden;
@@ -1263,15 +1263,14 @@ body:not(.has-image) .toolbar .toolbar-separator {
 .toolbar-grip::after {
   content: "";
   position: absolute;
-  top: 2px;
-  left: -60%;
-  width: 30px;
-  height: 14px;
+  top: 7px;
+  left: calc(50% - 18px);
+  width: 18px;
+  height: 4px;
   border-radius: 999px;
-  background: linear-gradient(100deg, rgba(255,255,255,0), rgba(255,255,255,0.78), rgba(255,255,255,0.2), rgba(255,255,255,0));
-  opacity: 0.95;
+  background: linear-gradient(100deg, rgba(255,255,255,0), rgba(255,255,255,0.9), rgba(255,255,255,0.28), rgba(255,255,255,0));
+  opacity: 0;
   pointer-events: none;
-  filter: blur(0.3px);
 }
 
 .toolbar-grip:hover::before {
@@ -1282,6 +1281,7 @@ body:not(.has-image) .toolbar .toolbar-separator {
 
 .toolbar-grip:hover::after {
   animation: slideToUnlockShine 1.15s ease-in-out infinite;
+  opacity: 0.95;
 }
 
 @keyframes gripBounce {
@@ -1292,7 +1292,7 @@ body:not(.has-image) .toolbar .toolbar-separator {
 
 @keyframes slideToUnlockShine {
   0% {
-    left: -60%;
+    left: calc(50% - 18px);
     opacity: 0;
   }
   20% {
@@ -1302,7 +1302,7 @@ body:not(.has-image) .toolbar .toolbar-separator {
     opacity: 0.9;
   }
   100% {
-    left: 115%;
+    left: calc(50% + 18px);
     opacity: 0;
   }
 }
