@@ -51,20 +51,12 @@ body.has-content .canvas-container {
 }
 
 .canvas-container::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(84, 56, 36, 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(84, 56, 36, 0.08) 1px, transparent 1px);
-  background-size: 20px 20px;
-  pointer-events: none;
-  opacity: 0;
+  content: none;
 }
 
 body.has-image .canvas-container::before,
 body.has-content .canvas-container::before {
-  opacity: 0.55;
+  opacity: 0;
 }
 
 .window-drag-strip {
@@ -199,7 +191,7 @@ body.platform-darwin.has-content .macos-traffic {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background 0.16s ease, color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
+  transition: background 0.16s ease, color 0.16s ease, transform 0.2s ease, box-shadow 0.16s ease;
   flex-shrink: 0;
   -webkit-app-region: no-drag;
 }
@@ -210,6 +202,46 @@ body.platform-darwin.has-content .macos-traffic {
   background: rgba(255, 255, 255, 0.36);
   color: var(--toolbar-icon-hover, rgba(9, 13, 20, 0.96));
   box-shadow: 0 1px 0 rgba(255,255,255,0.38) inset;
+}
+
+body:not(.has-image) .toolbar {
+  gap: 4px;
+  min-height: 52px;
+  padding: 8px 10px;
+  border-radius: 20px;
+  border-color: rgba(255, 255, 255, 0.68);
+  background: rgba(255, 255, 255, 0.34);
+  backdrop-filter: blur(24px) saturate(180%) brightness(1.08);
+  -webkit-backdrop-filter: blur(24px) saturate(180%) brightness(1.08);
+}
+
+body:not(.has-image) .toolbar .liquidGlass-shine {
+  border-radius: 20px;
+}
+
+body:not(.has-image) .toolbar .toolbar-btn {
+  width: 36px;
+  height: 36px;
+  color: rgba(46, 28, 17, 0.72);
+  cursor: pointer;
+}
+
+body:not(.has-image) .toolbar .toolbar-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+body:not(.has-image) .toolbar .toolbar-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.28);
+  color: rgba(46, 28, 17, 0.95);
+  animation: pillIconBounce 0.34s ease;
+}
+
+@keyframes pillIconBounce {
+  0% { transform: translateY(0); }
+  40% { transform: translateY(-3px) scale(1.03); }
+  100% { transform: translateY(-2px); }
 }
 
 .toolbar-btn.active,
@@ -723,7 +755,9 @@ body:not(.has-image) .toolbar .toolbar-separator {
 .statusbar {
   height: 28px;
   border-top: 1px solid var(--border-subtle);
-  background: #0d0d10;
+  background: rgba(255, 255, 255, 0.42);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
   display: none;
   align-items: center;
   justify-content: space-between;
@@ -737,7 +771,7 @@ body:not(.has-image) .toolbar .toolbar-separator {
 .status-tool {
   font-size: 10px;
   font-weight: 500;
-  color: rgba(255,255,255,0.35);
+  color: rgba(46, 28, 17, 0.58);
   letter-spacing: 0.04em;
 }
 
@@ -745,7 +779,7 @@ body:not(.has-image) .toolbar .toolbar-separator {
 
 .zoom-level {
   font-size: 10px;
-  color: rgba(255,255,255,0.25);
+  color: rgba(46, 28, 17, 0.5);
   letter-spacing: 0.04em;
 }
 
@@ -1114,14 +1148,16 @@ body:not(.has-image) .toolbar .toolbar-separator {
   z-index: 120;
   max-width: 260px;
   padding: 6px 10px;
-  border-radius: 8px;
-  border: 1px solid rgba(255,255,255,0.14);
-  background: rgba(10, 10, 11, 0.95);
-  color: rgba(255,255,255,0.92);
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.72);
+  background: rgba(255,255,255,0.84);
+  color: rgba(46, 28, 17, 0.9);
   font-size: 12px;
   line-height: 1.25;
   pointer-events: none;
-  box-shadow: 0 10px 24px rgba(0,0,0,0.45);
+  backdrop-filter: blur(16px) saturate(145%);
+  -webkit-backdrop-filter: blur(16px) saturate(145%);
+  box-shadow: 0 12px 30px rgba(72, 40, 20, 0.2);
   opacity: 0;
   transform: translateY(-3px) scale(0.98);
   transition: opacity 0.12s ease, transform 0.12s ease;
