@@ -172,7 +172,7 @@ function applyEditorWindowMode(options = {}) {
   if (typeof mainWindow.setFullScreenable === 'function') mainWindow.setFullScreenable(true);
   mainWindow.setMinimumSize(EDITOR_MIN_SIZE.width, EDITOR_MIN_SIZE.height);
   mainWindow.setSkipTaskbar(false);
-  mainWindow.setBackgroundColor('#09090b');
+  mainWindow.setBackgroundColor('#d7bea2');
   try { mainWindow.setAlwaysOnTop(false); } catch (_) {}
   if (process.platform === 'darwin') {
     try { mainWindow.setVisibleOnAllWorkspaces(false); } catch (_) {}
