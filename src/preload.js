@@ -453,7 +453,7 @@ function stopRecording(options = {}) {
       return;
     }
 
-    const shouldExportGif = options === true || Boolean(options?.gif);
+    const shouldExportGif = options === true || options?.format === 'gif' || Boolean(options?.gif);
     proRecorder.onerror = (event) => reject(event.error || new Error('Screen recording failed'));
     proRecorder.onstop = async () => {
       try {

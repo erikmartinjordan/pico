@@ -102,6 +102,7 @@ const elements = {
   recordingPreview: $('#recording-preview'),
   recordingPreviewVideo: $('#recording-preview-video'),
   recordingPreviewMeta: $('#recording-preview-meta'),
+  recordingPreviewFormat: $('#recording-preview-format'),
   recordingPreviewSave: $('#recording-preview-save'),
   recordingPreviewDiscard: $('#recording-preview-discard'),
   recordingPreviewClose: $('#recording-preview-close'),
@@ -123,7 +124,7 @@ const elements = {
 function on(el, event, handler) { if (el) el.addEventListener(event, handler); }
 
 function setAppWindowMode(mode) {
-  window.pico?.setWindowMode?.(mode)?.catch?.(() => {});
+  return window.pico?.setWindowMode?.(mode)?.catch?.(() => {});
 }
 
 function resetFloatingToolbar() {
@@ -220,6 +221,7 @@ function bindToolbar() {
   on(elements.recordingPreviewSave, 'click', saveRecordingPreview);
   on(elements.recordingPreviewDiscard, 'click', discardRecordingPreview);
   on(elements.recordingPreviewClose, 'click', discardRecordingPreview);
+  on(elements.recordingPreviewFormat, 'change', () => setRecordingPreviewFormat(elements.recordingPreviewFormat.value));
   on(elements.textFontFamily, 'change', () => selectTextFontFamily(elements.textFontFamily.value));
   on(elements.textFontSize, 'change', () => selectTextFontSize(parseInt(elements.textFontSize.value)));
 }
@@ -629,20 +631,22 @@ function onRecordButtonClick(event) {
 
 async function startRecordingWithFormat(format = 'mp4', mode = 'region') {
   hideRecordingFormatMenu();
+  loadRecordingSettings();
+  const normalizedFormat = format === 'gif' ? 'gif' : 'mp4';
   try {
     const started = await window.pico.startRecording({
-      format,
+      format: normalizedFormat,
       mode,
       autoZoom: mode === 'region' ? state.recordingSettings.autoZoom : false,
       hideDesktopIcons: state.captureSettings.hideDesktopIcons,
     });
     state.isRecording = true;
-    state.recordingFormat = format;
+    state.recordingFormat = normalizedFormat;
     state.recordingMode = mode;
-    showLiveRecordingPreview(started, format);
+    showLiveRecordingPreview(started, normalizedFormat);
     setRecordingIndicator(true);
     const targetLabel = mode === 'region' ? 'selected region with autozoom' : (started.source?.name || 'window');
-    showToast(started.systemAudio ? `Recording ${targetLabel} as ${format.toUpperCase()}` : `Recording ${targetLabel} as ${format.toUpperCase()} without system audio`, started.systemAudio ? 'success' : 'info');
+    showToast(started.systemAudio ? `Recording ${targetLabel} as ${normalizedFormat.toUpperCase()}` : `Recording ${targetLabel} as ${normalizedFormat.toUpperCase()} without system audio`, started.systemAudio ? 'success' : 'info');
   } catch (err) {
     state.isRecording = false;
     setRecordingSaveProgress(false);
@@ -731,7 +735,10 @@ function showRecordingPreview(result = {}) {
   elements.recordingPreviewVideo.srcObject = null;
   elements.recordingPreviewVideo.src = url;
   elements.recordingPreviewVideo.load();
+  const playPromise = elements.recordingPreviewVideo.play();
+  if (playPromise?.catch) playPromise.catch(() => {});
   elements.recordingPreviewMeta.textContent = `Unsaved ${state.recordingPreview.format.toUpperCase()} export · previewing captured WebM source`;
+  if (elements.recordingPreviewFormat) elements.recordingPreviewFormat.value = state.recordingPreview.format;
   elements.container?.classList.add('recording-preview-active');
   elements.recordingPreview.classList.remove('hidden');
   elements.recordingPreview.setAttribute('aria-hidden', 'false');
@@ -752,9 +759,11 @@ function discardRecordingPreview(options = {}) {
   elements.recordingPreview?.setAttribute('aria-hidden', 'true');
   elements.container?.classList.remove('recording-preview-active');
   if (!state.image) {
-    document.body.classList.remove('has-content');
-    resetFloatingToolbar();
     setAppWindowMode('toolbar');
+    window.setTimeout(() => {
+      document.body.classList.remove('has-content');
+      resetFloatingToolbar();
+    }, 34);
   }
   if (!options?.silent) showToast('Recording discarded', 'info');
 }
@@ -797,6 +806,14 @@ async function saveRecordingPreview() {
     showToast(`Recording save failed: ${err.message}`, 'error');
   } finally {
     setRecordingSaveProgress(false);
+  }
+}
+
+function setRecordingPreviewFormat(format = 'mp4') {
+  if (!state.recordingPreview) return;
+  state.recordingPreview.format = format === 'gif' ? 'gif' : 'mp4';
+  if (elements.recordingPreviewMeta) {
+    elements.recordingPreviewMeta.textContent = `Unsaved ${state.recordingPreview.format.toUpperCase()} export · previewing captured WebM source`;
   }
 }
 
@@ -891,7 +908,7 @@ function clearCanvas() {
   state.windowContainerApplied = false;
   state.originalImageBeforeContainer = null;
   elements.canvas.classList.remove('visible');
-  elements.emptyState.classList.add('hidden');
+  elements.emptyState.classList.remove('hidden');
   document.body.classList.remove('has-image');
   document.body.classList.remove('has-content');
   document.body.offsetHeight; // force reflow
@@ -1730,7 +1747,6 @@ function showCapturePreview(dataUrl, captureMode = 'region') {
 }
 
 function showToast(message, type = 'info') {
-  if (!document.body.classList.contains('has-image') && !document.body.classList.contains('has-content')) return;
   const toast = document.createElement('div');
   toast.className = `toast toast-${type}`;
   toast.textContent = message;

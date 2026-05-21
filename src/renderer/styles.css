@@ -1246,6 +1246,21 @@ body:not(.has-image):not(.has-content) .toast-container {
   min-width: 96px;
   justify-content: center;
 }
+.recording-preview__format-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: auto;
+  font-size: 11px;
+  color: rgba(255,255,255,0.72);
+}
+.recording-preview__format-label select {
+  background: rgba(0,0,0,0.28);
+  border: 1px solid rgba(255,255,255,0.22);
+  color: #fff;
+  border-radius: 8px;
+  padding: 4px 6px;
+}
 
 #recording-preview-discard {
   color: rgba(255, 255, 255, 0.5);
@@ -1271,6 +1286,31 @@ body:not(.has-image):not(.has-content) .toast-container {
 .recording-preview.is-live .recording-preview__actions,
 .recording-preview.is-live .recording-preview__close {
   display: none;
+}
+
+.capture-preview {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 90;
+  display: none;
+  width: 220px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.22);
+  background: rgba(8,10,14,0.72);
+  backdrop-filter: blur(10px);
+  color: rgba(255,255,255,0.9);
+}
+.capture-preview.visible { display: block; }
+#capture-preview-image {
+  width: 100%;
+  border-radius: 8px;
+  display: block;
+}
+#capture-preview-mode {
+  margin-top: 6px;
+  font-size: 11px;
 }
 
 /* Grip zone */

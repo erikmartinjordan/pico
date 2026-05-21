@@ -74,12 +74,13 @@ async function convertMp4ToGif(mp4Path, requestedOutputPath = null) {
   try {
     const ffmpeg = resolveBundledBinary('ffmpeg');
     const framePattern = path.join(frameDir, 'frame-%06d.png');
-    await runBinary(ffmpeg, ['-y', '-i', mp4Path, '-vf', 'fps=12,scale=960:-1:flags=lanczos', framePattern]);
+    const gifWidth = 1280;
+    await runBinary(ffmpeg, ['-y', '-i', mp4Path, '-vf', `fps=12,scale=${gifWidth}:-1:flags=lanczos`, framePattern]);
     const frames = fs.readdirSync(frameDir)
       .filter((name) => name.endsWith('.png'))
       .sort()
       .map((name) => path.join(frameDir, name));
-    await runBinary(gifski, ['--fps', '12', '--quality', '85', '--output', gifPath, ...frames]);
+    await runBinary(gifski, ['--fps', '12', '--quality', '85', '--width', String(gifWidth), '--output', gifPath, ...frames]);
     return gifPath;
   } finally {
     fs.rmSync(frameDir, { recursive: true, force: true });

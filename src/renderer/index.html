@@ -117,10 +117,20 @@
         </div>
         <video id="recording-preview-video" controls playsinline muted></video>
         <div class="recording-preview__actions">
+          <label class="recording-preview__format-label">Export format
+            <select id="recording-preview-format" aria-label="Recording export format">
+              <option value="mp4">MP4</option>
+              <option value="gif">GIF</option>
+            </select>
+          </label>
           <button type="button" class="btn btn-secondary" id="recording-preview-discard" aria-label="Discard recording"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="14" height="14"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M5 6v14a2 2 0 002 2h10a2 2 0 002-2V6"/></svg>Discard</button>
           <button type="button" class="btn btn-primary" id="recording-preview-save" aria-label="Save recording"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="14" height="14"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>Save</button>
         </div>
       </div>
+    </div>
+    <div class="capture-preview" id="capture-preview" aria-hidden="true">
+      <img id="capture-preview-image" alt="Capture preview"/>
+      <div id="capture-preview-mode"></div>
     </div>
     <div class="text-input-wrapper" id="text-input-wrapper">
       <textarea id="inline-text-input" placeholder="Type here..."></textarea>
