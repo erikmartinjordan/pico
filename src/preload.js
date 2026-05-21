@@ -93,7 +93,7 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
   const IDLE_ZOOM_OUT_DELAY_MS     = 4000;
   const LARGE_MOVE_THRESHOLD       = 220 * scaleFactor;
   const FAST_MOVE_THRESHOLD_PX_S   = 520 * scaleFactor;
-  const FAST_MOVE_COOLDOWN_MS      = 700;
+  const FAST_MOVE_COOLDOWN_MS      = 1200;
   const ZOOM_SPEED                 = 1.6;
   const PAN_SPEED                  = 2.0;
   const TARGET_PAN_SPEED           = 4.5;
@@ -178,7 +178,9 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
     const timeSinceFastMove = now - lastFastMoveTime;
     const inCooldown        = timeSinceFastMove < FAST_MOVE_COOLDOWN_MS;
 
-    if (!inCooldown && timeSinceMove > IDLE_ZOOM_IN_DELAY_MS) {
+    if (inCooldown) {
+      zoomState = 'FULL_SCREEN';
+    } else if (timeSinceMove > IDLE_ZOOM_IN_DELAY_MS) {
       if (zoomState === 'FULL_SCREEN' || zoomState === 'ZOOMED_FOLLOW') {
         zoomState    = 'ZOOMED_STILL';
         lastAnchor.x = cursor.x;
