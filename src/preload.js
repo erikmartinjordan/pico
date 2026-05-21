@@ -72,7 +72,6 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
   const pixelHeight = region.pixelHeight || Math.round(region.height * scaleFactor);
   canvas.width = evenDimension(pixelWidth);
   canvas.height = evenDimension(pixelHeight);
-  const ctx = canvas.getContext('2d', { alpha: false });
 
   const srcRegion = {
     x: region.pixelX ?? Math.round(region.x * scaleFactor),
@@ -87,20 +86,16 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
   const fps = 60;
   const enableAutoZoom = options.autoZoom !== false;
 
-  const zoomLevel = clamp(1.35 + ((srcRegion.width - 1280) / 5120), 1.35, 1.65);
+  const zoomLevel = clamp(1.22 + ((srcRegion.width - 1280) / 5120), 1.22, 1.45);
   const regionCenterX = srcRegion.x + srcRegion.width / 2;
   const regionCenterY = srcRegion.y + srcRegion.height / 2;
 
-  // --- Cinematic Auto-Zoom Tuning ---
-  const IDLE_ZOOM_IN_DELAY_MS = 800;  // Time stationary before zooming in on an element
-  const IDLE_ZOOM_OUT_DELAY_MS = 2500; // Time stationary before drifting back to full screen
-  const LARGE_MOVE_THRESHOLD = 180 * scaleFactor; // Distance traveled to trigger a zoom-out reset
+  const IDLE_ZOOM_IN_DELAY_MS = 850;
+  const IDLE_ZOOM_OUT_DELAY_MS = 3200;
+  const LARGE_MOVE_THRESHOLD = 180 * scaleFactor;
+  const ZOOM_SPEED = 2.4;
+  const PAN_SPEED = 2.8;
 
-  // Easing speeds (Lower = smoother/slower, Higher = snappier)
-  const ZOOM_SPEED = 3.2;
-  const PAN_SPEED = 3.8;
-
-  // States: 'FULL_SCREEN', 'ZOOMED_FOLLOW', 'ZOOMED_STILL'
   let zoomState = 'FULL_SCREEN';
 
   let camera = { x: regionCenterX, y: regionCenterY, zoom: 1 };
@@ -114,65 +109,84 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
   let pollTimer = null;
   let stopped = false;
   let cursorPollInFlight = false;
-  let lastFrameAt = performance.now();
 
-  function springTo(current, target, velocity, frequency, damping, dt) {
-    const angularFrequency = frequency * Math.PI * 2;
-    const acceleration = (target - current) * angularFrequency * angularFrequency
-      - velocity * (2 * damping * angularFrequency);
-    const nextVelocity = velocity + acceleration * dt;
-    return {
-      value: current + nextVelocity * dt,
-      velocity: nextVelocity,
+  function createAutoZoomStreamFallback() {
+    const ctx = canvas.getContext('2d', { alpha: false });
+    if (!ctx) throw new Error('Canvas 2D fallback unavailable');
+
+    function draw(now = performance.now()) {
+      if (stopped) return;
+
+      const dt = Math.min(0.1, (now - lastFrameTime) / 1000);
+      lastFrameTime = now;
+
+      if (enableAutoZoom) {
+        updateStateMachine(now);
+        camera.zoom = expEase(camera.zoom, targetCamera.zoom, ZOOM_SPEED, dt);
+        camera.x = expEase(camera.x, targetCamera.x, PAN_SPEED, dt);
+        camera.y = expEase(camera.y, targetCamera.y, PAN_SPEED, dt);
+      } else {
+        targetCamera = { x: regionCenterX, y: regionCenterY, zoom: 1 };
+        camera = { ...targetCamera };
+      }
+
+      const cropW = srcRegion.width / camera.zoom;
+      const cropH = srcRegion.height / camera.zoom;
+      const minCenterX = srcRegion.x + cropW / 2;
+      const maxCenterX = srcRegion.x + srcRegion.width - cropW / 2;
+      const minCenterY = srcRegion.y + cropH / 2;
+      const maxCenterY = srcRegion.y + srcRegion.height - cropH / 2;
+      const safeCenterX = clamp(camera.x, minCenterX, maxCenterX);
+      const safeCenterY = clamp(camera.y, minCenterY, maxCenterY);
+      const sx = safeCenterX - cropW / 2;
+      const sy = safeCenterY - cropH / 2;
+
+      ctx.fillStyle = '#09090b';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 0) {
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(video, sx, sy, cropW, cropH, 0, 0, canvas.width, canvas.height);
+      }
+
+      rafId = requestAnimationFrame(draw);
+    }
+
+    const fallbackStop = () => {
+      stopped = true;
+      if (pollTimer) clearInterval(pollTimer);
+      if (rafId) cancelAnimationFrame(rafId);
     };
-  }
 
-  function softClamp(value, min, max, padding) {
-    if (max <= min) return (min + max) / 2;
-    const safePadding = Math.max(1, Math.min(padding, (max - min) / 2));
-    const lower = min + safePadding;
-    const upper = max - safePadding;
-    if (value < lower) {
-      const distance = Math.max(0, lower - value);
-      return lower - safePadding * (1 - Math.exp(-distance / safePadding));
-    }
-    if (value > upper) {
-      const distance = Math.max(0, value - upper);
-      return upper + safePadding * (1 - Math.exp(-distance / safePadding));
-    }
-    return value;
-  }
+    const fallbackReady = video.play().then(() => {
+      lastFrameTime = performance.now();
+      if (enableAutoZoom) pollTimer = setInterval(pollCursor, 33);
+      draw();
+      return canvasStream;
+    });
 
-  function screenPointToSourcePixel(cursor) {
-    const relLogicalX = cursor.x - displayBounds.x - region.x;
-    const relLogicalY = cursor.y - displayBounds.y - region.y;
-    return {
-      x: srcRegion.x + relLogicalX * pixelScaleX,
-      y: srcRegion.y + relLogicalY * pixelScaleY,
-    };
-  }
-
-  function updateZoomIntent(now) {
-    if (cursorState.speed > zoomOutVelocityPxPerSecond) {
-      cursorState.lastMotionAt = now;
-      cursorState.quietSince = now;
-      cursorState.targetZoom = 1;
-      return;
-    }
-
-    if (cursorState.speed > zoomInVelocityPxPerSecond) {
-      cursorState.quietSince = now;
-      if (now - cursorState.lastMotionAt < zoomOutHoldMs) cursorState.targetZoom = 1;
-      return;
-    }
-
-    if (now - cursorState.quietSince > zoomInDelayMs && now - cursorState.lastMotionAt > zoomOutHoldMs) {
-      cursorState.targetZoom = zoomLevel;
-    }
+    return { stream: canvasStream, ready: fallbackReady, stop: fallbackStop };
   }
 
   function expEase(current, target, speed, dt) {
     return current + (target - current) * (1 - Math.exp(-speed * dt));
+  }
+
+  function processNewCoordinates(px, py) {
+    const movedDistance = Math.hypot(px - cursor.x, py - cursor.y);
+    if (movedDistance < 5 * scaleFactor) return;
+
+    lastMoveTime = performance.now();
+
+    if (zoomState === 'ZOOMED_STILL' || zoomState === 'ZOOMED_FOLLOW') {
+      const distFromAnchor = Math.hypot(px - lastAnchor.x, py - lastAnchor.y);
+      if (distFromAnchor > LARGE_MOVE_THRESHOLD) {
+        zoomState = 'ZOOMED_FOLLOW';
+      }
+    }
+
+    cursor.x = clamp(px, srcRegion.x, srcRegion.x + srcRegion.width);
+    cursor.y = clamp(py, srcRegion.y, srcRegion.y + srcRegion.height);
   }
 
   async function pollCursor() {
@@ -184,26 +198,8 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
       const relLogicalY = pt.y - displayBounds.y - region.y;
       const px = srcRegion.x + relLogicalX * pixelScaleX;
       const py = srcRegion.y + relLogicalY * pixelScaleY;
-
-      const totalDistanceMoved = Math.hypot(px - cursor.x, py - cursor.y);
-
-      // If mouse is moving actively, update timers
-      if (totalDistanceMoved > 2 * scaleFactor) {
-        lastMoveTime = performance.now();
-
-        // If we are zoomed in, but user drags mouse a long distance away, break lock and zoom out
-        if (zoomState === 'ZOOMED_STILL' || zoomState === 'ZOOMED_FOLLOW') {
-          const distFromAnchor = Math.hypot(px - lastAnchor.x, py - lastAnchor.y);
-          if (distFromAnchor > LARGE_MOVE_THRESHOLD) {
-            zoomState = 'ZOOMED_FOLLOW';
-          }
-        }
-      }
-
-      cursor.x = clamp(px, srcRegion.x, srcRegion.x + srcRegion.width);
-      cursor.y = clamp(py, srcRegion.y, srcRegion.y + srcRegion.height);
+      processNewCoordinates(px, py);
     } catch (e) {
-      // Catch isolated IPC glitches safely
     } finally {
       cursorPollInFlight = false;
     }
@@ -211,9 +207,7 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
 
   function updateStateMachine(now) {
     const timeSinceMove = now - lastMoveTime;
-
     if (timeSinceMove > IDLE_ZOOM_IN_DELAY_MS) {
-      // User stopped moving cursor. Anchor here and zoom in.
       if (zoomState === 'FULL_SCREEN' || zoomState === 'ZOOMED_FOLLOW') {
         zoomState = 'ZOOMED_STILL';
         lastAnchor.x = cursor.x;
@@ -221,28 +215,103 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
       }
     }
 
-    // If completely idle on an element for a long time, drift back out to show full desktop context
     if (timeSinceMove > IDLE_ZOOM_OUT_DELAY_MS && zoomState === 'ZOOMED_STILL') {
       zoomState = 'FULL_SCREEN';
     }
 
-    // Assign camera targets based on current state
     if (zoomState === 'ZOOMED_STILL') {
       targetCamera.zoom = zoomLevel;
       targetCamera.x = lastAnchor.x;
       targetCamera.y = lastAnchor.y;
     } else if (zoomState === 'ZOOMED_FOLLOW') {
-      // Smoothly track cursor while staying partially zoomed in to avoid snappy context switching
       targetCamera.zoom = zoomLevel - 0.15;
       targetCamera.x = cursor.x;
       targetCamera.y = cursor.y;
     } else {
-      // Return to full presentation view
       targetCamera.zoom = 1;
       targetCamera.x = regionCenterX;
       targetCamera.y = regionCenterY;
     }
   }
+
+  const gl = canvas.getContext('webgl', { antialias: false, depth: false, stencil: false, alpha: false })
+    || canvas.getContext('experimental-webgl', { antialias: false, depth: false, stencil: false, alpha: false });
+
+  const canvasStream = canvas.captureStream(fps);
+  sourceStream.getAudioTracks().forEach((track) => canvasStream.addTrack(track));
+
+  if (!gl) {
+    return createAutoZoomStreamFallback();
+  }
+
+  const vertexShaderSource = `
+    attribute vec2 a_position;
+    varying vec2 v_uv;
+    uniform vec4 u_uvRect;
+    void main() {
+      gl_Position = vec4(a_position, 0.0, 1.0);
+      vec2 base = (a_position + 1.0) * 0.5;
+      v_uv = vec2(
+        mix(u_uvRect.x, u_uvRect.z, base.x),
+        mix(u_uvRect.y, u_uvRect.w, base.y)
+      );
+    }
+  `;
+  const fragmentShaderSource = `
+    precision mediump float;
+    varying vec2 v_uv;
+    uniform sampler2D u_texture;
+    void main() {
+      gl_FragColor = texture2D(u_texture, v_uv);
+    }
+  `;
+
+  const compileShader = (type, source) => {
+    const shader = gl.createShader(type);
+    if (!shader) return null;
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) return null;
+    return shader;
+  };
+
+  const vertexShader = compileShader(gl.VERTEX_SHADER, vertexShaderSource);
+  const fragmentShader = compileShader(gl.FRAGMENT_SHADER, fragmentShaderSource);
+  if (!vertexShader || !fragmentShader) {
+    return createAutoZoomStreamFallback();
+  }
+
+  const program = gl.createProgram();
+  gl.attachShader(program, vertexShader);
+  gl.attachShader(program, fragmentShader);
+  gl.linkProgram(program);
+  gl.deleteShader(vertexShader);
+  gl.deleteShader(fragmentShader);
+
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    return createAutoZoomStreamFallback();
+  }
+
+  const positionBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+    -1, -1,
+     1, -1,
+    -1,  1,
+     1,  1,
+  ]), gl.STATIC_DRAW);
+
+  const texture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 255]));
+
+  const positionLocation = gl.getAttribLocation(program, 'a_position');
+  const uvRectLocation = gl.getUniformLocation(program, 'u_uvRect');
+  const textureLocation = gl.getUniformLocation(program, 'u_texture');
 
   function draw(now = performance.now()) {
     if (stopped) return;
@@ -252,8 +321,6 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
 
     if (enableAutoZoom) {
       updateStateMachine(now);
-
-      // Dynamic easing speeds based on how far we are from target (smoothes out stops)
       camera.zoom = expEase(camera.zoom, targetCamera.zoom, ZOOM_SPEED, dt);
       camera.x = expEase(camera.x, targetCamera.x, PAN_SPEED, dt);
       camera.y = expEase(camera.y, targetCamera.y, PAN_SPEED, dt);
@@ -264,44 +331,53 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
 
     const cropW = srcRegion.width / camera.zoom;
     const cropH = srcRegion.height / camera.zoom;
-
-    // Strict safety boundaries to eliminate black gaps at video edges
     const minCenterX = srcRegion.x + cropW / 2;
     const maxCenterX = srcRegion.x + srcRegion.width - cropW / 2;
     const minCenterY = srcRegion.y + cropH / 2;
     const maxCenterY = srcRegion.y + srcRegion.height - cropH / 2;
-
     const safeCenterX = clamp(camera.x, minCenterX, maxCenterX);
     const safeCenterY = clamp(camera.y, minCenterY, maxCenterY);
-
     const sx = safeCenterX - cropW / 2;
     const sy = safeCenterY - cropH / 2;
 
-    ctx.fillStyle = '#09090b';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(video, sx, sy, cropW, cropH, 0, 0, canvas.width, canvas.height);
+    if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 0) {
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
     }
+
+    const videoWidth = Math.max(1, video.videoWidth || srcRegion.width);
+    const videoHeight = Math.max(1, video.videoHeight || srcRegion.height);
+    const u0 = sx / videoWidth;
+    const v0 = 1 - ((sy + cropH) / videoHeight);
+    const u1 = (sx + cropW) / videoWidth;
+    const v1 = 1 - (sy / videoHeight);
+
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.clearColor(0.035, 0.035, 0.043, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.useProgram(program);
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.enableVertexAttribArray(positionLocation);
+    gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+    gl.uniform4f(uvRectLocation, u0, v0, u1, v1);
+    gl.uniform1i(textureLocation, 0);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
     rafId = requestAnimationFrame(draw);
   }
-
-  const canvasStream = canvas.captureStream(fps);
-  sourceStream.getAudioTracks().forEach((track) => canvasStream.addTrack(track));
 
   const stop = () => {
     stopped = true;
     if (pollTimer) clearInterval(pollTimer);
     if (rafId) cancelAnimationFrame(rafId);
+    if (texture) gl.deleteTexture(texture);
+    if (positionBuffer) gl.deleteBuffer(positionBuffer);
+    if (program) gl.deleteProgram(program);
   };
 
   const ready = video.play().then(() => {
     lastFrameTime = performance.now();
-    if (enableAutoZoom) {
-      pollTimer = setInterval(pollCursor, 33); // 30Hz background coordinate capture
-    }
+    if (enableAutoZoom) pollTimer = setInterval(pollCursor, 33);
     draw();
     return canvasStream;
   });
