@@ -92,13 +92,13 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
   const regionCenterY = srcRegion.y + srcRegion.height / 2;
 
   // --- Cinematic Auto-Zoom Tuning ---
-  const IDLE_ZOOM_IN_DELAY_MS = 800;  // Time stationary before zooming in on an element
+  const IDLE_ZOOM_IN_DELAY_MS = 1200;  // Time stationary before zooming in on an element
   const IDLE_ZOOM_OUT_DELAY_MS = 2500; // Time stationary before drifting back to full screen
-  const LARGE_MOVE_THRESHOLD = 180 * scaleFactor; // Distance traveled to trigger a zoom-out reset
+  const LARGE_MOVE_THRESHOLD = 260 * scaleFactor; // Distance traveled to trigger a zoom-out reset
 
   // Easing speeds (Lower = smoother/slower, Higher = snappier)
-  const ZOOM_SPEED = 3.2;
-  const PAN_SPEED = 3.8;
+  const ZOOM_SPEED = 1.4;
+  const PAN_SPEED = 1.6;
 
   // States: 'FULL_SCREEN', 'ZOOMED_FOLLOW', 'ZOOMED_STILL'
   let zoomState = 'FULL_SCREEN';
@@ -188,7 +188,7 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
       const totalDistanceMoved = Math.hypot(px - cursor.x, py - cursor.y);
 
       // If mouse is moving actively, update timers
-      if (totalDistanceMoved > 2 * scaleFactor) {
+      if (totalDistanceMoved > 12 * scaleFactor) {
         lastMoveTime = performance.now();
 
         // If we are zoomed in, but user drags mouse a long distance away, break lock and zoom out
@@ -233,7 +233,7 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
       targetCamera.y = lastAnchor.y;
     } else if (zoomState === 'ZOOMED_FOLLOW') {
       // Smoothly track cursor while staying partially zoomed in to avoid snappy context switching
-      targetCamera.zoom = zoomLevel - 0.15;
+      targetCamera.zoom = zoomLevel - 0.02;
       targetCamera.x = cursor.x;
       targetCamera.y = cursor.y;
     } else {
