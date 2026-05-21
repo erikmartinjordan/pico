@@ -1567,8 +1567,12 @@ ipcMain.handle('window-minimize', async () => {
 
 ipcMain.handle('window-set-mode', async (event, mode) => {
   if (!mainWindow || mainWindow.isDestroyed()) return { success: false };
-  if (mode === 'editor') applyEditorWindowMode();
-  else applyToolbarWindowMode();
+  if (mode === 'editor') {
+    applyEditorWindowMode();
+  } else {
+    mainWindow.setBackgroundColor('#00000000');
+    applyToolbarWindowMode();
+  }
   return { success: true, mode: mainWindowMode };
 });
 
