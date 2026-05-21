@@ -124,7 +124,7 @@ const elements = {
 function on(el, event, handler) { if (el) el.addEventListener(event, handler); }
 
 function setAppWindowMode(mode) {
-  window.pico?.setWindowMode?.(mode)?.catch?.(() => {});
+  return window.pico?.setWindowMode?.(mode)?.catch?.(() => {});
 }
 
 function resetFloatingToolbar() {
@@ -760,8 +760,10 @@ function discardRecordingPreview(options = {}) {
   elements.container?.classList.remove('recording-preview-active');
   if (!state.image) {
     setAppWindowMode('toolbar');
-    document.body.classList.remove('has-content');
-    resetFloatingToolbar();
+    window.setTimeout(() => {
+      document.body.classList.remove('has-content');
+      resetFloatingToolbar();
+    }, 34);
   }
   if (!options?.silent) showToast('Recording discarded', 'info');
 }
