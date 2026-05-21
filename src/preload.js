@@ -89,13 +89,13 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
 
   const zoomLevel = clamp(1.40 + ((srcRegion.width - 1280) / 4096), 1.40, 1.70);
 
-  const IDLE_ZOOM_IN_DELAY_MS      = 900;
+  const IDLE_ZOOM_IN_DELAY_MS      = 450;   // Settle on resting areas faster
   const IDLE_ZOOM_OUT_DELAY_MS     = 4000;
   const LARGE_MOVE_THRESHOLD       = 220 * scaleFactor;
-  const FAST_MOVE_THRESHOLD_PX_S   = 520 * scaleFactor;
+  const FAST_MOVE_THRESHOLD_PX_S   = 1600 * scaleFactor; // Prevent erratic full-screen pullouts during normal sweeps
   const FAST_MOVE_COOLDOWN_MS      = 700;
-  const ZOOM_SPEED                 = 1.6;
-  const PAN_SPEED                  = 2.0;
+  const ZOOM_SPEED                 = 1.1;   // Softer, luxury zoom easing
+  const PAN_SPEED                  = 2.6;   // Snappier, responsive panning that keeps up with the cursor
   const regionCenterX = srcRegion.x + srcRegion.width / 2;
   const regionCenterY = srcRegion.y + srcRegion.height / 2;
 
@@ -192,7 +192,7 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
       targetCamera.x    = lastAnchor.x;
       targetCamera.y    = lastAnchor.y;
     } else if (zoomState === 'ZOOMED_FOLLOW') {
-      targetCamera.zoom = zoomLevel * 0.88;
+      targetCamera.zoom = zoomLevel * 0.98;
       targetCamera.x    = cursor.x;
       targetCamera.y    = cursor.y;
     } else {
