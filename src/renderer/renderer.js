@@ -96,9 +96,9 @@ const elements = {
   toolBtns: $$('.tool-btn'),
   colorSwatches: $$('.color-swatch'),
   strokePicker: $('#stroke-picker'),
-  strokeCurrentPreview: $('#stroke-current-preview'),
+  strokeCurrentLine: $('#stroke-current-line'),
   strokeMenu: $('#stroke-menu'),
-  strokeBtns: $$('.stroke-menu .stroke-btn'),
+  strokeBtns: $$('.stroke-option'),
   recordingPreview: $('#recording-preview'),
   recordingPreviewVideo: $('#recording-preview-video'),
   recordingPreviewMeta: $('#recording-preview-meta'),
@@ -233,18 +233,18 @@ function bindStrokePicker() {
     if (!elements.strokePicker || !elements.strokeMenu) return;
     elements.strokePicker.classList.toggle('open', open);
     elements.strokeMenu.setAttribute('aria-hidden', open ? 'false' : 'true');
+    const btn = document.getElementById('stroke-current');
+    if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
   };
   const scheduleClose = () => {
     clearTimeout(closeTimer);
     closeTimer = setTimeout(() => setOpen(false), 180);
   };
-
   on(elements.strokePicker, 'mouseenter', () => { clearTimeout(closeTimer); setOpen(true); });
   on(elements.strokePicker, 'mouseleave', scheduleClose);
   on(elements.strokePicker, 'focusin', () => { clearTimeout(closeTimer); setOpen(true); });
   on(elements.strokePicker, 'focusout', scheduleClose);
-
-  elements.strokeBtns.forEach(btn => {
+  document.querySelectorAll('.stroke-option').forEach(btn => {
     btn.addEventListener('click', () => {
       selectStrokeWidth(parseInt(btn.dataset.width));
       setOpen(false);
@@ -759,11 +759,10 @@ function discardRecordingPreview(options = {}) {
   elements.recordingPreview?.setAttribute('aria-hidden', 'true');
   elements.container?.classList.remove('recording-preview-active');
   if (!state.image) {
+    document.body.classList.remove('has-content');
+    document.body.classList.remove('has-image');
     setAppWindowMode('toolbar');
-    window.setTimeout(() => {
-      document.body.classList.remove('has-content');
-      resetFloatingToolbar();
-    }, 34);
+    requestAnimationFrame(() => resetFloatingToolbar());
   }
   if (!options?.silent) showToast('Recording discarded', 'info');
 }
@@ -1068,10 +1067,13 @@ function selectColor(color) {
 
 function selectStrokeWidth(width) {
   state.strokeWidth = width;
-  elements.strokeBtns.forEach(btn => btn.classList.toggle('active', parseInt(btn.dataset.width) === width));
-  if (elements.strokeCurrentPreview) {
-    const previewHeight = width === 2 ? 1.5 : width === 8 ? 5 : 3;
-    elements.strokeCurrentPreview.style.height = `${previewHeight}px`;
+  document.querySelectorAll('.stroke-option').forEach(btn =>
+    btn.classList.toggle('active', parseInt(btn.dataset.width) === width)
+  );
+  const line = document.getElementById('stroke-current-line');
+  if (line) {
+    const h = width === 2 ? 1.5 : width === 8 ? 5.5 : 3;
+    line.style.height = `${h}px`;
   }
 }
 
