@@ -53,13 +53,21 @@
       <div class="toolbar-separator"></div>
       <div class="toolbar-group strokes">
         <div class="stroke-picker" id="stroke-picker">
-          <button class="stroke-btn stroke-current" id="stroke-current" data-tooltip="Line weight">
-            <span class="stroke-preview" id="stroke-current-preview" style="height:3px"></span>
+          <button class="stroke-current" id="stroke-current" data-tooltip="Line weight" aria-haspopup="true" aria-expanded="false">
+            <span class="stroke-current-icon">
+              <span class="stroke-current-line" id="stroke-current-line" style="height:3px"></span>
+            </span>
           </button>
           <div class="stroke-menu" id="stroke-menu" role="menu" aria-label="Line weight" aria-hidden="true">
-            <button class="stroke-btn" data-width="2" role="menuitem" tabindex="-1"><span class="stroke-preview" style="height:1.5px"></span><span>Thin</span></button>
-            <button class="stroke-btn" data-width="4" role="menuitem" tabindex="-1"><span class="stroke-preview" style="height:3px"></span><span>Regular</span></button>
-            <button class="stroke-btn" data-width="8" role="menuitem" tabindex="-1"><span class="stroke-preview" style="height:5px"></span><span>Bold</span></button>
+            <button class="stroke-option" data-width="2" role="menuitem" tabindex="-1" aria-label="Thin">
+              <span class="stroke-option-line" style="height:1.5px"></span>
+            </button>
+            <button class="stroke-option" data-width="4" role="menuitem" tabindex="-1" aria-label="Regular">
+              <span class="stroke-option-line" style="height:3px"></span>
+            </button>
+            <button class="stroke-option" data-width="8" role="menuitem" tabindex="-1" aria-label="Bold">
+              <span class="stroke-option-line" style="height:5.5px"></span>
+            </button>
           </div>
         </div>
       </div>
