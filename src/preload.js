@@ -87,18 +87,17 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
   const fps = 60;
   const enableAutoZoom = options.autoZoom !== false;
 
-  const zoomLevel = clamp(1.35 + ((srcRegion.width - 1280) / 5120), 1.35, 1.65);
+  const zoomLevel = clamp(1.40 + ((srcRegion.width - 1280) / 4096), 1.40, 1.70);
+
+  const IDLE_ZOOM_IN_DELAY_MS      = 900;
+  const IDLE_ZOOM_OUT_DELAY_MS     = 4000;
+  const LARGE_MOVE_THRESHOLD       = 220 * scaleFactor;
+  const FAST_MOVE_THRESHOLD_PX_S   = 520 * scaleFactor;
+  const FAST_MOVE_COOLDOWN_MS      = 700;
+  const ZOOM_SPEED                 = 1.6;
+  const PAN_SPEED                  = 2.0;
   const regionCenterX = srcRegion.x + srcRegion.width / 2;
   const regionCenterY = srcRegion.y + srcRegion.height / 2;
-
-  // --- Cinematic Auto-Zoom Tuning ---
-  const IDLE_ZOOM_IN_DELAY_MS = 1200;  // Time stationary before zooming in on an element
-  const IDLE_ZOOM_OUT_DELAY_MS = 2500; // Time stationary before drifting back to full screen
-  const LARGE_MOVE_THRESHOLD = 260 * scaleFactor; // Distance traveled to trigger a zoom-out reset
-
-  // Easing speeds (Lower = smoother/slower, Higher = snappier)
-  const ZOOM_SPEED = 1.4;
-  const PAN_SPEED = 1.6;
 
   // States: 'FULL_SCREEN', 'ZOOMED_FOLLOW', 'ZOOMED_STILL'
   let zoomState = 'FULL_SCREEN';
@@ -108,68 +107,18 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
   let cursor = { x: regionCenterX, y: regionCenterY };
   let lastAnchor = { x: regionCenterX, y: regionCenterY };
 
+  let lastFastMoveTime   = -Infinity;
+  let prevCursorPx       = null;
+  let prevPollTime       = null;
+  let cursorSpeedEMA     = 0;
+  const EMA_ALPHA        = 0.35;
+
   let lastMoveTime = performance.now();
   let lastFrameTime = performance.now();
   let rafId = null;
   let pollTimer = null;
   let stopped = false;
   let cursorPollInFlight = false;
-  let lastFrameAt = performance.now();
-
-  function springTo(current, target, velocity, frequency, damping, dt) {
-    const angularFrequency = frequency * Math.PI * 2;
-    const acceleration = (target - current) * angularFrequency * angularFrequency
-      - velocity * (2 * damping * angularFrequency);
-    const nextVelocity = velocity + acceleration * dt;
-    return {
-      value: current + nextVelocity * dt,
-      velocity: nextVelocity,
-    };
-  }
-
-  function softClamp(value, min, max, padding) {
-    if (max <= min) return (min + max) / 2;
-    const safePadding = Math.max(1, Math.min(padding, (max - min) / 2));
-    const lower = min + safePadding;
-    const upper = max - safePadding;
-    if (value < lower) {
-      const distance = Math.max(0, lower - value);
-      return lower - safePadding * (1 - Math.exp(-distance / safePadding));
-    }
-    if (value > upper) {
-      const distance = Math.max(0, value - upper);
-      return upper + safePadding * (1 - Math.exp(-distance / safePadding));
-    }
-    return value;
-  }
-
-  function screenPointToSourcePixel(cursor) {
-    const relLogicalX = cursor.x - displayBounds.x - region.x;
-    const relLogicalY = cursor.y - displayBounds.y - region.y;
-    return {
-      x: srcRegion.x + relLogicalX * pixelScaleX,
-      y: srcRegion.y + relLogicalY * pixelScaleY,
-    };
-  }
-
-  function updateZoomIntent(now) {
-    if (cursorState.speed > zoomOutVelocityPxPerSecond) {
-      cursorState.lastMotionAt = now;
-      cursorState.quietSince = now;
-      cursorState.targetZoom = 1;
-      return;
-    }
-
-    if (cursorState.speed > zoomInVelocityPxPerSecond) {
-      cursorState.quietSince = now;
-      if (now - cursorState.lastMotionAt < zoomOutHoldMs) cursorState.targetZoom = 1;
-      return;
-    }
-
-    if (now - cursorState.quietSince > zoomInDelayMs && now - cursorState.lastMotionAt > zoomOutHoldMs) {
-      cursorState.targetZoom = zoomLevel;
-    }
-  }
 
   function expEase(current, target, speed, dt) {
     return current + (target - current) * (1 - Math.exp(-speed * dt));
@@ -179,20 +128,32 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
     if (stopped || cursorPollInFlight) return;
     cursorPollInFlight = true;
     try {
-      const pt = await getCursorScreenPoint();
+      const pt  = await getCursorScreenPoint();
+      const now = performance.now();
+
       const relLogicalX = pt.x - displayBounds.x - region.x;
       const relLogicalY = pt.y - displayBounds.y - region.y;
       const px = srcRegion.x + relLogicalX * pixelScaleX;
       const py = srcRegion.y + relLogicalY * pixelScaleY;
 
+      if (prevCursorPx && prevPollTime) {
+        const dtSec        = Math.max(0.001, (now - prevPollTime) / 1000);
+        const dist         = Math.hypot(px - prevCursorPx.x, py - prevCursorPx.y);
+        const instantSpeed = dist / dtSec;
+        cursorSpeedEMA     = EMA_ALPHA * instantSpeed + (1 - EMA_ALPHA) * cursorSpeedEMA;
+      }
+      prevCursorPx = { x: px, y: py };
+      prevPollTime = now;
+
       const totalDistanceMoved = Math.hypot(px - cursor.x, py - cursor.y);
 
-      // If mouse is moving actively, update timers
-      if (totalDistanceMoved > 12 * scaleFactor) {
-        lastMoveTime = performance.now();
+      if (totalDistanceMoved > 8 * scaleFactor) {
+        lastMoveTime = now;
 
-        // If we are zoomed in, but user drags mouse a long distance away, break lock and zoom out
-        if (zoomState === 'ZOOMED_STILL' || zoomState === 'ZOOMED_FOLLOW') {
+        if (cursorSpeedEMA > FAST_MOVE_THRESHOLD_PX_S) {
+          zoomState        = 'FULL_SCREEN';
+          lastFastMoveTime = now;
+        } else if (zoomState === 'ZOOMED_STILL' || zoomState === 'ZOOMED_FOLLOW') {
           const distFromAnchor = Math.hypot(px - lastAnchor.x, py - lastAnchor.y);
           if (distFromAnchor > LARGE_MOVE_THRESHOLD) {
             zoomState = 'ZOOMED_FOLLOW';
@@ -202,45 +163,42 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
 
       cursor.x = clamp(px, srcRegion.x, srcRegion.x + srcRegion.width);
       cursor.y = clamp(py, srcRegion.y, srcRegion.y + srcRegion.height);
-    } catch (e) {
-      // Catch isolated IPC glitches safely
+    } catch {
+      // ignore isolated IPC glitches
     } finally {
       cursorPollInFlight = false;
     }
   }
 
   function updateStateMachine(now) {
-    const timeSinceMove = now - lastMoveTime;
+    const timeSinceMove     = now - lastMoveTime;
+    const timeSinceFastMove = now - lastFastMoveTime;
+    const inCooldown        = timeSinceFastMove < FAST_MOVE_COOLDOWN_MS;
 
-    if (timeSinceMove > IDLE_ZOOM_IN_DELAY_MS) {
-      // User stopped moving cursor. Anchor here and zoom in.
+    if (!inCooldown && timeSinceMove > IDLE_ZOOM_IN_DELAY_MS) {
       if (zoomState === 'FULL_SCREEN' || zoomState === 'ZOOMED_FOLLOW') {
-        zoomState = 'ZOOMED_STILL';
+        zoomState    = 'ZOOMED_STILL';
         lastAnchor.x = cursor.x;
         lastAnchor.y = cursor.y;
       }
     }
 
-    // If completely idle on an element for a long time, drift back out to show full desktop context
     if (timeSinceMove > IDLE_ZOOM_OUT_DELAY_MS && zoomState === 'ZOOMED_STILL') {
       zoomState = 'FULL_SCREEN';
     }
 
-    // Assign camera targets based on current state
     if (zoomState === 'ZOOMED_STILL') {
       targetCamera.zoom = zoomLevel;
-      targetCamera.x = lastAnchor.x;
-      targetCamera.y = lastAnchor.y;
+      targetCamera.x    = lastAnchor.x;
+      targetCamera.y    = lastAnchor.y;
     } else if (zoomState === 'ZOOMED_FOLLOW') {
-      // Smoothly track cursor while staying partially zoomed in to avoid snappy context switching
-      targetCamera.zoom = zoomLevel - 0.02;
-      targetCamera.x = cursor.x;
-      targetCamera.y = cursor.y;
+      targetCamera.zoom = zoomLevel * 0.88;
+      targetCamera.x    = cursor.x;
+      targetCamera.y    = cursor.y;
     } else {
-      // Return to full presentation view
       targetCamera.zoom = 1;
-      targetCamera.x = regionCenterX;
-      targetCamera.y = regionCenterY;
+      targetCamera.x    = regionCenterX;
+      targetCamera.y    = regionCenterY;
     }
   }
 
@@ -300,7 +258,7 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
   const ready = video.play().then(() => {
     lastFrameTime = performance.now();
     if (enableAutoZoom) {
-      pollTimer = setInterval(pollCursor, 33); // 30Hz background coordinate capture
+      pollTimer = setInterval(pollCursor, 16); // 60 Hz
     }
     draw();
     return canvasStream;
