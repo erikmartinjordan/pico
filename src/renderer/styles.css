@@ -131,7 +131,14 @@ body.platform-darwin.has-content .macos-traffic {
     border-color 0.24s ease,
     box-shadow 0.24s ease;
   -webkit-app-region: no-drag;
+  cursor: -webkit-grab;
+  cursor: grab;
   z-index: 20;
+}
+
+.toolbar:active {
+  cursor: -webkit-grabbing;
+  cursor: grabbing;
 }
 
 .toolbar,
@@ -1267,81 +1274,14 @@ body:not(.has-image):not(.has-content) .toast-container {
 }
 
 /* Grip zone */
-.toolbar-grip {
-  cursor: grab;
-  position: absolute;
-  top: -14px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 68px;
-  height: 18px;
-  z-index: 6;
-  touch-action: none;
-  -webkit-app-region: no-drag;
-  overflow: hidden;
-}
-
-.toolbar-grip::before {
-  content: "";
-  position: absolute;
-  top: 7px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 36px;
-  height: 4px;
-  border-radius: 999px;
-  background: rgba(17, 23, 35, 0.24);
-  box-shadow: 0 1px 0 rgba(255,255,255,0.38);
-  transition: transform 0.18s ease, background 0.18s ease;
-}
-
-.toolbar-grip::after {
-  content: "";
-  position: absolute;
-  top: 5px;
-  left: 0;
-  width: 100%;
-  height: 8px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.92) 50%, transparent 100%);
-  opacity: 0;
-  pointer-events: none;
-}
-
-.toolbar-grip:hover::before {
-  transform: translateX(-50%) translateY(-1px);
-  background: rgba(17, 23, 35, 0.34);
-  animation: gripBounce 0.32s ease;
-}
-
-.toolbar-grip:hover::after {
-  animation: slideToUnlockShine 1.15s ease-in-out infinite;
-  opacity: 0.95;
-}
-
-.toolbar-grip:active {
-  cursor: grabbing;
-}
-
-@keyframes gripBounce {
-  0% { transform: translateX(-50%) translateY(0); }
-  45% { transform: translateX(-50%) translateY(-2px) scaleX(1.03); }
-  100% { transform: translateX(-50%) translateY(-1px); }
-}
-
-@keyframes slideToUnlockShine {
-  0% { transform: translateX(-100%); opacity: 0; }
-  10% { opacity: 1; }
-  90% { opacity: 1; }
-  100% { transform: translateX(100%); opacity: 0; }
-}
-
 .toolbar-dismiss-hint {
   display: none;
 }
 
 /* State classes */
 .toolbar.dragging {
+  cursor: -webkit-grabbing;
+  cursor: grabbing;
   box-shadow:
     0 18px 42px rgba(0,0,0,0.34),
     0 10px 22px rgba(0,0,0,0.20),

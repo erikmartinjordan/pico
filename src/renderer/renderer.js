@@ -1968,8 +1968,7 @@ let isDismissed = false;
 
 function initToolbarDismiss() {
   const toolbar = document.querySelector('.toolbar');
-  const grip = toolbar?.querySelector('.toolbar-grip');
-  if (!toolbar || !grip) return;
+  if (!toolbar) return;
 
   const threshold = 42;
   const dismissOffset = 94;
@@ -2019,7 +2018,8 @@ function initToolbarDismiss() {
     setToolbarTransform(0);
   };
 
-  grip.addEventListener('pointerdown', (event) => {
+  toolbar.addEventListener('pointerdown', (event) => {
+    if (event.target.closest('button, .color-swatch, .stroke-picker')) return;
     if (isDismissed || !isFloatingMode()) return;
     event.preventDefault();
     event.stopPropagation();
@@ -2027,13 +2027,13 @@ function initToolbarDismiss() {
     pointerId = event.pointerId;
     startY = event.clientY;
     currentOffset = 0;
-    grip.setPointerCapture?.(event.pointerId);
+    toolbar.setPointerCapture?.(event.pointerId);
     toolbar.classList.add('dragging');
     toolbar.classList.remove('past-threshold');
     toolbar.style.transition = 'none';
   });
 
-  grip.addEventListener('pointermove', (event) => {
+  toolbar.addEventListener('pointermove', (event) => {
     if (!dragging || event.pointerId !== pointerId) return;
     const deltaY = Math.max(0, event.clientY - startY);
     currentOffset = Math.min(dismissOffset, deltaY);
@@ -2043,9 +2043,9 @@ function initToolbarDismiss() {
     toolbar.classList.toggle('past-threshold', isPastThreshold);
   });
 
-  grip.addEventListener('pointerup', (event) => {
+  toolbar.addEventListener('pointerup', (event) => {
     if (!dragging || event.pointerId !== pointerId) return;
-    grip.releasePointerCapture?.(event.pointerId);
+    toolbar.releasePointerCapture?.(event.pointerId);
     dragging = false;
     pointerId = null;
     toolbar.classList.remove('dragging');
@@ -2059,7 +2059,7 @@ function initToolbarDismiss() {
     cancelDrag();
   });
 
-  grip.addEventListener('pointercancel', (event) => {
+  toolbar.addEventListener('pointercancel', (event) => {
     if (!dragging || event.pointerId !== pointerId) return;
     cancelDrag();
   });
