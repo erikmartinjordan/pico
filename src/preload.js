@@ -41,8 +41,9 @@ async function getDesktopStream(sourceId, includeAudio) {
     mandatory: {
       chromeMediaSource: 'desktop',
       chromeMediaSourceId: sourceId,
-      cursor: 'never',
+      googCaptureCursor: false,
     },
+    cursor: 'never',
   };
   const audio = includeAudio ? {
     mandatory: {
