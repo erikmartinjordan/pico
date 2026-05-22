@@ -719,6 +719,7 @@ function showRecordingPreview(result = {}) {
   discardRecordingPreview({ silent: true });
   document.body.classList.add('has-content');
   resetFloatingToolbar();
+  document.documentElement.style.background = '#d7bea2';
   setAppWindowMode('editor');
   const bytes = result.data instanceof Uint8Array ? result.data : new Uint8Array(result.data);
   const blob = new Blob([bytes], { type: result.mimeType || 'video/webm' });
@@ -761,6 +762,7 @@ function discardRecordingPreview(options = {}) {
   if (!state.image) {
     document.body.classList.remove('has-content');
     document.body.classList.remove('has-image');
+    document.documentElement.style.background = '';
     setAppWindowMode('toolbar');
     requestAnimationFrame(() => resetFloatingToolbar());
   }
@@ -771,6 +773,7 @@ function showLiveRecordingPreview(started = {}, format = state.recordingFormat) 
   if (!elements.recordingPreview || !elements.recordingPreviewVideo) return;
   document.body.classList.add('has-content');
   resetFloatingToolbar();
+  document.documentElement.style.background = '#d7bea2';
   setAppWindowMode('editor');
   if (state.recordingPreview?.url) URL.revokeObjectURL(state.recordingPreview.url);
   state.recordingPreview = null;
@@ -915,6 +918,7 @@ function clearCanvas() {
   document.body.classList.remove('has-content');
   document.body.offsetHeight; // force reflow
   resetFloatingToolbar();
+  document.documentElement.style.background = '';
   setAppWindowMode('toolbar');
   elements.statusTool?.parentElement?.classList.remove('visible');
   elements.ctx.clearRect(0, 0, elements.canvas.width, elements.canvas.height);
@@ -978,6 +982,7 @@ function loadImage(dataUrl, options = {}) {
     document.body.classList.add('has-image');
     document.body.classList.remove('has-content');
     resetFloatingToolbar();
+    document.documentElement.style.background = '#d7bea2';
     setAppWindowMode('editor');
     elements.statusTool?.parentElement?.classList.add('visible');
     fitToWindow();
