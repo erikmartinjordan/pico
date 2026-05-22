@@ -87,17 +87,17 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
   const fps = 60;
   const enableAutoZoom = options.autoZoom !== false;
 
-  const zoomLevel = clamp(1.40 + ((srcRegion.width - 1280) / 4096), 1.40, 1.70);
+  const zoomLevel = clamp(1.22 + ((srcRegion.width - 1280) / 8192), 1.18, 1.32);
 
-  const IDLE_ZOOM_IN_DELAY_MS      = 900;
-  const IDLE_ZOOM_OUT_DELAY_MS     = 4000;
-  const LARGE_MOVE_THRESHOLD       = 220 * scaleFactor;
-  const FAST_MOVE_THRESHOLD_PX_S   = 520 * scaleFactor;
-  const FAST_MOVE_COOLDOWN_MS      = 700;
-  const ZOOM_SPEED                 = 1.6;
-  const PAN_SPEED                  = 2.0;
-  const TARGET_PAN_SPEED           = 4.5;
-  const TARGET_ZOOM_SPEED          = 3.5;
+  const IDLE_ZOOM_IN_DELAY_MS      = 1400;
+  const IDLE_ZOOM_OUT_DELAY_MS     = 2800;
+  const LARGE_MOVE_THRESHOLD       = 160 * scaleFactor;
+  const FAST_MOVE_THRESHOLD_PX_S   = 600 * scaleFactor;
+  const FAST_MOVE_COOLDOWN_MS      = 1600;
+  const ZOOM_SPEED                 = 0.7;
+  const PAN_SPEED                  = 0.9;
+  const TARGET_PAN_SPEED           = 1.8;
+  const TARGET_ZOOM_SPEED          = 1.4;
   const regionCenterX = srcRegion.x + srcRegion.width / 2;
   const regionCenterY = srcRegion.y + srcRegion.height / 2;
 
@@ -114,7 +114,7 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
   let prevCursorPx       = null;
   let prevPollTime       = null;
   let cursorSpeedEMA     = 0;
-  const EMA_ALPHA        = 0.35;
+  const EMA_ALPHA        = 0.18;
 
   let lastMoveTime = performance.now();
   let lastFrameTime = performance.now();
@@ -192,10 +192,10 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
 
     if (zoomState === 'ZOOMED_STILL') {
       targetCamera.zoom = zoomLevel;
-      targetCamera.x    = lastAnchor.x * 0.80 + cursor.x * 0.20;
-      targetCamera.y    = lastAnchor.y * 0.80 + cursor.y * 0.20;
+      targetCamera.x    = lastAnchor.x * 0.65 + cursor.x * 0.35;
+      targetCamera.y    = lastAnchor.y * 0.65 + cursor.y * 0.35;
     } else if (zoomState === 'ZOOMED_FOLLOW') {
-      targetCamera.zoom = zoomLevel * 0.88;
+      targetCamera.zoom = zoomLevel * 0.78;
       targetCamera.x    = cursor.x;
       targetCamera.y    = cursor.y;
     } else {
