@@ -900,6 +900,20 @@ function clearCanvas() {
   discardRecordingPreview({ silent: true });
   const capturePreview = document.getElementById('capture-preview');
   if (capturePreview) capturePreview.classList.remove('visible');
+
+  // THE FIX: Nuke the canvas context AND backing store BEFORE hiding it
+  if (elements.ctx && elements.canvas) {
+    // 1. Wipe the current drawing context
+    elements.ctx.clearRect(0, 0, elements.canvas.width, elements.canvas.height);
+
+    // 2. Destroy the GPU backing store by zeroing dimensions
+    elements.canvas.width = 0;
+    elements.canvas.height = 0;
+
+    // 3. Force a synchronous layout/paint recalculation so Chromium commits the empty texture
+    void elements.canvas.getBoundingClientRect();
+  }
+
   state.image = null;
   state.imageWidth = 0;
   state.imageHeight = 0;
@@ -909,15 +923,20 @@ function clearCanvas() {
   state.selectedAnnotationIndex = -1;
   state.windowContainerApplied = false;
   state.originalImageBeforeContainer = null;
+
+  // 4. NOW it is safe to remove visibility classes
   elements.canvas.classList.remove('visible');
   elements.emptyState.classList.remove('hidden');
   document.body.classList.remove('has-image');
   document.body.classList.remove('has-content');
-  document.body.offsetHeight; // force reflow
+
+  // 5. Force body reflow
+  void document.body.offsetHeight;
+
   resetFloatingToolbar();
   setAppWindowMode('toolbar');
   elements.statusTool?.parentElement?.classList.remove('visible');
-  elements.ctx.clearRect(0, 0, elements.canvas.width, elements.canvas.height);
+
   updateStatus();
   updateToolbarState();
   showToast('Canvas cleared', 'success');
