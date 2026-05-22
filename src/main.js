@@ -1572,6 +1572,13 @@ ipcMain.handle('window-set-mode', async (event, mode) => {
   return { success: true, mode: mainWindowMode };
 });
 
+
+ipcMain.handle('window-clear-background', async () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return { success: false };
+  mainWindow.setBackgroundColor('#00000000');
+  return { success: true };
+});
+
 ipcMain.handle('window-toggle-maximize', async () => {
   if (!mainWindow || mainWindow.isDestroyed()) return { success: false };
   if (mainWindowMode !== 'editor') applyEditorWindowMode({ show: true });
