@@ -147,7 +147,6 @@ function applyToolbarWindowMode(options = {}) {
   mainWindow.setMaximizable(false);
   if (typeof mainWindow.setFullScreenable === 'function') mainWindow.setFullScreenable(false);
   mainWindow.setSkipTaskbar(process.platform === 'darwin');
-  mainWindow.setBackgroundColor('#00000000');
   try { mainWindow.setHasShadow(false); } catch (_) {}
   try { mainWindow.setAlwaysOnTop(true, process.platform === 'darwin' ? 'floating' : 'normal'); } catch (_) { mainWindow.setAlwaysOnTop(true); }
   if (process.platform === 'darwin') {
@@ -172,7 +171,6 @@ function applyEditorWindowMode(options = {}) {
   if (typeof mainWindow.setFullScreenable === 'function') mainWindow.setFullScreenable(true);
   mainWindow.setMinimumSize(EDITOR_MIN_SIZE.width, EDITOR_MIN_SIZE.height);
   mainWindow.setSkipTaskbar(false);
-  mainWindow.setBackgroundColor('#d7bea2');
   try { mainWindow.setAlwaysOnTop(false); } catch (_) {}
   if (process.platform === 'darwin') {
     try { mainWindow.setVisibleOnAllWorkspaces(false); } catch (_) {}

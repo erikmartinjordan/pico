@@ -18,7 +18,7 @@ html, body { height: 100%; overflow: hidden; }
 body {
   display: flex;
   flex-direction: column;
-  background: transparent !important;
+  background: transparent;
   transition: none;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
   color: var(--text);
