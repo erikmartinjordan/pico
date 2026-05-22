@@ -36,6 +36,18 @@ async function getCursorScreenPoint() {
   return ipcRenderer.invoke('get-cursor-screen-point');
 }
 
+async function waitForDisplayRefresh(platform = process.platform) {
+  // [FIX #1] Ensure compositor updates are fully applied before capture starts to prevent recursive preview frames.
+  const baseDelay = platform === 'darwin' ? 400 : 160;
+  await new Promise((resolve) => setTimeout(resolve, baseDelay));
+  if (platform === 'darwin') {
+    try {
+      await ipcRenderer.invoke('pro-recording-compositor-flush');
+    } catch (_) {}
+    await new Promise((resolve) => setTimeout(resolve, 60));
+  }
+}
+
 async function getDesktopStream(sourceId, includeAudio) {
   const video = {
     mandatory: {
@@ -74,12 +86,24 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
   canvas.height = evenDimension(pixelHeight);
   const ctx = canvas.getContext('2d', { alpha: false });
 
-  const srcRegion = {
+  let srcRegion = {
     x: region.pixelX ?? Math.round(region.x * scaleFactor),
     y: region.pixelY ?? Math.round(region.y * scaleFactor),
     width: canvas.width,
     height: canvas.height,
   };
+
+  // [FIX #3] Validate logical/pixel mapping for HiDPI and fallback to scaleFactor derivation when aspect drift suggests mismatched coordinates.
+  const streamAspect = canvas.width / Math.max(1, canvas.height);
+  const regionAspect = region.width / Math.max(1, region.height);
+  if (Math.abs(streamAspect - regionAspect) / Math.max(0.0001, regionAspect) > 0.05) {
+    srcRegion = {
+      x: Math.round(region.x * scaleFactor),
+      y: Math.round(region.y * scaleFactor),
+      width: canvas.width,
+      height: canvas.height,
+    };
+  }
 
   const displayBounds = region.displayBounds || { x: 0, y: 0, width: region.width, height: region.height };
   const pixelScaleX = region.width > 0 ? srcRegion.width / region.width : scaleFactor;
@@ -166,8 +190,10 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
 
       cursor.x = clamp(px, srcRegion.x, srcRegion.x + srcRegion.width);
       cursor.y = clamp(py, srcRegion.y, srcRegion.y + srcRegion.height);
+      return performance.now() - now;
     } catch {
       // ignore isolated IPC glitches
+      return 0;
     } finally {
       cursorPollInFlight = false;
     }
@@ -258,14 +284,38 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
 
   const stop = () => {
     stopped = true;
-    if (pollTimer) clearInterval(pollTimer);
+    if (pollTimer) clearTimeout(pollTimer);
     if (rafId) cancelAnimationFrame(rafId);
   };
 
-  const ready = video.play().then(() => {
+  const ready = video.play().then(async () => {
+    // [FIX #2] Wait for decoded frame readiness before draw loop to avoid initial/final black-frame artifacts.
+    ctx.fillStyle = '#09090b';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    await Promise.race([
+      new Promise((resolve) => video.addEventListener('loadeddata', resolve, { once: true })),
+      new Promise((resolve) => video.addEventListener('canplay', resolve, { once: true })),
+      new Promise((resolve) => setTimeout(resolve, 2000)),
+    ]);
+    const videoNaturalWidth = Math.max(1, video.videoWidth || canvas.width);
+    const videoNaturalHeight = Math.max(1, video.videoHeight || canvas.height);
+    // [FIX #3] Clamp source region to decoded video bounds to keep drawImage in-range on mixed-DPI displays.
+    srcRegion.x = clamp(srcRegion.x, 0, Math.max(0, videoNaturalWidth - 2));
+    srcRegion.y = clamp(srcRegion.y, 0, Math.max(0, videoNaturalHeight - 2));
+    srcRegion.width = clamp(srcRegion.width, 2, Math.max(2, videoNaturalWidth - srcRegion.x));
+    srcRegion.height = clamp(srcRegion.height, 2, Math.max(2, videoNaturalHeight - srcRegion.y));
+
     lastFrameTime = performance.now();
     if (enableAutoZoom) {
-      pollTimer = setInterval(pollCursor, 16); // 60 Hz
+      // [FIX #7] Replace fixed-interval IPC polling with self-scheduling capped polling to prevent IPC flooding.
+      const scheduleCursorPoll = async () => {
+        if (stopped) return;
+        const durationMs = await pollCursor();
+        if (stopped) return;
+        const delay = durationMs > 40 ? 40 : 20;
+        pollTimer = setTimeout(scheduleCursorPoll, delay);
+      };
+      scheduleCursorPoll();
     }
     draw();
     return canvasStream;
@@ -346,6 +396,7 @@ async function startRecording(options = {}) {
   if (!source) throw new Error('Recording canceled');
   let systemAudio = true;
   let rawStream = null;
+  let zoomPipeline = null;
   try {
     if (!navigator.mediaDevices?.getUserMedia) {
       throw new Error('Screen recording is unavailable because media capture APIs are not available.');
@@ -359,14 +410,22 @@ async function startRecording(options = {}) {
       region: source.mode === 'region' ? source.region : null,
     });
 
-    try {
-      rawStream = await getDesktopStream(source.id, true);
-    } catch (audioError) {
+    // [FIX #1] Wait for compositor refresh after windows are hidden, before stream acquisition.
+    await waitForDisplayRefresh(window.pico?.platform || process.platform);
+
+    // [FIX #6] macOS has no system-audio desktop capture; skip unsupported path and only warn on other platforms.
+    if ((window.pico?.platform || process.platform) === 'darwin') {
       systemAudio = false;
       rawStream = await getDesktopStream(source.id, false);
+    } else {
+      try {
+        rawStream = await getDesktopStream(source.id, true);
+      } catch (audioError) {
+        systemAudio = false;
+        rawStream = await getDesktopStream(source.id, false);
+      }
     }
 
-    let zoomPipeline = null;
     const shouldCropRegion = mode === 'region' && source.region;
     const autoZoomRegion = shouldCropRegion
       ? source.region
@@ -384,6 +443,7 @@ async function startRecording(options = {}) {
       proRecordingZoomStop = null;
     }
 
+    await ipcRenderer.invoke('pro-recording-started').catch(() => {});
     attachRecordingPreviewStream(null, proRecordingStream);
 
     const mimeType = getRecordingMimeType();
@@ -399,6 +459,8 @@ async function startRecording(options = {}) {
     }).catch(() => {});
     return { success: true, pro: true, source, systemAudio, mimeType };
   } catch (error) {
+    // [FIX #8] Stop local zoom pipeline directly in error paths before module-level stop hook may be assigned.
+    try { zoomPipeline?.stop?.(); } catch (_) {}
     proRecordingZoomStop?.();
     rawStream?.getTracks().forEach((track) => track.stop());
     proRecordingStream?.getTracks().forEach((track) => track.stop());
@@ -421,10 +483,13 @@ function stopRecording(options = {}) {
     const shouldExportGif = options === true || options?.format === 'gif' || Boolean(options?.gif);
     proRecorder.onerror = (event) => reject(event.error || new Error('Screen recording failed'));
     proRecorder.onstop = async () => {
+      // [FIX #4] Defer blob assembly one tick so trailing dataavailable events are included across Chromium variants.
+      setTimeout(async () => {
       try {
+        if (proRecordingChunks.length === 0) throw new Error('Recording captured no frames. Please try again.');
         const blob = new Blob(proRecordingChunks, { type: proRecorder.mimeType || 'video/webm' });
-        if (blob.size === 0) {
-          throw new Error('Recording did not capture any video data. Please try again.');
+        if (blob.size < 2048) {
+          throw new Error('Recording captured no usable video data.');
         }
         const arrayBuffer = await blob.arrayBuffer();
         await ipcRenderer.invoke('pro-recording-indicator-hide');
@@ -448,6 +513,7 @@ function stopRecording(options = {}) {
         proRecorder = null;
         proRecordingChunks = [];
       }
+      }, 0);
     };
     if (proRecorder.state === 'recording' && typeof proRecorder.requestData === 'function') {
       proRecorder.requestData();
@@ -509,4 +575,5 @@ contextBridge.exposeInMainWorld('pico', {
 
   // Platform info
   platform: process.platform,
+  __recordingTestHooks: { waitForDisplayRefresh, clamp },
 });
