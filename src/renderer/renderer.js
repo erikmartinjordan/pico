@@ -717,6 +717,7 @@ async function toggleRecording(event) {
 function showRecordingPreview(result = {}) {
   if (!result?.data || !elements.recordingPreview || !elements.recordingPreviewVideo) return;
   discardRecordingPreview({ silent: true });
+  elements.emptyState.classList.add('hidden');
   document.body.classList.add('has-content');
   resetFloatingToolbar();
   setAppWindowMode('editor');
