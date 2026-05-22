@@ -75,12 +75,13 @@ async function convertMp4ToGif(mp4Path, requestedOutputPath = null) {
     const ffmpeg = resolveBundledBinary('ffmpeg');
     const framePattern = path.join(frameDir, 'frame-%06d.png');
     const gifWidth = 1280;
-    await runBinary(ffmpeg, ['-y', '-i', mp4Path, '-vf', `fps=12,scale=${gifWidth}:-1:flags=lanczos`, framePattern]);
+    // [FIX #10] Improve GIF quality/fps: extract at 20fps and higher quality scaling before gifski encoding.
+    await runBinary(ffmpeg, ['-y', '-i', mp4Path, '-vf', `fps=20,scale=${gifWidth}:-1:flags=lanczos`, framePattern]);
     const frames = fs.readdirSync(frameDir)
       .filter((name) => name.endsWith('.png'))
       .sort()
       .map((name) => path.join(frameDir, name));
-    await runBinary(gifski, ['--fps', '12', '--quality', '85', '--width', String(gifWidth), '--output', gifPath, ...frames]);
+    await runBinary(gifski, ['--fps', '20', '--quality', '90', '--width', String(gifWidth), '--output', gifPath, ...frames]);
     return gifPath;
   } finally {
     fs.rmSync(frameDir, { recursive: true, force: true });

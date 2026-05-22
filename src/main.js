@@ -24,6 +24,7 @@ let desktopIconsVisibleBeforeRecording = true;
 let preferencesWindow = null;
 let mainWindowMode = 'toolbar';
 let lastEditorBounds = null;
+let hasShownFfmpegWarning = false;
 
 const TOOLBAR_WINDOW_SIZE = { width: 340, height: 108 };
 const TOOLBAR_MIN_SIZE = { width: 280, height: 86 };
@@ -835,7 +836,8 @@ function showRecordingIndicator(options = {}) {
 
       overlayWindow.setAlwaysOnTop(true, 'screen-saver');
       overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-      overlayWindow.setContentProtection(true);
+      // [FIX #5] Delay contentProtection assertion until stream starts; timing improves DXGI exclusion behavior.
+      overlayWindow.setContentProtection(false);
       overlayWindow.setIgnoreMouseEvents(true, { forward: true });
 
       overlayWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`
@@ -916,7 +918,8 @@ function showRecordingIndicator(options = {}) {
 
   controlsWindow.setAlwaysOnTop(true, 'screen-saver');
   controlsWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  controlsWindow.setContentProtection(true);
+  // [FIX #5] Delay contentProtection assertion until stream starts; timing improves DXGI exclusion behavior.
+  controlsWindow.setContentProtection(false);
 
   controlsWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`
   <!DOCTYPE html>
@@ -1608,11 +1611,27 @@ async function hidePicoWindowsBeforeRecording() {
     }
   }
 
-  // Let the OS compositor publish the hidden state before Chromium starts
+  // [FIX #1] Let the OS compositor publish hidden state before capture starts
   // reading desktop frames. Without this guard, the first captured frames can
   // contain pico itself and create the recursive preview effect.
   await new Promise((resolve) => setTimeout(resolve, process.platform === 'darwin' ? 260 : 160));
 }
+
+ipcMain.handle('pro-recording-compositor-flush', async () => {
+  await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1, height: 1 } });
+  return { success: true };
+});
+
+ipcMain.handle('pro-recording-started', async () => {
+  // [FIX #5] Apply content protection after stream start so DXGI path excludes indicator windows more reliably.
+  for (const win of recordingIndicatorWindows) {
+    if (win && !win.isDestroyed()) {
+      try { win.setContentProtection(true); } catch (_) {}
+      try { win.webContents.setFrameRate(1); } catch (_) {}
+    }
+  }
+  return { success: true };
+});
 
 ipcMain.handle('pro-recording-prepare', async (event, payload = {}) => {
   if (payload?.region) lastRecordingRegion = payload.region;
@@ -1741,6 +1760,17 @@ ipcMain.handle('pro-save-recording', async (event, payload) => {
       const webmOutputPath = outputPath.replace(/\.[^.]+$/i, '.webm');
       fs.mkdirSync(path.dirname(webmOutputPath), { recursive: true });
       fs.copyFileSync(webmPath, webmOutputPath);
+      // [FIX #9] Notify user once per session when MP4 conversion falls back to WebM in configured save directories.
+      if (!hasShownFfmpegWarning) {
+        hasShownFfmpegWarning = true;
+        const fileName = path.basename(webmOutputPath);
+        const directory = path.dirname(webmOutputPath);
+        dialog.showMessageBox(mainWindow, {
+          type: 'info',
+          message: `Saved as ${fileName} in ${directory} because MP4 conversion tools are unavailable.`,
+          buttons: ['OK'],
+        }).catch(() => {});
+      }
       return {
         webm: webmOutputPath,
         warning: `Saved as .webm (bundled ffmpeg/gifski conversion tools are unavailable for ${format.toUpperCase()} export).`,
