@@ -895,8 +895,11 @@ async function pasteFromClipboard() {
 }
 
 function clearCanvas() {
-  if (!state.image) return;
+  if (!state.image && !state.recordingPreview) return;
   if (state.cropActive) cancelCrop();
+  discardRecordingPreview({ silent: true });
+  const capturePreview = document.getElementById('capture-preview');
+  if (capturePreview) capturePreview.classList.remove('visible');
   state.image = null;
   state.imageWidth = 0;
   state.imageHeight = 0;
@@ -1749,6 +1752,8 @@ function showCapturePreview(dataUrl, captureMode = 'region') {
 }
 
 function showToast(message, type = 'info') {
+  const isToolbarOnlyState = !state.image && !document.body.classList.contains('has-content');
+  if (isToolbarOnlyState) return;
   const toast = document.createElement('div');
   toast.className = `toast toast-${type}`;
   toast.textContent = message;
