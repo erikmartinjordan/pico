@@ -147,7 +147,7 @@ function applyToolbarWindowMode(options = {}) {
   mainWindow.setMaximizable(false);
   if (typeof mainWindow.setFullScreenable === 'function') mainWindow.setFullScreenable(false);
   mainWindow.setSkipTaskbar(process.platform === 'darwin');
-  mainWindow.setBackgroundColor('#00000000');
+  mainWindow.setBackgroundColor('#d7bea2');
   try { mainWindow.setHasShadow(false); } catch (_) {}
   try { mainWindow.setAlwaysOnTop(true, process.platform === 'darwin' ? 'floating' : 'normal'); } catch (_) { mainWindow.setAlwaysOnTop(true); }
   if (process.platform === 'darwin') {
@@ -1570,6 +1570,20 @@ ipcMain.handle('window-set-mode', async (event, mode) => {
   if (mode === 'editor') applyEditorWindowMode();
   else applyToolbarWindowMode();
   return { success: true, mode: mainWindowMode };
+});
+
+
+ipcMain.handle('window-invalidate-surface', async () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return { success: false };
+  try {
+    const bounds = mainWindow.getBounds();
+    mainWindow.setBounds({ ...bounds, width: bounds.width + 1 }, false);
+    mainWindow.setBounds(bounds, false);
+    if (typeof mainWindow.webContents.invalidate === 'function') mainWindow.webContents.invalidate();
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
 });
 
 ipcMain.handle('window-toggle-maximize', async () => {

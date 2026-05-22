@@ -57,6 +57,9 @@ const state = {
   recordingPreview: null,
   recordingSettings: { format: 'mp4', autoZoom: true },
   captureSettings: { hideDesktopIcons: true },
+  activeCaptureStream: null,
+  activeCaptureVideo: null,
+  cleanupRafId: null,
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -129,6 +132,51 @@ function setAppWindowMode(mode) {
 
 function resetFloatingToolbar() {
   resetToolbarDismissState();
+}
+
+
+function stopCaptureStream(stream) {
+  if (!stream) return;
+  stream.getTracks?.().forEach((track) => {
+    try { track.stop(); } catch (_) {}
+  });
+}
+
+function flushAndResetCanvas(canvas, ctx) {
+  if (!canvas || !ctx) return;
+  canvas.style.visibility = 'hidden';
+  canvas.style.opacity = '0';
+  canvas.style.pointerEvents = 'none';
+  void canvas.offsetHeight;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  canvas.width = 0;
+  canvas.height = 0;
+  canvas.style.width = '0px';
+  canvas.style.height = '0px';
+  void canvas.offsetHeight;
+}
+
+async function forceCompositorRepaint() {
+  document.body.style.transform = 'translateZ(0)';
+  void document.body.offsetHeight;
+  document.body.style.transform = '';
+  await window.pico?.invalidateWindowSurface?.();
+}
+
+async function teardownCaptureSurface() {
+  if (state.cleanupRafId) cancelAnimationFrame(state.cleanupRafId);
+  state.cleanupRafId = null;
+  stopCaptureStream(state.activeCaptureStream);
+  state.activeCaptureStream = null;
+  if (state.activeCaptureVideo) {
+    state.activeCaptureVideo.pause?.();
+    state.activeCaptureVideo.srcObject = null;
+    state.activeCaptureVideo.removeAttribute?.('src');
+    state.activeCaptureVideo.load?.();
+  }
+  state.activeCaptureVideo = null;
+  flushAndResetCanvas(elements.canvas, elements.ctx);
+  await forceCompositorRepaint();
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -894,7 +942,7 @@ async function pasteFromClipboard() {
   }
 }
 
-function clearCanvas() {
+async function clearCanvas() {
   if (!state.image && !state.recordingPreview) return;
   if (state.cropActive) cancelCrop();
   discardRecordingPreview({ silent: true });
@@ -917,7 +965,7 @@ function clearCanvas() {
   resetFloatingToolbar();
   setAppWindowMode('toolbar');
   elements.statusTool?.parentElement?.classList.remove('visible');
-  elements.ctx.clearRect(0, 0, elements.canvas.width, elements.canvas.height);
+  await teardownCaptureSurface();
   updateStatus();
   updateToolbarState();
   showToast('Canvas cleared', 'success');
@@ -973,6 +1021,11 @@ function loadImage(dataUrl, options = {}) {
     state.zoom = 1;
     elements.canvas.width = img.width;
     elements.canvas.height = img.height;
+    elements.canvas.style.width = '';
+    elements.canvas.style.height = '';
+    elements.canvas.style.visibility = '';
+    elements.canvas.style.opacity = '';
+    elements.canvas.style.pointerEvents = '';
     elements.canvas.classList.add('visible');
     elements.emptyState.classList.add('hidden');
     document.body.classList.add('has-image');
@@ -2092,6 +2145,27 @@ function initToolbarDismiss() {
     restoreToolbar({ animate: false });
   });
 }
+
+async function runCanvasCleanupStressTest(iterations = 120) {
+  const readback = document.createElement('canvas');
+  readback.width = 1;
+  readback.height = 1;
+  const ctx = readback.getContext('2d');
+  for (let i = 0; i < iterations; i += 1) {
+    elements.canvas.width = 4;
+    elements.canvas.height = 4;
+    elements.ctx.fillStyle = '#8b5a2b';
+    elements.ctx.fillRect(0, 0, 4, 4);
+    await teardownCaptureSurface();
+    ctx.clearRect(0, 0, 1, 1);
+    ctx.drawImage(elements.canvas, 0, 0, 1, 1);
+    const pixel = ctx.getImageData(0, 0, 1, 1).data;
+    if (pixel[3] !== 0) throw new Error(`cleanup artifact at iteration ${i}`);
+  }
+  console.log(`[pico][renderer] canvas cleanup stress test passed (${iterations})`);
+}
+
+window.__picoRunCanvasCleanupStressTest = runCanvasCleanupStressTest;
 
 document.addEventListener('DOMContentLoaded', () => {
   init();
