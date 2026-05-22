@@ -127,6 +127,10 @@ function setAppWindowMode(mode) {
   return window.pico?.setWindowMode?.(mode)?.catch?.(() => {});
 }
 
+function clearWindowBackground() {
+  return window.pico?.clearWindowBackground?.()?.catch?.(() => {});
+}
+
 function resetFloatingToolbar() {
   resetToolbarDismissState();
 }
@@ -714,9 +718,9 @@ async function toggleRecording(event) {
   }
 }
 
-function showRecordingPreview(result = {}) {
+async function showRecordingPreview(result = {}) {
   if (!result?.data || !elements.recordingPreview || !elements.recordingPreviewVideo) return;
-  discardRecordingPreview({ silent: true });
+  await discardRecordingPreview({ silent: true });
   document.body.classList.add('has-content');
   resetFloatingToolbar();
   setAppWindowMode('editor');
@@ -744,7 +748,7 @@ function showRecordingPreview(result = {}) {
   elements.recordingPreview.setAttribute('aria-hidden', 'false');
 }
 
-function discardRecordingPreview(options = {}) {
+async function discardRecordingPreview(options = {}) {
   if (state.recordingPreview?.url) URL.revokeObjectURL(state.recordingPreview.url);
   state.recordingPreview = null;
   if (elements.recordingPreviewVideo) {
@@ -761,7 +765,8 @@ function discardRecordingPreview(options = {}) {
   if (!state.image) {
     document.body.classList.remove('has-content');
     document.body.classList.remove('has-image');
-    setAppWindowMode('toolbar');
+    await clearWindowBackground();
+    await setAppWindowMode('toolbar');
     requestAnimationFrame(() => resetFloatingToolbar());
   }
   if (!options?.silent) showToast('Recording discarded', 'info');
@@ -800,7 +805,7 @@ async function saveRecordingPreview() {
     const savedPath = result.gif || result.mp4 || result.webm;
     const warning = result.warning ? ` (${result.warning})` : '';
     showToast(`Saved recording: ${savedPath}${warning}`, result.warning ? 'info' : 'success');
-    discardRecordingPreview({ silent: true });
+    await discardRecordingPreview({ silent: true });
   } catch (err) {
     showToast(`Recording save failed: ${err.message}`, 'error');
   } finally {
@@ -894,10 +899,10 @@ async function pasteFromClipboard() {
   }
 }
 
-function clearCanvas() {
+async function clearCanvas() {
   if (!state.image && !state.recordingPreview) return;
   if (state.cropActive) cancelCrop();
-  discardRecordingPreview({ silent: true });
+  await discardRecordingPreview({ silent: true });
   const capturePreview = document.getElementById('capture-preview');
   if (capturePreview) capturePreview.classList.remove('visible');
   state.image = null;
@@ -909,13 +914,14 @@ function clearCanvas() {
   state.selectedAnnotationIndex = -1;
   state.windowContainerApplied = false;
   state.originalImageBeforeContainer = null;
+  await clearWindowBackground();
+  await setAppWindowMode('toolbar');
   elements.canvas.classList.remove('visible');
   elements.emptyState.classList.remove('hidden');
   document.body.classList.remove('has-image');
   document.body.classList.remove('has-content');
   document.body.offsetHeight; // force reflow
   resetFloatingToolbar();
-  setAppWindowMode('toolbar');
   elements.statusTool?.parentElement?.classList.remove('visible');
   elements.ctx.clearRect(0, 0, elements.canvas.width, elements.canvas.height);
   updateStatus();
