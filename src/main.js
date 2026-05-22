@@ -1187,122 +1187,127 @@ async function captureAllScreens() {
 }
 
 function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) {
-  const displays = screen.getAllDisplays();
-
-  displays.forEach((display) => {
-    const win = new BrowserWindow({
-      x: display.bounds.x,
-      y: display.bounds.y,
-      width: display.bounds.width,
-      height: display.bounds.height,
-      frame: false,
-      transparent: false,
-      backgroundColor: '#000000',
-      hasShadow: false,
-      skipTaskbar: true,
-      resizable: false,
-      movable: false,
-      fullscreenable: true,
-      enableLargerThanScreen: true,
-      show: false,
-      webPreferences: {
-        preload: path.join(__dirname, 'preload.js'),
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: true,
-      },
-    });
-
-    win.setAlwaysOnTop(true, 'screen-saver');
-    win.loadFile(path.join(__dirname, 'renderer', 'capture-overlay.html'));
-
-    win.webContents.once('did-finish-load', () => {
-      win.setBounds({
-        x: display.bounds.x, y: display.bounds.y,
-        width: display.bounds.width, height: display.bounds.height,
+    const displays = screen.getAllDisplays();
+    const readyPromises = [];
+  
+    displays.forEach((display) => {
+      const win = new BrowserWindow({
+        x: display.bounds.x,
+        y: display.bounds.y,
+        width: display.bounds.width,
+        height: display.bounds.height,
+        frame: false,
+        transparent: false,
+        backgroundColor: '#000000',
+        hasShadow: false,
+        skipTaskbar: true,
+        resizable: false,
+        movable: false,
+        fullscreenable: true,
+        enableLargerThanScreen: true,
+        show: false,
+        webPreferences: {
+          preload: path.join(__dirname, 'preload.js'),
+          contextIsolation: true,
+          nodeIntegration: false,
+          sandbox: true,
+        },
       });
-      win.show();
-
-      const screenData = captureData.type === 'multi'
-        ? captureData.screens.find(s =>
-            s.bounds.x === display.bounds.x && s.bounds.y === display.bounds.y &&
-            s.bounds.width === display.bounds.width && s.bounds.height === display.bounds.height
-          )
-        : captureData;
-
-      // Convert window bounds to display-relative logical coordinates.
-      // Electron's display.bounds is always in logical CSS pixels.
-      // On Windows, DwmGetWindowAttribute returns physical pixels, so divide by scaleFactor first.
-      // On macOS, Quartz CGWindowBounds are already in logical points, so use as-is.
-      const displayWindowBounds = windowBounds
-        .map((wb) => {
-          // UIAutomation BoundingRectangle returns logical pixels (DIPs) that match
-          // Electron's display.bounds coordinate space. Use directly without scaling.
-          const dx1 = display.bounds.x;
-          const dy1 = display.bounds.y;
-          const dx2 = display.bounds.x + display.bounds.width;
-          const dy2 = display.bounds.y + display.bounds.height;
-
-          // Clip to this display and convert to display-relative coords
-          const ix1 = Math.max(wb.x, dx1);
-          const iy1 = Math.max(wb.y, dy1);
-          const ix2 = Math.min(wb.x + wb.width, dx2);
-          const iy2 = Math.min(wb.y + wb.height, dy2);
-          if (ix2 - ix1 <= 0 || iy2 - iy1 <= 0) return null;
-
-          return {
-            ...wb,
-            x: ix1 - dx1,
-            y: iy1 - dy1,
-            width: ix2 - ix1,
-            height: iy2 - iy1,
-          };
-        })
-        .filter(Boolean);
-
-      win.webContents.send('capture-data', {
-        mode,
-        type: 'single',
-        dataUrl: screenData ? screenData.dataUrl : captureData.dataUrl,
-        bounds: display.bounds,
-        scaleFactor: screenData?.scaleFactor || display.scaleFactor || 1,
-        pixelSize: screenData?.pixelSize,
-        displayId: screenData?.displayId || display.id,
-        sourceId: screenData?.sourceId,
-        windowBounds: displayWindowBounds,
-        platform: process.platform,
+  
+      win.setAlwaysOnTop(true, 'screen-saver');
+      win.loadFile(path.join(__dirname, 'renderer', 'capture-overlay.html'));
+  
+      const p = new Promise((resolve) => {
+        win.webContents.once('did-finish-load', () => {
+          win.setBounds({
+            x: display.bounds.x, y: display.bounds.y,
+            width: display.bounds.width, height: display.bounds.height,
+          });
+          win.show();
+  
+          const screenData = captureData.type === 'multi'
+            ? captureData.screens.find(s =>
+                s.bounds.x === display.bounds.x && s.bounds.y === display.bounds.y &&
+                s.bounds.width === display.bounds.width && s.bounds.height === display.bounds.height
+              )
+            : captureData;
+  
+          const displayWindowBounds = windowBounds
+            .map((wb) => {
+              const dx1 = display.bounds.x;
+              const dy1 = display.bounds.y;
+              const dx2 = display.bounds.x + display.bounds.width;
+              const dy2 = display.bounds.y + display.bounds.height;
+              const ix1 = Math.max(wb.x, dx1);
+              const iy1 = Math.max(wb.y, dy1);
+              const ix2 = Math.min(wb.x + wb.width, dx2);
+              const iy2 = Math.min(wb.y + wb.height, dy2);
+              if (ix2 - ix1 <= 0 || iy2 - iy1 <= 0) return null;
+              return {
+                ...wb,
+                x: ix1 - dx1,
+                y: iy1 - dy1,
+                width: ix2 - ix1,
+                height: iy2 - iy1,
+              };
+            })
+            .filter(Boolean);
+  
+          win.webContents.send('capture-data', {
+            mode,
+            type: 'single',
+            dataUrl: screenData ? screenData.dataUrl : captureData.dataUrl,
+            bounds: display.bounds,
+            scaleFactor: screenData?.scaleFactor || display.scaleFactor || 1,
+            pixelSize: screenData?.pixelSize,
+            displayId: screenData?.displayId || display.id,
+            sourceId: screenData?.sourceId,
+            windowBounds: displayWindowBounds,
+            platform: process.platform,
+          });
+  
+          resolve();
+        });
       });
+      readyPromises.push(p);
+  
+      win.on('closed', () => { captureWindows = captureWindows.filter(w => w !== win); });
+      captureWindows.push(win);
     });
-
-    win.on('closed', () => { captureWindows = captureWindows.filter(w => w !== win); });
-    captureWindows.push(win);
-  });
-}
+  
+    return Promise.all(readyPromises);
+  }
 
 // ── IPC Handlers ────────────────────────────────────────────────────────────
 
 ipcMain.handle('start-capture', async (event, options = {}) => {
-  console.log('[pico][capture] start-capture invoked');
-  if (mainWindow) mainWindow.hide();
-  await new Promise(r => setTimeout(r, 200));
-
-  try {
-    const status = process.platform === 'darwin' ? getMacScreenRecordingStatus() : 'granted';
-    console.log('[pico][capture] permission status:', status);
-    if (!await ensureMacScreenRecordingPermission()) {
+    console.log('[pico][capture] start-capture invoked');
+    if (mainWindow) mainWindow.hide();
+    await new Promise(r => setTimeout(r, 200));
+  
+    try {
+      if (!await ensureMacScreenRecordingPermission()) {
+        if (mainWindow) showMainWindowForCurrentMode();
+        return { success: false, error: 'Screen Recording permission is required.' };
+      }
+      const captureData = await withHiddenDesktopIcons(options, async () => captureAllScreens());
+      console.log('[pico][capture] capture data ready; creating overlays');
+      await createCaptureOverlays(captureData, 'region', []);  // ← await
+  
+      // All overlays are now visible — lift pill above them
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        try { mainWindow.setAlwaysOnTop(true, 'screen-saver'); } catch (_) { mainWindow.setAlwaysOnTop(true); }
+        mainWindow.showInactive();
+        mainWindow.moveTop();
+      }
+  
+      return { success: true };
+    } catch (err) {
+      console.error('[pico][capture] start-capture failed:', err.message);
       if (mainWindow) showMainWindowForCurrentMode();
-      return { success: false, error: 'Screen Recording permission is required.' };
+      return { success: false, error: err.message };
     }
-    const captureData = await withHiddenDesktopIcons(options, async () => captureAllScreens());
-    console.log('[pico][capture] capture data ready; creating overlays');
-    createCaptureOverlays(captureData, 'region', []);
-    return { success: true };
-  } catch (err) {
-    console.error('[pico][capture] start-capture failed:', err.message);
-    if (mainWindow) showMainWindowForCurrentMode();
-    return { success: false, error: err.message };
-  }
-});
+  });
 
 ipcMain.handle('start-capture-window', async (event, options = {}) => {
   if (mainWindow) mainWindow.hide();
