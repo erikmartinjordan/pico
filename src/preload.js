@@ -89,15 +89,15 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
 
   const zoomLevel = clamp(1.65 + ((srcRegion.width - 1280) / 4096), 1.55, 1.90);
 
-  const IDLE_ZOOM_IN_DELAY_MS      = 400;
-  const IDLE_ZOOM_OUT_DELAY_MS     = 5000;
-  const LARGE_MOVE_THRESHOLD       = 300 * scaleFactor;
-  const FAST_MOVE_THRESHOLD_PX_S   = 900 * scaleFactor;
-  const FAST_MOVE_COOLDOWN_MS      = 500;
-  const ZOOM_SPEED                 = 0.55;
-  const PAN_SPEED                  = 3.5;
-  const TARGET_PAN_SPEED           = 6.0;
-  const TARGET_ZOOM_SPEED          = 1.0;
+  const IDLE_ZOOM_IN_DELAY_MS      = 750;
+  const IDLE_ZOOM_OUT_DELAY_MS     = 4000;
+  const LARGE_MOVE_THRESHOLD       = 450 * scaleFactor;
+  const FAST_MOVE_THRESHOLD_PX_S   = 1400 * scaleFactor;
+  const FAST_MOVE_COOLDOWN_MS      = 800;
+  const ZOOM_SPEED                 = 1.5;
+  const PAN_SPEED                  = 1.8;
+  const TARGET_PAN_SPEED           = 3.0;
+  const TARGET_ZOOM_SPEED          = 2.5;
   const regionCenterX = srcRegion.x + srcRegion.width / 2;
   const regionCenterY = srcRegion.y + srcRegion.height / 2;
 
@@ -192,10 +192,12 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
 
     if (zoomState === 'ZOOMED_STILL') {
       targetCamera.zoom = zoomLevel;
-      targetCamera.x    = lastAnchor.x * 0.30 + cursor.x * 0.70;
-      targetCamera.y    = lastAnchor.y * 0.30 + cursor.y * 0.70;
+      // Heavier anchor weighting prevents micro-jitters when clicking nearby UI
+      targetCamera.x    = lastAnchor.x * 0.45 + cursor.x * 0.55;
+      targetCamera.y    = lastAnchor.y * 0.45 + cursor.y * 0.55;
     } else if (zoomState === 'ZOOMED_FOLLOW') {
-      targetCamera.zoom = zoomLevel * 0.96;
+      // Pull out slightly more during movement for better spatial context
+      targetCamera.zoom = zoomLevel * 0.92;
       targetCamera.x    = cursor.x;
       targetCamera.y    = cursor.y;
     } else {
