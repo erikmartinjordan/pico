@@ -9,6 +9,9 @@ const path = require('path');
 const fs = require('fs');
 const { tempRecordingPath, convertWebmToMp4, convertMp4ToGif } = require('./pro/recording');
 
+const electronVersion = process.versions.electron || '0.0.0';
+const electronMajorVersion = Number.parseInt(electronVersion.split('.')[0], 10) || 0;
+
 let mainWindow = null;
 let captureWindows = [];
 let windowPickerWindow = null;
@@ -24,6 +27,7 @@ let desktopIconsVisibleBeforeRecording = true;
 let preferencesWindow = null;
 let mainWindowMode = 'toolbar';
 let lastEditorBounds = null;
+let _pendingCaptureSourceId = null;
 
 const TOOLBAR_WINDOW_SIZE = { width: 340, height: 108 };
 const TOOLBAR_MIN_SIZE = { width: 280, height: 86 };
@@ -1021,6 +1025,36 @@ function hideRecordingIndicator() {
   }
 }
 
+
+function registerDisplayMediaHandler(targetWindow) {
+  if (!targetWindow || targetWindow.isDestroyed() || !targetWindow.webContents) return;
+
+  targetWindow.webContents.setDisplayMediaRequestHandler(async (_request, callback) => {
+    try {
+      if (!_pendingCaptureSourceId) {
+        callback({});
+        return;
+      }
+
+      const sources = await desktopCapturer.getSources({ types: ['screen', 'window'] });
+      const match = sources.find((source) => source && source.id === _pendingCaptureSourceId);
+      _pendingCaptureSourceId = null;
+
+      if (!match) {
+        callback({});
+        return;
+      }
+
+      const audio = electronMajorVersion >= 28 ? 'loopback-with-mute' : false;
+      callback({ video: match, audio });
+    } catch (err) {
+      console.error('[pico] displayMedia handler error:', err);
+      _pendingCaptureSourceId = null;
+      callback({});
+    }
+  });
+}
+
 function createMainWindow() {
   mainWindowMode = 'toolbar';
   const triggerCaptureRegion = () => {
@@ -1076,6 +1110,7 @@ function createMainWindow() {
 
 
   mainWindow.setContentProtection(true);
+  registerDisplayMediaHandler(mainWindow);
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   mainWindow.once('ready-to-show', () => showMainWindowForCurrentMode());
   mainWindow.webContents.on('did-finish-load', () => console.log('[pico][main] did-finish-load'));
@@ -1279,6 +1314,11 @@ function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) 
   }
 
 // ── IPC Handlers ────────────────────────────────────────────────────────────
+
+ipcMain.handle('set-capture-source-id', async (_event, sourceId) => {
+  _pendingCaptureSourceId = sourceId || null;
+  return { success: true };
+});
 
 ipcMain.handle('start-capture', async (event, options = {}) => {
     console.log('[pico][capture] start-capture invoked');
