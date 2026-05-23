@@ -38,9 +38,13 @@ async function getCursorScreenPoint() {
 
 async function getDesktopStream(sourceId, includeAudio) {
   const video = {
+    cursor: 'never',
+    advanced: [{ cursor: 'never' }],
     mandatory: {
       chromeMediaSource: 'desktop',
       chromeMediaSourceId: sourceId,
+      googCaptureCursor: false,
+      cursor: 'never',
     },
   };
   const audio = includeAudio ? {
@@ -54,6 +58,30 @@ async function getDesktopStream(sourceId, includeAudio) {
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
+}
+
+function drawCinematicCursor(ctx, x, y, scaleFactor) {
+  const pointerScale = 1.3 * scaleFactor;
+  ctx.save();
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.35)';
+  ctx.shadowBlur = 8 * scaleFactor;
+  ctx.shadowOffsetX = 1 * scaleFactor;
+  ctx.shadowOffsetY = 3 * scaleFactor;
+  ctx.fillStyle = '#111111';
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+  ctx.lineWidth = 1.6 * scaleFactor;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x + 15 * pointerScale, y + 15 * pointerScale);
+  ctx.lineTo(x + 8 * pointerScale, y + 15 * pointerScale);
+  ctx.lineTo(x + 12 * pointerScale, y + 24 * pointerScale);
+  ctx.lineTo(x + 9 * pointerScale, y + 25 * pointerScale);
+  ctx.lineTo(x + 5 * pointerScale, y + 16 * pointerScale);
+  ctx.lineTo(x, y + 20 * pointerScale);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
 }
 
 function createAutoZoomStream(sourceStream, region, options = {}) {
@@ -98,6 +126,7 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
   const PAN_SPEED                  = 1.8;
   const TARGET_PAN_SPEED           = 3.0;
   const TARGET_ZOOM_SPEED          = 2.5;
+  const CURSOR_SMOOTH_SPEED        = 6.5;
   const regionCenterX = srcRegion.x + srcRegion.width / 2;
   const regionCenterY = srcRegion.y + srcRegion.height / 2;
 
@@ -108,6 +137,7 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
   let targetCamera = { x: regionCenterX, y: regionCenterY, zoom: 1 };
   let smoothedTarget = { x: regionCenterX, y: regionCenterY, zoom: 1 };
   let cursor = { x: regionCenterX, y: regionCenterY };
+  let smoothedCursor = { x: regionCenterX, y: regionCenterY };
   let lastAnchor = { x: regionCenterX, y: regionCenterY };
 
   let lastFastMoveTime   = -Infinity;
@@ -178,16 +208,14 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
     const timeSinceFastMove = now - lastFastMoveTime;
     const inCooldown        = timeSinceFastMove < FAST_MOVE_COOLDOWN_MS;
 
-    if (!inCooldown && timeSinceMove > IDLE_ZOOM_IN_DELAY_MS) {
+    if (timeSinceMove > IDLE_ZOOM_OUT_DELAY_MS && zoomState === 'ZOOMED_STILL') {
+      zoomState = 'FULL_SCREEN';
+    } else if (!inCooldown && timeSinceMove > IDLE_ZOOM_IN_DELAY_MS) {
       if (zoomState === 'FULL_SCREEN' || zoomState === 'ZOOMED_FOLLOW') {
         zoomState    = 'ZOOMED_STILL';
         lastAnchor.x = cursor.x;
         lastAnchor.y = cursor.y;
       }
-    }
-
-    if (timeSinceMove > IDLE_ZOOM_OUT_DELAY_MS && zoomState === 'ZOOMED_STILL') {
-      zoomState = 'FULL_SCREEN';
     }
 
     if (zoomState === 'ZOOMED_STILL') {
@@ -212,6 +240,8 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
 
     const dt = Math.min(0.1, (now - lastFrameTime) / 1000);
     lastFrameTime = now;
+    smoothedCursor.x = expEase(smoothedCursor.x, cursor.x, CURSOR_SMOOTH_SPEED, dt);
+    smoothedCursor.y = expEase(smoothedCursor.y, cursor.y, CURSOR_SMOOTH_SPEED, dt);
 
     if (enableAutoZoom) {
       updateStateMachine(now);
@@ -251,6 +281,10 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(video, sx, sy, cropW, cropH, 0, 0, canvas.width, canvas.height);
     }
+
+    const cursorCanvasX = ((smoothedCursor.x - sx) / cropW) * canvas.width;
+    const cursorCanvasY = ((smoothedCursor.y - sy) / cropH) * canvas.height;
+    drawCinematicCursor(ctx, cursorCanvasX, cursorCanvasY, scaleFactor);
 
     rafId = requestAnimationFrame(draw);
   }
