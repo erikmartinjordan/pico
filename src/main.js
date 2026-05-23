@@ -9,6 +9,9 @@ const path = require('path');
 const fs = require('fs');
 const { tempRecordingPath, convertWebmToMp4, convertMp4ToGif } = require('./pro/recording');
 
+const electronVersion = process.versions.electron || '0.0.0';
+const electronMajorVersion = Number.parseInt(electronVersion.split('.')[0], 10) || 0;
+
 let mainWindow = null;
 let captureWindows = [];
 let windowPickerWindow = null;
@@ -1042,9 +1045,10 @@ function registerDisplayMediaHandler(targetWindow) {
         return;
       }
 
-      callback({ video: match, audio: 'loopback-with-mute' });
-    } catch (error) {
-      console.error('[pico][capture] setDisplayMediaRequestHandler failed:', error);
+      const audio = electronMajorVersion >= 28 ? 'loopback-with-mute' : false;
+      callback({ video: match, audio });
+    } catch (err) {
+      console.error('[pico] displayMedia handler error:', err);
       _pendingCaptureSourceId = null;
       callback({});
     }
