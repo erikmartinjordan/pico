@@ -37,20 +37,16 @@ async function getCursorScreenPoint() {
 }
 
 async function getDesktopStream(sourceId, includeAudio) {
-  const video = {
-    mandatory: {
-      chromeMediaSource: 'desktop',
-      chromeMediaSourceId: sourceId,
+  await ipcRenderer.invoke('set-capture-source-id', sourceId);
+  return navigator.mediaDevices.getDisplayMedia({
+    video: {
+      cursor: 'never',
+      frameRate: { ideal: 60 },
     },
-  };
-  const audio = includeAudio ? {
-    mandatory: {
-      chromeMediaSource: 'desktop',
-    },
-  } : false;
-
-  return navigator.mediaDevices.getUserMedia({ audio, video });
+    audio: includeAudio,
+  });
 }
+
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
