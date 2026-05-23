@@ -39,10 +39,12 @@ async function getCursorScreenPoint() {
 async function getDesktopStream(sourceId, includeAudio) {
   const video = {
     cursor: 'never',
+    advanced: [{ cursor: 'never' }],
     mandatory: {
       chromeMediaSource: 'desktop',
       chromeMediaSourceId: sourceId,
       googCaptureCursor: false,
+      cursor: 'never',
     },
   };
   const audio = includeAudio ? {
@@ -59,22 +61,26 @@ function clamp(value, min, max) {
 }
 
 function drawCinematicCursor(ctx, x, y, scaleFactor) {
+  const pointerScale = 1.3 * scaleFactor;
   ctx.save();
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.28)';
-  ctx.shadowBlur = 5 * scaleFactor;
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.35)';
+  ctx.shadowBlur = 8 * scaleFactor;
   ctx.shadowOffsetX = 1 * scaleFactor;
-  ctx.shadowOffsetY = 2 * scaleFactor;
-  ctx.fillStyle = '#ffffff';
+  ctx.shadowOffsetY = 3 * scaleFactor;
+  ctx.fillStyle = '#111111';
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+  ctx.lineWidth = 1.6 * scaleFactor;
   ctx.beginPath();
   ctx.moveTo(x, y);
-  ctx.lineTo(x + 15 * scaleFactor, y + 15 * scaleFactor);
-  ctx.lineTo(x + 8 * scaleFactor, y + 15 * scaleFactor);
-  ctx.lineTo(x + 12 * scaleFactor, y + 24 * scaleFactor);
-  ctx.lineTo(x + 9 * scaleFactor, y + 25 * scaleFactor);
-  ctx.lineTo(x + 5 * scaleFactor, y + 16 * scaleFactor);
-  ctx.lineTo(x, y + 20 * scaleFactor);
+  ctx.lineTo(x + 15 * pointerScale, y + 15 * pointerScale);
+  ctx.lineTo(x + 8 * pointerScale, y + 15 * pointerScale);
+  ctx.lineTo(x + 12 * pointerScale, y + 24 * pointerScale);
+  ctx.lineTo(x + 9 * pointerScale, y + 25 * pointerScale);
+  ctx.lineTo(x + 5 * pointerScale, y + 16 * pointerScale);
+  ctx.lineTo(x, y + 20 * pointerScale);
   ctx.closePath();
   ctx.fill();
+  ctx.stroke();
   ctx.restore();
 }
 
