@@ -11,6 +11,7 @@ let proRecordingChunks = [];
 let proRecordingFormat = 'mp4';
 let proRecordingRawStream = null;
 let proRecordingZoomStop = null;
+const streamsWithNativeCursor = new WeakSet();
 
 function getRecordingMimeType() {
   const preferred = 'video/webm;codecs=vp9';
@@ -37,11 +38,27 @@ async function getCursorScreenPoint() {
 }
 
 async function getDesktopStream(sourceId, includeAudio) {
+  if (navigator.mediaDevices?.getDisplayMedia) {
+    try {
+      await ipcRenderer.invoke('pro-recording-display-media-source', { sourceId });
+      return await navigator.mediaDevices.getDisplayMedia({
+        audio: Boolean(includeAudio),
+        video: {
+          cursor: 'never',
+          frameRate: { ideal: 60, max: 60 },
+        },
+      });
+    } catch (displayMediaError) {
+      console.warn('[pico][recording] getDisplayMedia failed; falling back to desktop getUserMedia:', displayMediaError?.message || displayMediaError);
+    }
+  }
+
   const video = {
     mandatory: {
       chromeMediaSource: 'desktop',
       chromeMediaSourceId: sourceId,
     },
+    cursor: 'never',
   };
   const audio = includeAudio ? {
     mandatory: {
@@ -49,12 +66,120 @@ async function getDesktopStream(sourceId, includeAudio) {
     },
   } : false;
 
-  return navigator.mediaDevices.getUserMedia({ audio, video });
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio, video });
+    streamsWithNativeCursor.add(stream);
+    return stream;
+  } catch (error) {
+    delete video.cursor;
+    const stream = await navigator.mediaDevices.getUserMedia({ audio, video });
+    streamsWithNativeCursor.add(stream);
+    return stream;
+  }
 }
 
+// Cursor smoothing helpers are intentionally inline because this preload runs
+// in Electron's sandboxed preload environment, where local require() is blocked.
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
+
+function expEase(current, target, speed, dt) {
+  return current + (target - current) * (1 - Math.exp(-speed * dt));
+}
+
+function createCursorSmoother(options = {}) {
+  const renderDelayMs = options.renderDelayMs ?? 35;
+  const maxSampleAgeMs = options.maxSampleAgeMs ?? 350;
+  const sampleLimit = options.sampleLimit ?? 24;
+  const easeSpeed = options.easeSpeed ?? 34;
+  const snapDistance = options.snapDistance ?? 220;
+
+  const displayCursor = {
+    x: options.initialX ?? 0,
+    y: options.initialY ?? 0,
+    visible: false,
+    initialized: false,
+  };
+  const samples = [];
+
+  function pushSample(sample) {
+    if (!sample || !Number.isFinite(sample.x) || !Number.isFinite(sample.y) || !Number.isFinite(sample.time)) {
+      return;
+    }
+
+    samples.push({
+      x: sample.x,
+      y: sample.y,
+      visible: Boolean(sample.visible),
+      time: sample.time,
+    });
+
+    const cutoff = sample.time - maxSampleAgeMs;
+    while (
+      samples.length > sampleLimit ||
+      (samples.length > 1 && samples[0].time < cutoff)
+    ) {
+      samples.shift();
+    }
+  }
+
+  function getSampleForFrame(now) {
+    if (samples.length === 0) return null;
+    const renderTime = now - renderDelayMs;
+    let before = samples[0];
+    let after = null;
+
+    for (const sample of samples) {
+      if (sample.time <= renderTime) {
+        before = sample;
+      } else {
+        after = sample;
+        break;
+      }
+    }
+
+    if (after && after.time > before.time) {
+      const t = clamp((renderTime - before.time) / (after.time - before.time), 0, 1);
+      return {
+        x: before.x + (after.x - before.x) * t,
+        y: before.y + (after.y - before.y) * t,
+        visible: before.visible && after.visible,
+      };
+    }
+
+    return before;
+  }
+
+  function update(now, dt) {
+    const sample = getSampleForFrame(now);
+    if (!sample) return { ...displayCursor, visible: false };
+
+    const distance = Math.hypot(sample.x - displayCursor.x, sample.y - displayCursor.y);
+    if (!displayCursor.initialized || distance > snapDistance) {
+      displayCursor.x = sample.x;
+      displayCursor.y = sample.y;
+      displayCursor.initialized = true;
+    } else {
+      displayCursor.x = expEase(displayCursor.x, sample.x, easeSpeed, dt);
+      displayCursor.y = expEase(displayCursor.y, sample.y, easeSpeed, dt);
+    }
+
+    const newestSample = samples[samples.length - 1];
+    displayCursor.visible = Boolean(sample.visible && newestSample && now - newestSample.time < maxSampleAgeMs);
+    return { ...displayCursor };
+  }
+
+  return {
+    pushSample,
+    getSampleForFrame,
+    update,
+    get samples() {
+      return [...samples];
+    },
+  };
+}
+// End cursor smoothing helpers.
 
 function createAutoZoomStream(sourceStream, region, options = {}) {
   const video = document.createElement('video');
@@ -86,6 +211,7 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
   const pixelScaleY = region.height > 0 ? srcRegion.height / region.height : scaleFactor;
   const fps = 60;
   const enableAutoZoom = options.autoZoom !== false;
+  const drawSyntheticCursor = !streamsWithNativeCursor.has(sourceStream);
 
   const zoomLevel = clamp(1.65 + ((srcRegion.width - 1280) / 4096), 1.55, 1.90);
 
@@ -107,7 +233,7 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
   let camera = { x: regionCenterX, y: regionCenterY, zoom: 1 };
   let targetCamera = { x: regionCenterX, y: regionCenterY, zoom: 1 };
   let smoothedTarget = { x: regionCenterX, y: regionCenterY, zoom: 1 };
-  let cursor = { x: regionCenterX, y: regionCenterY };
+  let cursor = { x: regionCenterX, y: regionCenterY, visible: false };
   let lastAnchor = { x: regionCenterX, y: regionCenterY };
 
   let lastFastMoveTime   = -Infinity;
@@ -115,6 +241,22 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
   let prevPollTime       = null;
   let cursorSpeedEMA     = 0;
   const EMA_ALPHA        = 0.12;
+  const CURSOR_RENDER_DELAY_MS = 35;
+  const CURSOR_MAX_SAMPLE_AGE_MS = 350;
+  const CURSOR_SAMPLE_LIMIT = 24;
+  const CURSOR_EASE_SPEED = 34;
+  const CURSOR_SNAP_DISTANCE = 220 * scaleFactor;
+  const CURSOR_BASE_SIZE = 20;
+  const cursorBaseScale = clamp((pixelScaleX + pixelScaleY) / 2, 1, 3);
+  const cursorSmoother = createCursorSmoother({
+    initialX: regionCenterX,
+    initialY: regionCenterY,
+    renderDelayMs: CURSOR_RENDER_DELAY_MS,
+    maxSampleAgeMs: CURSOR_MAX_SAMPLE_AGE_MS,
+    sampleLimit: CURSOR_SAMPLE_LIMIT,
+    easeSpeed: CURSOR_EASE_SPEED,
+    snapDistance: CURSOR_SNAP_DISTANCE,
+  });
 
   let lastMoveTime = performance.now();
   let lastFrameTime = performance.now();
@@ -123,8 +265,53 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
   let stopped = false;
   let cursorPollInFlight = false;
 
-  function expEase(current, target, speed, dt) {
-    return current + (target - current) * (1 - Math.exp(-speed * dt));
+  function drawCursorShape(x, y, scale) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.35)';
+    ctx.shadowBlur = 2.5;
+    ctx.shadowOffsetX = 1;
+    ctx.shadowOffsetY = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(0, 20.5);
+    ctx.lineTo(5.2, 15.9);
+    ctx.lineTo(8.7, 23.5);
+    ctx.lineTo(12.3, 21.8);
+    ctx.lineTo(8.9, 14.4);
+    ctx.lineTo(15.1, 14.4);
+    ctx.closePath();
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+    ctx.shadowColor = 'transparent';
+    ctx.lineWidth = 1.35;
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.88)';
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawCursorOverlay(sx, sy, cropW, cropH, now, dt) {
+    if (!drawSyntheticCursor) return;
+    const displayCursor = cursorSmoother.update(now, dt);
+    if (!displayCursor.visible) return;
+
+    const outputX = ((displayCursor.x - sx) / cropW) * canvas.width;
+    const outputY = ((displayCursor.y - sy) / cropH) * canvas.height;
+    const cursorScale = cursorBaseScale * clamp(camera.zoom, 0.9, 1.55);
+    const margin = CURSOR_BASE_SIZE * cursorScale * 2;
+    if (
+      outputX < -margin ||
+      outputY < -margin ||
+      outputX > canvas.width + margin ||
+      outputY > canvas.height + margin
+    ) {
+      return;
+    }
+
+    drawCursorShape(outputX, outputY, cursorScale);
   }
 
   async function pollCursor() {
@@ -138,6 +325,9 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
       const relLogicalY = pt.y - displayBounds.y - region.y;
       const px = srcRegion.x + relLogicalX * pixelScaleX;
       const py = srcRegion.y + relLogicalY * pixelScaleY;
+      const visible = relLogicalX >= 0 && relLogicalY >= 0 && relLogicalX <= region.width && relLogicalY <= region.height;
+      const clampedX = clamp(px, srcRegion.x, srcRegion.x + srcRegion.width);
+      const clampedY = clamp(py, srcRegion.y, srcRegion.y + srcRegion.height);
 
       if (prevCursorPx && prevPollTime) {
         const dtSec        = Math.max(0.001, (now - prevPollTime) / 1000);
@@ -164,8 +354,10 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
         }
       }
 
-      cursor.x = clamp(px, srcRegion.x, srcRegion.x + srcRegion.width);
-      cursor.y = clamp(py, srcRegion.y, srcRegion.y + srcRegion.height);
+      cursor.x = clampedX;
+      cursor.y = clampedY;
+      cursor.visible = visible;
+      cursorSmoother.pushSample({ x: cursor.x, y: cursor.y, visible: cursor.visible, time: now });
     } catch {
       // ignore isolated IPC glitches
     } finally {
@@ -251,6 +443,7 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(video, sx, sy, cropW, cropH, 0, 0, canvas.width, canvas.height);
     }
+    drawCursorOverlay(sx, sy, cropW, cropH, now, dt);
 
     rafId = requestAnimationFrame(draw);
   }
@@ -266,9 +459,8 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
 
   const ready = video.play().then(() => {
     lastFrameTime = performance.now();
-    if (enableAutoZoom) {
-      pollTimer = setInterval(pollCursor, 16); // 60 Hz
-    }
+    pollCursor();
+    pollTimer = setInterval(pollCursor, 16); // 60 Hz
     draw();
     return canvasStream;
   });
@@ -367,6 +559,7 @@ async function startRecording(options = {}) {
       systemAudio = false;
       rawStream = await getDesktopStream(source.id, false);
     }
+    if (rawStream.getAudioTracks().length === 0) systemAudio = false;
 
     let zoomPipeline = null;
     const shouldCropRegion = mode === 'region' && source.region;

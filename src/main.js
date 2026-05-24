@@ -3,7 +3,7 @@
  * Handles window creation, screen capture, and native dialogs
  */
 
-const { app, BrowserWindow, ipcMain, desktopCapturer, dialog, screen, globalShortcut, nativeImage, clipboard, Menu, Tray, shell, systemPreferences } = require('electron');
+const { app, BrowserWindow, ipcMain, desktopCapturer, dialog, screen, globalShortcut, nativeImage, clipboard, Menu, Tray, shell, systemPreferences, session } = require('electron');
 const { execSync, exec, execFile } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -18,6 +18,7 @@ let recordingSourceSelection = null;
 let recordingRegionSelection = null;
 let lastRecordingSourceId = null;
 let lastRecordingRegion = null;
+let recordingDisplayMediaSourceId = null;
 let tray = null;
 let desktopIconsHidden = false;
 let desktopIconsVisibleBeforeRecording = true;
@@ -74,6 +75,44 @@ function defaultSaveDirectory(fallbackName) {
 
 function defaultSavePath(fallbackName, filename) {
   return path.join(defaultSaveDirectory(fallbackName), filename);
+}
+
+function sourceTypesForRecordingSourceId(sourceId) {
+  const sourceIdStr = String(sourceId || '');
+  if (sourceIdStr.startsWith('window:')) return ['window', 'screen'];
+  if (sourceIdStr.startsWith('screen:')) return ['screen', 'window'];
+  return ['screen', 'window'];
+}
+
+async function findDesktopCapturerSource(sourceId) {
+  if (!sourceId) return null;
+  const sources = await desktopCapturer.getSources({
+    types: sourceTypesForRecordingSourceId(sourceId),
+    thumbnailSize: { width: 0, height: 0 },
+    fetchWindowIcons: false,
+  });
+  return sources.find((source) => String(source.id) === String(sourceId)) || null;
+}
+
+function setupRecordingDisplayMediaHandler() {
+  session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
+    try {
+      const requestedSourceId = recordingDisplayMediaSourceId || lastRecordingSourceId;
+      const source = await findDesktopCapturerSource(requestedSourceId);
+      if (!source) {
+        console.error('[pico][recording] display media source unavailable:', requestedSourceId);
+        callback({});
+        return;
+      }
+
+      const streams = { video: source };
+      if (request.audioRequested && process.platform === 'win32') streams.audio = 'loopback';
+      callback(streams);
+    } catch (error) {
+      console.error('[pico][recording] display media handler failed:', error.message);
+      callback({});
+    }
+  }, { useSystemPicker: false });
 }
 
 function getAppWebPreferences() {
@@ -1679,6 +1718,7 @@ ipcMain.handle('pro-recording-source', async (event, options = {}) => {
         return null;
       }
       lastRecordingSourceId = region.sourceId;
+      recordingDisplayMediaSourceId = region.sourceId;
       lastRecordingRegion = region;
       return {
         id: region.sourceId,
@@ -1695,12 +1735,20 @@ ipcMain.handle('pro-recording-source', async (event, options = {}) => {
       return null;
     }
     lastRecordingSourceId = source.id;
+    recordingDisplayMediaSourceId = source.id;
     lastRecordingRegion = null;
     return { id: source.id, name: source.name, mode: 'window' };
   } catch (error) {
     await restoreMacDesktopIconsAfterRecording();
     throw error;
   }
+});
+
+ipcMain.handle('pro-recording-display-media-source', async (event, payload = {}) => {
+  if (!payload?.sourceId) return { success: false };
+  recordingDisplayMediaSourceId = payload.sourceId;
+  lastRecordingSourceId = payload.sourceId;
+  return { success: true };
 });
 
 ipcMain.handle('pro-save-recording', async (event, payload) => {
@@ -1811,6 +1859,7 @@ function setupTray() {
 }
 
 app.whenReady().then(() => {
+  setupRecordingDisplayMediaHandler();
   createMainWindow();
   setupTray();
   const runWhenWindowReady = (callback) => {
