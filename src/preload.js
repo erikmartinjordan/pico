@@ -11,7 +11,26 @@ let proRecordingChunks = [];
 let proRecordingFormat = 'mp4';
 let proRecordingRawStream = null;
 let proRecordingZoomStop = null;
-const streamsWithNativeCursor = new WeakSet();
+const streamCursorModes = new WeakMap();
+
+function getStreamCursorSetting(stream) {
+  const track = stream?.getVideoTracks?.()[0];
+  const settings = typeof track?.getSettings === 'function' ? track.getSettings() : null;
+  return typeof settings?.cursor === 'string' ? settings.cursor : '';
+}
+
+function markStreamCursorMode(stream, requestedMode) {
+  if (!stream) return stream;
+  const cursorSetting = getStreamCursorSetting(stream);
+  const mode = cursorSetting === 'never' ? 'synthetic' : requestedMode;
+  streamCursorModes.set(stream, mode === 'native' ? 'native' : 'synthetic');
+  return stream;
+}
+
+function shouldDrawSyntheticCursor(stream) {
+  if (typeof process !== 'undefined' && process.platform === 'darwin') return false;
+  return streamCursorModes.get(stream) !== 'native';
+}
 
 function getRecordingMimeType() {
   const preferred = 'video/webm;codecs=vp9';
@@ -41,13 +60,14 @@ async function getDesktopStream(sourceId, includeAudio) {
   if (navigator.mediaDevices?.getDisplayMedia) {
     try {
       await ipcRenderer.invoke('pro-recording-display-media-source', { sourceId });
-      return await navigator.mediaDevices.getDisplayMedia({
+      const stream = await navigator.mediaDevices.getDisplayMedia({
         audio: Boolean(includeAudio),
         video: {
           cursor: 'never',
           frameRate: { ideal: 60, max: 60 },
         },
       });
+      return markStreamCursorMode(stream, 'synthetic');
     } catch (displayMediaError) {
       console.warn('[pico][recording] getDisplayMedia failed; falling back to desktop getUserMedia:', displayMediaError?.message || displayMediaError);
     }
@@ -68,13 +88,11 @@ async function getDesktopStream(sourceId, includeAudio) {
 
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio, video });
-    streamsWithNativeCursor.add(stream);
-    return stream;
+    return markStreamCursorMode(stream, 'synthetic');
   } catch (error) {
     delete video.cursor;
     const stream = await navigator.mediaDevices.getUserMedia({ audio, video });
-    streamsWithNativeCursor.add(stream);
-    return stream;
+    return markStreamCursorMode(stream, 'native');
   }
 }
 
@@ -211,7 +229,7 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
   const pixelScaleY = region.height > 0 ? srcRegion.height / region.height : scaleFactor;
   const fps = 60;
   const enableAutoZoom = options.autoZoom !== false;
-  const drawSyntheticCursor = !streamsWithNativeCursor.has(sourceStream);
+  const drawSyntheticCursor = shouldDrawSyntheticCursor(sourceStream);
 
   const zoomLevel = clamp(1.65 + ((srcRegion.width - 1280) / 4096), 1.55, 1.90);
 

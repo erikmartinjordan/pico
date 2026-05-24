@@ -4,20 +4,70 @@ const path = require('path');
 const vm = require('vm');
 
 const preloadSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'preload.js'), 'utf8');
+const policyStart = preloadSource.indexOf('const streamCursorModes');
+const policyEnd = preloadSource.indexOf('function getRecordingMimeType');
 const helperStart = preloadSource.indexOf('// Cursor smoothing helpers');
 const helperEnd = preloadSource.indexOf('// End cursor smoothing helpers.');
+assert.ok(policyStart >= 0 && policyEnd > policyStart, 'preload stream cursor policy helpers were not found');
 assert.ok(helperStart >= 0 && helperEnd > helperStart, 'preload cursor smoothing helpers were not found');
 
-const sandbox = { module: { exports: {} }, Math, Number };
-vm.runInNewContext(`
-  ${preloadSource.slice(helperStart, helperEnd)}
-  module.exports = { createCursorSmoother };
-`, sandbox);
+function loadPreloadHelpers(platform = 'linux') {
+  const sandbox = { module: { exports: {} }, Math, Number, WeakMap, process: { platform } };
+  vm.runInNewContext(`
+    ${preloadSource.slice(policyStart, policyEnd)}
+    ${preloadSource.slice(helperStart, helperEnd)}
+    module.exports = { createCursorSmoother, markStreamCursorMode, shouldDrawSyntheticCursor };
+  `, sandbox);
+  return sandbox.module.exports;
+}
 
-const { createCursorSmoother } = sandbox.module.exports;
+const { createCursorSmoother, markStreamCursorMode, shouldDrawSyntheticCursor } = loadPreloadHelpers('linux');
 
 function nearlyEqual(actual, expected, epsilon = 0.001) {
   assert.ok(Math.abs(actual - expected) <= epsilon, `${actual} was not within ${epsilon} of ${expected}`);
+}
+
+function createStreamWithCursorSetting(cursor) {
+  return {
+    getVideoTracks() {
+      return [{
+        getSettings() {
+          return cursor ? { cursor } : {};
+        },
+      }];
+    },
+  };
+}
+
+{
+  const stream = createStreamWithCursorSetting('');
+  markStreamCursorMode(stream, 'synthetic');
+  assert.strictEqual(shouldDrawSyntheticCursor(stream), true);
+}
+
+{
+  const stream = createStreamWithCursorSetting('never');
+  markStreamCursorMode(stream, 'native');
+  assert.strictEqual(shouldDrawSyntheticCursor(stream), true);
+}
+
+{
+  const stream = createStreamWithCursorSetting('always');
+  markStreamCursorMode(stream, 'synthetic');
+  assert.strictEqual(shouldDrawSyntheticCursor(stream), true);
+}
+
+{
+  const stream = createStreamWithCursorSetting('');
+  markStreamCursorMode(stream, 'native');
+  assert.strictEqual(shouldDrawSyntheticCursor(stream), false);
+}
+
+{
+  const darwinHelpers = loadPreloadHelpers('darwin');
+  const stream = createStreamWithCursorSetting('');
+  darwinHelpers.markStreamCursorMode(stream, 'synthetic');
+  assert.strictEqual(darwinHelpers.shouldDrawSyntheticCursor(stream), false);
 }
 
 {
