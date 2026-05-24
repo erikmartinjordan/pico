@@ -129,6 +129,10 @@
       transition: opacity 0.3s ease;
     }
     
+    #instructions.hidden {
+      display: none;
+    }
+
     #instructions kbd {
       background: rgba(255, 255, 255, 0.2);
       padding: 2px 6px;
@@ -269,15 +273,20 @@
       await drawScreenshot(data);
       repaintOverlay();
 
+      const instructions = document.getElementById('instructions');
       if (captureMode === 'region' || captureMode === 'record-region') {
         document.body.classList.add('region-mode');
         if (captureMode === 'record-region') {
-          document.getElementById('instructions').innerHTML = 'Drag to select recording area with autozoom \u00b7 Press <kbd>Esc</kbd> to cancel';
+          instructions.classList.remove('hidden');
+          instructions.innerHTML = 'Drag to select recording area with autozoom · Press <kbd>Esc</kbd> to cancel';
+        } else {
+          instructions.classList.add('hidden');
         }
       } else {
-        document.getElementById('instructions').innerHTML = windowBounds.length
-          ? 'Click on a window to capture \u00b7 Press <kbd>Esc</kbd> to cancel'
-          : 'No window detected. Click anywhere to cancel \u00b7 Press <kbd>Esc</kbd> to cancel';
+        instructions.classList.remove('hidden');
+        instructions.innerHTML = windowBounds.length
+          ? 'Click on a window to capture · Press <kbd>Esc</kbd> to cancel'
+          : 'No window detected. Click anywhere to cancel · Press <kbd>Esc</kbd> to cancel';
       }
     });
 
@@ -309,8 +318,28 @@
       if (!screenshotCanvas) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(screenshotCanvas, 0, 0);
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      if (captureMode === 'window' || captureMode === 'record-region') {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+
+      if (captureMode === 'record-region' && isSelecting) {
+        const rect = getSelectionRect();
+        if (rect.width > 0 && rect.height > 0) {
+          ctx.drawImage(
+            screenshotCanvas,
+            Math.round(rect.x),
+            Math.round(rect.y),
+            Math.round(rect.width),
+            Math.round(rect.height),
+            Math.round(rect.x),
+            Math.round(rect.y),
+            Math.round(rect.width),
+            Math.round(rect.height),
+          );
+        }
+      }
 
       if (captureMode === 'window' && hoveredWindow) {
         // Use the same padded viewport rect for the bright clip region
@@ -366,6 +395,7 @@
       dimensions.textContent = `${label}${width} \u00d7 ${height}`;
       dimensions.style.left = `${x + 6}px`;
       dimensions.style.top = `${y > 28 ? y - 24 : y + height + 6}px`;
+      repaintOverlay();
     }
 
     function findWindowAt(x, y) {
