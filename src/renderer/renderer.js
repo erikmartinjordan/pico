@@ -911,7 +911,7 @@ function clearCanvas() {
   state.windowContainerApplied = false;
   state.originalImageBeforeContainer = null;
   elements.canvas.classList.remove('visible');
-  elements.emptyState.classList.remove('hidden');
+  elements.emptyState.classList.add('hidden');
   document.body.classList.remove('has-image');
   document.body.classList.remove('has-content');
   document.body.offsetHeight; // force reflow
