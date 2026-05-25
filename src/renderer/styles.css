@@ -130,7 +130,7 @@ body.platform-darwin.has-content .macos-traffic {
     opacity 0.24s ease,
     border-color 0.24s ease,
     box-shadow 0.24s ease;
-  -webkit-app-region: no-drag;
+  -webkit-app-region: drag;
   cursor: -webkit-grab;
   cursor: grab;
   z-index: 20;
@@ -176,6 +176,11 @@ body.platform-darwin.has-content .macos-traffic {
   z-index: 3;
 }
 
+.recording-format-wrap,
+.stroke-picker {
+  -webkit-app-region: no-drag;
+}
+
 .toolbar-separator {
   width: 1px;
   height: 20px;
@@ -195,7 +200,7 @@ body.platform-darwin.has-content .macos-traffic {
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
+  cursor: inherit;
   transition: background 0.16s ease, color 0.16s ease, transform 0.2s ease, box-shadow 0.16s ease;
   flex-shrink: 0;
   -webkit-app-region: no-drag;
@@ -228,7 +233,7 @@ body:not(.has-image) .toolbar .toolbar-btn {
   width: 36px;
   height: 36px;
   color: rgba(46, 28, 17, 0.72);
-  cursor: pointer;
+  cursor: inherit;
 }
 
 body:not(.has-image) .toolbar .toolbar-btn svg {
@@ -258,7 +263,7 @@ body:not(.has-image) .toolbar .toolbar-btn:hover:not(:disabled) {
   color: var(--toolbar-icon-active, rgba(4, 10, 22, 0.92));
 }
 
-.toolbar-btn:disabled { opacity: 0.3; cursor: default; }
+.toolbar-btn:disabled { opacity: 0.3; cursor: inherit; }
 
 .toolbar-btn.pro-feature {
   position: relative;
@@ -322,7 +327,7 @@ body:not(.has-image) .toolbar .toolbar-separator {
   font-size: 12px;
   font-weight: 750;
   text-align: left;
-  cursor: pointer;
+  cursor: inherit;
 }
 
 .recording-format-menu button:hover {
@@ -568,7 +573,7 @@ body:not(.has-image) .toolbar .toolbar-separator {
   border: none;
   border-radius: 50%;
   background: var(--swatch-color);
-  cursor: pointer;
+  cursor: inherit;
   flex-shrink: 0;
   position: relative;
   transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -613,7 +618,7 @@ body:not(.has-image) .toolbar .toolbar-separator {
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
+  cursor: inherit;
   transition: background 0.16s ease;
   -webkit-app-region: no-drag;
   flex-shrink: 0;
@@ -680,7 +685,7 @@ body:not(.has-image) .toolbar .toolbar-separator {
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
+  cursor: inherit;
   transition: background 0.12s;
   padding: 0 8px;
   flex-shrink: 0;
@@ -1458,6 +1463,16 @@ body.has-content .toolbar-grip {
 body.has-image .toolbar,
 body.has-content .toolbar {
   animation: toolbarExpand 0.32s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+body.toolbar-transition {
+  background: transparent !important;
+}
+
+body.toolbar-transition .recording-preview,
+body.toolbar-transition .statusbar,
+body.toolbar-transition .toast-container {
+  display: none !important;
 }
 
 @keyframes toolbarExpand {

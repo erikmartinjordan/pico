@@ -542,6 +542,34 @@ async function getAutoZoomRegion(source = {}, requestedMode = source.mode) {
   return null;
 }
 
+function alignRegionToStreamPixels(region, stream) {
+  if (!region) return region;
+  const settings = stream?.getVideoTracks?.()[0]?.getSettings?.() || {};
+  const displayBounds = region.displayBounds;
+  if (
+    !displayBounds ||
+    !Number.isFinite(settings.width) ||
+    !Number.isFinite(settings.height) ||
+    displayBounds.width <= 0 ||
+    displayBounds.height <= 0
+  ) {
+    return region;
+  }
+
+  const scaleX = settings.width / displayBounds.width;
+  const scaleY = settings.height / displayBounds.height;
+  if (!Number.isFinite(scaleX) || !Number.isFinite(scaleY) || scaleX <= 0 || scaleY <= 0) return region;
+
+  return {
+    ...region,
+    scaleFactor: (scaleX + scaleY) / 2,
+    pixelX: Math.round(region.x * scaleX),
+    pixelY: Math.round(region.y * scaleY),
+    pixelWidth: Math.max(2, Math.round(region.width * scaleX)),
+    pixelHeight: Math.max(2, Math.round(region.height * scaleY)),
+  };
+}
+
 async function startRecording(options = {}) {
   if (proRecorder && proRecorder.state !== 'inactive') {
     throw new Error('A screen recording is already in progress');
@@ -581,8 +609,9 @@ async function startRecording(options = {}) {
 
     let zoomPipeline = null;
     const shouldCropRegion = mode === 'region' && source.region;
+    const streamAlignedRegion = shouldCropRegion ? alignRegionToStreamPixels(source.region, rawStream) : null;
     const autoZoomRegion = shouldCropRegion
-      ? source.region
+      ? streamAlignedRegion
       : (source.autoZoom === false || options?.autoZoom === false ? null : await getAutoZoomRegion(source, mode));
     if (autoZoomRegion) {
       zoomPipeline = createAutoZoomStream(rawStream, autoZoomRegion, {
@@ -682,6 +711,7 @@ contextBridge.exposeInMainWorld('pico', {
   onTriggerCaptureFullscreen: (callback) => ipcRenderer.on('trigger-capture-fullscreen', () => callback()),
   onShortcutCaptureReady: (callback) => ipcRenderer.on('trigger-shortcut-capture-ready', () => callback()),
   onOpenPreferences: (callback) => ipcRenderer.on('open-preferences', () => callback()),
+  openNativePreferences: () => ipcRenderer.invoke('open-native-preferences'),
   onLoadCaptureData: (callback) => ipcRenderer.on('load-capture-data', (_, data) => callback(data)),
   onRecordingStopRequested: (callback) => ipcRenderer.on('pro-recording-stop-requested', () => callback()),
   onSettingsChanged: (callback) => ipcRenderer.on('settings-changed', () => callback()),
@@ -710,6 +740,7 @@ contextBridge.exposeInMainWorld('pico', {
   saveFile: (dataUrl) => ipcRenderer.invoke('save-file', dataUrl),
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
+  getTrialStatus: () => ipcRenderer.invoke('get-trial-status'),
   chooseDefaultSavePath: (currentPath) => ipcRenderer.invoke('choose-default-save-path', currentPath),
   copyToClipboard: (dataUrl) => ipcRenderer.invoke('copy-to-clipboard', dataUrl),
   readClipboardImage: () => ipcRenderer.invoke('read-clipboard-image'),

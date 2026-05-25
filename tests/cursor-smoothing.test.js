@@ -4,6 +4,8 @@ const path = require('path');
 const vm = require('vm');
 
 const preloadSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'preload.js'), 'utf8');
+const rendererSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'renderer.js'), 'utf8');
+const captureOverlaySource = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'capture-overlay.html'), 'utf8');
 const policyStart = preloadSource.indexOf('const streamCursorModes');
 const policyEnd = preloadSource.indexOf('function getRecordingMimeType');
 const helperStart = preloadSource.indexOf('// Cursor smoothing helpers');
@@ -71,6 +73,13 @@ function createStreamWithCursorSetting(cursor) {
 }
 
 {
+  const darwinHelpers = loadPreloadHelpers('darwin');
+  const stream = createStreamWithCursorSetting('');
+  darwinHelpers.markStreamCursorMode(stream, 'native');
+  assert.strictEqual(darwinHelpers.shouldDrawSyntheticCursor(stream), false);
+}
+
+{
   const smoother = createCursorSmoother({ renderDelayMs: 0, easeSpeed: 1000 });
   smoother.pushSample({ x: 0, y: 0, visible: true, time: 0 });
   smoother.pushSample({ x: 100, y: 50, visible: true, time: 100 });
@@ -121,4 +130,26 @@ function createStreamWithCursorSetting(cursor) {
   assert.deepStrictEqual(Array.from(smoother.samples, (sample) => sample.x), [3, 4, 5]);
 }
 
-console.log('cursor smoothing tests passed');
+{
+  assert.ok(
+    captureOverlaySource.includes('<div id="instructions" class="hidden"></div>'),
+    'capture overlay instructions must be hidden before capture data arrives to avoid shortcut text flash',
+  );
+  assert.ok(
+    /captureMode === 'region' \|\| captureMode === 'record-region'[\s\S]*instructions\.classList\.add\('hidden'\)[\s\S]*instructions\.textContent = ''/.test(captureOverlaySource),
+    'region and record-region overlays must not show Esc/instruction text',
+  );
+}
+
+{
+  const clearCanvasMatch = rendererSource.match(/function clearCanvas\(\) \{[\s\S]*?\n\}/);
+  assert.ok(clearCanvasMatch, 'clearCanvas function was not found');
+  assert.ok(!clearCanvasMatch[0].includes('showToast'), 'clearCanvas must not show a toast over the floating pill');
+}
+
+{
+  assert.ok(preloadSource.includes("getTrialStatus: () => ipcRenderer.invoke('get-trial-status')"), 'preload must expose trial status');
+  assert.ok(rendererSource.includes('state.trialStatus?.expired'), 'renderer must block recording after trial expiry');
+}
+
+console.log('pico proof regression tests passed');

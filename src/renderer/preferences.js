@@ -4,6 +4,7 @@ const hideDesktopIconsSetting = document.querySelector('#hide-desktop-icons-sett
 const defaultSavePathSetting = document.querySelector('#default-save-path-setting');
 const chooseDefaultSavePathSetting = document.querySelector('#choose-default-save-path-setting');
 const clearDefaultSavePathSetting = document.querySelector('#clear-default-save-path-setting');
+const trialStatusSetting = document.querySelector('#trial-status-setting');
 
 const settings = {
   format: 'mp4',
@@ -27,6 +28,15 @@ async function loadSettings() {
   try {
     const persistedSettings = await window.pico.getSettings();
     settings.defaultSavePath = typeof persistedSettings?.defaultSavePath === 'string' ? persistedSettings.defaultSavePath : settings.defaultSavePath;
+  } catch (_) {}
+
+  try {
+    const trial = await window.pico.getTrialStatus?.();
+    if (trialStatusSetting && trial) {
+      trialStatusSetting.textContent = trial.expired
+        ? 'Expired'
+        : `${Math.max(0, trial.daysRemaining)} day${trial.daysRemaining === 1 ? '' : 's'} left`;
+    }
   } catch (_) {}
 
   recordingFormatSetting.value = settings.format;
