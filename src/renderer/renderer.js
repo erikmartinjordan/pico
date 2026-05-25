@@ -616,10 +616,20 @@ function hideRecordingFormatMenu() {
   elements.recordingFormatMenu?.classList.remove('visible');
 }
 
-function setRecordingSaveProgress(visible) {
-  state.isSavingRecording = Boolean(visible);
-  elements.recordingSaveProgress?.classList.toggle('visible', state.isSavingRecording);
-  elements.recordingSaveProgress?.setAttribute('aria-hidden', state.isSavingRecording ? 'false' : 'true');
+function setRecordingSaveProgress(visible, options = {}) {
+  if (!options.preserveSaving) state.isSavingRecording = Boolean(visible);
+  const progress = elements.recordingSaveProgress;
+  if (!progress) return;
+  const isVisible = Boolean(visible);
+  progress.classList.toggle('visible', isVisible);
+  progress.classList.toggle('complete', Boolean(options.complete));
+  progress.setAttribute('aria-hidden', isVisible ? 'false' : 'true');
+  const progressbar = progress.querySelector('[role="progressbar"]');
+  if (progressbar) {
+    progressbar.setAttribute('aria-valuemin', '0');
+    progressbar.setAttribute('aria-valuemax', '100');
+    progressbar.setAttribute('aria-valuenow', options.complete ? '100' : (isVisible ? '92' : '0'));
+  }
 }
 
 function onRecordButtonClick(event) {

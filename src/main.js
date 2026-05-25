@@ -1780,6 +1780,8 @@ ipcMain.handle('pro-save-recording', async (event, payload) => {
     outputPath = saveResult.filePath;
   }
 
+  event.sender.send('pro-save-recording-started');
+
   const webmPath = tempRecordingPath('webm');
   const bytes = Buffer.isBuffer(data) ? data : Buffer.from(data);
   fs.writeFileSync(webmPath, bytes);
