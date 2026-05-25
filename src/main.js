@@ -240,13 +240,16 @@ function openPreferencesWindow() {
   }
 
   preferencesWindow = new BrowserWindow({
-    width: 700,
-    height: 300,
+    width: 480,
+    height: 320,
     resizable: false,
     minimizable: false,
     maximizable: false,
+    titleBarStyle: 'hiddenInset',
+    vibrancy: 'sidebar',
+    visualEffectState: 'active',
     autoHideMenuBar: true,
-    title: '',
+    title: 'Preferences',
     webPreferences: getAppWebPreferences(),
   });
 
