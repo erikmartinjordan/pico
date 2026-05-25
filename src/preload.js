@@ -684,6 +684,8 @@ contextBridge.exposeInMainWorld('pico', {
   onOpenPreferences: (callback) => ipcRenderer.on('open-preferences', () => callback()),
   onLoadCaptureData: (callback) => ipcRenderer.on('load-capture-data', (_, data) => callback(data)),
   onRecordingStopRequested: (callback) => ipcRenderer.on('pro-recording-stop-requested', () => callback()),
+  onSettingsChanged: (callback) => ipcRenderer.on('settings-changed', () => callback()),
+  notifySettingsChanged: () => ipcRenderer.send('settings-changed'),
 
   // Capture overlay communication
   onCaptureData: (callback) => ipcRenderer.on('capture-data', (_, data) => callback(data)),

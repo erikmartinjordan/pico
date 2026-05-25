@@ -1536,6 +1536,12 @@ ipcMain.handle('get-settings', async () => readSettings());
 
 ipcMain.handle('save-settings', async (event, nextSettings = {}) => writeSettings(nextSettings));
 
+ipcMain.on('settings-changed', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('settings-changed');
+  }
+});
+
 ipcMain.handle('choose-default-save-path', async (event, currentPath = '') => {
   const result = await dialog.showOpenDialog(preferencesWindow || mainWindow, {
     title: 'Choose default save path',

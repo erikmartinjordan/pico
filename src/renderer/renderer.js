@@ -369,6 +369,8 @@ function bindIPC() {
   window.pico.onRecordingStopRequested(() => {
     if (state.isRecording) toggleRecording();
   });
+  window.pico.onSettingsChanged?.(() => loadRecordingSettings());
+  window.pico.onSaveRecordingStarted?.(() => setRecordingSaveProgress(true));
 }
 
 function bindInlineText() {
