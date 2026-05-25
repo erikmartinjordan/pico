@@ -57,6 +57,7 @@ const state = {
   recordingPreview: null,
   recordingSettings: { format: 'mp4', autoZoom: true },
   captureSettings: { hideDesktopIcons: true },
+  trialStatus: null,
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -150,6 +151,7 @@ function init() {
   if (elements.textFontFamily) elements.textFontFamily.value = state.textFontFamily;
   if (elements.textFontSize) elements.textFontSize.value = String(state.textFontSize);
   loadRecordingSettings();
+  loadTrialStatus();
   selectStrokeWidth(state.strokeWidth);
   toggleTextStyleControls();
   updateStatus();
@@ -644,6 +646,11 @@ function onRecordButtonClick(event) {
 async function startRecordingWithFormat(format = 'mp4', mode = 'region') {
   hideRecordingFormatMenu();
   loadRecordingSettings();
+  await loadTrialStatus();
+  if (state.trialStatus?.expired) {
+    showToast('Your 30-day trial has expired', 'error');
+    return;
+  }
   const normalizedFormat = format === 'gif' ? 'gif' : 'mp4';
   try {
     const started = await window.pico.startRecording({
@@ -691,6 +698,30 @@ function saveRecordingSettings() {
     ...state.recordingSettings,
     hideDesktopIcons: state.captureSettings.hideDesktopIcons,
   }));
+}
+
+async function loadTrialStatus() {
+  try {
+    state.trialStatus = await window.pico.getTrialStatus?.();
+  } catch (_) {
+    state.trialStatus = null;
+  }
+  updateTrialUi();
+  return state.trialStatus;
+}
+
+function updateTrialUi() {
+  if (!elements.btnRecordScreen) return;
+  const expired = Boolean(state.trialStatus?.expired);
+  elements.btnRecordScreen.disabled = expired;
+  if (expired) {
+    elements.btnRecordScreen.dataset.tooltip = '30-day trial expired';
+    elements.btnRecordScreen.title = '30-day trial expired';
+  } else if (state.trialStatus && Number.isFinite(state.trialStatus.daysRemaining)) {
+    const days = Math.max(0, state.trialStatus.daysRemaining);
+    elements.btnRecordScreen.dataset.tooltip = `Record screen - ${days} trial day${days === 1 ? '' : 's'} left`;
+    elements.btnRecordScreen.title = `Record screen - ${days} trial day${days === 1 ? '' : 's'} left`;
+  }
 }
 
 
@@ -772,10 +803,15 @@ function discardRecordingPreview(options = {}) {
   elements.recordingPreview?.setAttribute('aria-hidden', 'true');
   elements.container?.classList.remove('recording-preview-active');
   if (!state.image) {
-    document.body.classList.remove('has-content');
-    document.body.classList.remove('has-image');
-    setAppWindowMode('toolbar');
-    requestAnimationFrame(() => resetFloatingToolbar());
+    document.body.classList.add('toolbar-transition');
+    Promise.resolve(setAppWindowMode('toolbar')).finally(() => {
+      document.body.classList.remove('has-content');
+      document.body.classList.remove('has-image');
+      requestAnimationFrame(() => {
+        resetFloatingToolbar();
+        document.body.classList.remove('toolbar-transition');
+      });
+    });
   }
   if (!options?.silent) showToast('Recording discarded', 'info');
 }
@@ -936,7 +972,6 @@ function clearCanvas() {
   elements.ctx.clearRect(0, 0, elements.canvas.width, elements.canvas.height);
   updateStatus();
   updateToolbarState();
-  showToast('Canvas cleared', 'success');
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

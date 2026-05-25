@@ -25,6 +25,7 @@ let desktopIconsVisibleBeforeRecording = true;
 let preferencesWindow = null;
 let mainWindowMode = 'toolbar';
 let lastEditorBounds = null;
+let lastToolbarBounds = null;
 
 const TOOLBAR_WINDOW_SIZE = { width: 340, height: 108 };
 const TOOLBAR_MIN_SIZE = { width: 280, height: 86 };
@@ -32,8 +33,10 @@ const EDITOR_DEFAULT_SIZE = { width: 1200, height: 800 };
 const EDITOR_MIN_SIZE = { width: 900, height: 600 };
 
 const SETTINGS_FILE = 'settings.json';
+const TRIAL_DAYS = 30;
 const DEFAULT_SETTINGS = {
   defaultSavePath: '',
+  trialStartedAt: '',
 };
 
 function settingsPath() {
@@ -43,6 +46,7 @@ function settingsPath() {
 function normalizeSettings(candidate = {}) {
   return {
     defaultSavePath: typeof candidate.defaultSavePath === 'string' ? candidate.defaultSavePath : DEFAULT_SETTINGS.defaultSavePath,
+    trialStartedAt: typeof candidate.trialStartedAt === 'string' ? candidate.trialStartedAt : DEFAULT_SETTINGS.trialStartedAt,
   };
 }
 
@@ -61,6 +65,26 @@ function writeSettings(nextSettings = {}) {
   fs.mkdirSync(path.dirname(settingsPath()), { recursive: true });
   fs.writeFileSync(settingsPath(), JSON.stringify(settings, null, 2));
   return settings;
+}
+
+function getTrialStatus(now = new Date()) {
+  let settings = readSettings();
+  let startedAt = Date.parse(settings.trialStartedAt);
+  if (!Number.isFinite(startedAt)) {
+    settings = writeSettings({ trialStartedAt: now.toISOString() });
+    startedAt = Date.parse(settings.trialStartedAt);
+  }
+
+  const elapsedMs = Math.max(0, now.getTime() - startedAt);
+  const trialMs = TRIAL_DAYS * 24 * 60 * 60 * 1000;
+  const remainingMs = Math.max(0, trialMs - elapsedMs);
+  return {
+    trialDays: TRIAL_DAYS,
+    startedAt: new Date(startedAt).toISOString(),
+    endsAt: new Date(startedAt + trialMs).toISOString(),
+    daysRemaining: Math.ceil(remainingMs / (24 * 60 * 60 * 1000)),
+    expired: remainingMs <= 0,
+  };
 }
 
 function configuredDefaultSaveDirectory() {
@@ -135,6 +159,7 @@ function centeredBounds(size, display = screen.getPrimaryDisplay()) {
 }
 
 function getToolbarWindowBounds() {
+  if (lastToolbarBounds) return constrainToolbarBoundsToWorkArea(lastToolbarBounds);
   const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()) || screen.getPrimaryDisplay();
   const { workArea } = display;
   return {
@@ -142,6 +167,23 @@ function getToolbarWindowBounds() {
     height: TOOLBAR_WINDOW_SIZE.height,
     x: Math.round(workArea.x + (workArea.width - TOOLBAR_WINDOW_SIZE.width) / 2),
     y: Math.round(workArea.y + 12),
+  };
+}
+
+function constrainToolbarBoundsToWorkArea(bounds) {
+  const center = {
+    x: Math.round(bounds.x + bounds.width / 2),
+    y: Math.round(bounds.y + bounds.height / 2),
+  };
+  const display = screen.getDisplayNearestPoint(center) || screen.getPrimaryDisplay();
+  const { workArea } = display;
+  const width = Math.min(Math.max(bounds.width, TOOLBAR_MIN_SIZE.width), workArea.width);
+  const height = Math.min(Math.max(bounds.height, TOOLBAR_MIN_SIZE.height), workArea.height);
+  return {
+    width,
+    height,
+    x: Math.round(Math.min(Math.max(bounds.x, workArea.x), workArea.x + workArea.width - width)),
+    y: Math.round(Math.min(Math.max(bounds.y, workArea.y), workArea.y + workArea.height - height)),
   };
 }
 
@@ -171,6 +213,14 @@ function rememberEditorBounds() {
   const bounds = mainWindow.getBounds();
   if (bounds.width >= TOOLBAR_WINDOW_SIZE.width && bounds.height >= TOOLBAR_WINDOW_SIZE.height) {
     lastEditorBounds = bounds;
+  }
+}
+
+function rememberToolbarBounds() {
+  if (!mainWindow || mainWindow.isDestroyed() || mainWindowMode !== 'toolbar' || mainWindow.isMinimized()) return;
+  const bounds = mainWindow.getBounds();
+  if (bounds.width >= TOOLBAR_MIN_SIZE.width && bounds.height >= TOOLBAR_MIN_SIZE.height) {
+    lastToolbarBounds = bounds;
   }
 }
 
@@ -248,6 +298,8 @@ function openPreferencesWindow() {
     titleBarStyle: 'hiddenInset',
     vibrancy: 'sidebar',
     visualEffectState: 'active',
+    transparent: true,
+    backgroundColor: '#00000000',
     autoHideMenuBar: true,
     title: 'Preferences',
     webPreferences: getAppWebPreferences(),
@@ -1117,7 +1169,10 @@ function createMainWindow() {
   });
 
 
-  mainWindow.setContentProtection(true);
+  // Keep the pill visible to external proof recordings. The recording pipeline
+  // hides pico windows before capturing desktop frames, so capture recursion is
+  // handled there instead of by shielding the normal UI from screen capture.
+  mainWindow.setContentProtection(false);
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   mainWindow.once('ready-to-show', () => showMainWindowForCurrentMode());
   mainWindow.webContents.on('did-finish-load', () => console.log('[pico][main] did-finish-load'));
@@ -1131,6 +1186,8 @@ function createMainWindow() {
   });
   mainWindow.on('resize', rememberEditorBounds);
   mainWindow.on('move', rememberEditorBounds);
+  mainWindow.on('resize', rememberToolbarBounds);
+  mainWindow.on('move', rememberToolbarBounds);
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
@@ -1539,6 +1596,13 @@ ipcMain.handle('get-settings', async () => readSettings());
 
 ipcMain.handle('save-settings', async (event, nextSettings = {}) => writeSettings(nextSettings));
 
+ipcMain.handle('get-trial-status', async () => getTrialStatus());
+
+ipcMain.handle('open-native-preferences', async () => {
+  openPreferencesWindow();
+  return { success: true };
+});
+
 ipcMain.on('settings-changed', () => {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('settings-changed');
@@ -1713,6 +1777,11 @@ function chooseRecordingWindowSource() {
 }
 
 ipcMain.handle('pro-recording-source', async (event, options = {}) => {
+  const trialStatus = getTrialStatus();
+  if (trialStatus.expired) {
+    throw new Error('Your 30-day trial has expired.');
+  }
+
   if (!await ensureMacScreenRecordingPermission()) {
     throw new Error('Screen Recording permission is required.');
   }
