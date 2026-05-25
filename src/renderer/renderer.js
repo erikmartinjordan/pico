@@ -369,6 +369,8 @@ function bindIPC() {
   window.pico.onRecordingStopRequested(() => {
     if (state.isRecording) toggleRecording();
   });
+  window.pico.onSettingsChanged?.(() => loadRecordingSettings());
+  window.pico.onSaveRecordingStarted?.(() => setRecordingSaveProgress(true));
 }
 
 function bindInlineText() {
@@ -614,10 +616,20 @@ function hideRecordingFormatMenu() {
   elements.recordingFormatMenu?.classList.remove('visible');
 }
 
-function setRecordingSaveProgress(visible) {
-  state.isSavingRecording = Boolean(visible);
-  elements.recordingSaveProgress?.classList.toggle('visible', state.isSavingRecording);
-  elements.recordingSaveProgress?.setAttribute('aria-hidden', state.isSavingRecording ? 'false' : 'true');
+function setRecordingSaveProgress(visible, options = {}) {
+  if (!options.preserveSaving) state.isSavingRecording = Boolean(visible);
+  const progress = elements.recordingSaveProgress;
+  if (!progress) return;
+  const isVisible = Boolean(visible);
+  progress.classList.toggle('visible', isVisible);
+  progress.classList.toggle('complete', Boolean(options.complete));
+  progress.setAttribute('aria-hidden', isVisible ? 'false' : 'true');
+  const progressbar = progress.querySelector('[role="progressbar"]');
+  if (progressbar) {
+    progressbar.setAttribute('aria-valuemin', '0');
+    progressbar.setAttribute('aria-valuemax', '100');
+    progressbar.setAttribute('aria-valuenow', options.complete ? '100' : (isVisible ? '92' : '0'));
+  }
 }
 
 function onRecordButtonClick(event) {
@@ -787,9 +799,9 @@ function showLiveRecordingPreview(started = {}, format = state.recordingFormat) 
 
 async function saveRecordingPreview() {
   if (!state.recordingPreview || state.isSavingRecording) return;
+  state.isSavingRecording = true;
+  setRecordingSaveProgress(false, { preserveSaving: true });
   try {
-    setRecordingSaveProgress(true);
-    showToast('Saving recording…', 'info');
     const result = await window.pico.saveRecording({
       data: state.recordingPreview.data,
       format: state.recordingPreview.format,
@@ -800,12 +812,15 @@ async function saveRecordingPreview() {
     }
     const savedPath = result.gif || result.mp4 || result.webm;
     const warning = result.warning ? ` (${result.warning})` : '';
-    showToast(`Saved recording: ${savedPath}${warning}`, result.warning ? 'info' : 'success');
+    setRecordingSaveProgress(true, { complete: true });
     discardRecordingPreview({ silent: true });
+    showToast(`Saved recording: ${savedPath}${warning}`, result.warning ? 'info' : 'success');
+    await new Promise((resolve) => setTimeout(resolve, 220));
   } catch (err) {
     showToast(`Recording save failed: ${err.message}`, 'error');
   } finally {
     setRecordingSaveProgress(false);
+    state.isSavingRecording = false;
   }
 }
 
@@ -911,7 +926,7 @@ function clearCanvas() {
   state.windowContainerApplied = false;
   state.originalImageBeforeContainer = null;
   elements.canvas.classList.remove('visible');
-  elements.emptyState.classList.remove('hidden');
+  elements.emptyState.classList.add('hidden');
   document.body.classList.remove('has-image');
   document.body.classList.remove('has-content');
   document.body.offsetHeight; // force reflow

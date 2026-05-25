@@ -40,6 +40,7 @@ async function saveSettings() {
   try {
     await window.pico.saveSettings({ defaultSavePath: settings.defaultSavePath });
   } catch (_) {}
+  window.pico.notifySettingsChanged?.();
 }
 
 recordingFormatSetting.addEventListener('change', () => {

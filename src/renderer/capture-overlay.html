@@ -585,20 +585,20 @@
       const logicalY = (rect.y / viewH) * captureData.bounds.height;
       const logicalW = (rect.width / viewW) * captureData.bounds.width;
       const logicalH = (rect.height / viewH) * captureData.bounds.height;
-      const scaleFactor = captureData.scaleFactor || 1;
+      const sf = captureData.scaleFactor || 1;
       return {
         sourceId: captureData.sourceId,
         displayId: captureData.displayId,
         displayBounds: captureData.bounds,
-        scaleFactor,
+        scaleFactor: sf,
         x: Math.round(logicalX),
         y: Math.round(logicalY),
         width: Math.round(logicalW),
         height: Math.round(logicalH),
-        pixelX: Math.round(logicalX * scaleFactor),
-        pixelY: Math.round(logicalY * scaleFactor),
-        pixelWidth: Math.max(1, Math.round(logicalW * scaleFactor)),
-        pixelHeight: Math.max(1, Math.round(logicalH * scaleFactor)),
+        pixelX: Math.round(logicalX * sf),
+        pixelY: Math.round(logicalY * sf),
+        pixelWidth: Math.max(2, Math.round(logicalW * sf)),
+        pixelHeight: Math.max(2, Math.round(logicalH * sf)),
       };
     }
 

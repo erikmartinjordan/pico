@@ -240,13 +240,16 @@ function openPreferencesWindow() {
   }
 
   preferencesWindow = new BrowserWindow({
-    width: 700,
-    height: 300,
+    width: 480,
+    height: 320,
     resizable: false,
     minimizable: false,
     maximizable: false,
+    titleBarStyle: 'hiddenInset',
+    vibrancy: 'sidebar',
+    visualEffectState: 'active',
     autoHideMenuBar: true,
-    title: '',
+    title: 'Preferences',
     webPreferences: getAppWebPreferences(),
   });
 
@@ -1236,8 +1239,8 @@ function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) 
         width: display.bounds.width,
         height: display.bounds.height,
         frame: false,
-        transparent: false,
-        backgroundColor: '#000000',
+        transparent: true,
+        backgroundColor: '#00000000',
         hasShadow: false,
         skipTaskbar: true,
         resizable: false,
@@ -1536,6 +1539,12 @@ ipcMain.handle('get-settings', async () => readSettings());
 
 ipcMain.handle('save-settings', async (event, nextSettings = {}) => writeSettings(nextSettings));
 
+ipcMain.on('settings-changed', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('settings-changed');
+  }
+});
+
 ipcMain.handle('choose-default-save-path', async (event, currentPath = '') => {
   const result = await dialog.showOpenDialog(preferencesWindow || mainWindow, {
     title: 'Choose default save path',
@@ -1773,6 +1782,8 @@ ipcMain.handle('pro-save-recording', async (event, payload) => {
     if (saveResult.canceled || !saveResult.filePath) return { canceled: true };
     outputPath = saveResult.filePath;
   }
+
+  event.sender.send('pro-save-recording-started');
 
   const webmPath = tempRecordingPath('webm');
   const bytes = Buffer.isBuffer(data) ? data : Buffer.from(data);
