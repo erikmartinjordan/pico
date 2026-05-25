@@ -789,9 +789,9 @@ function showLiveRecordingPreview(started = {}, format = state.recordingFormat) 
 
 async function saveRecordingPreview() {
   if (!state.recordingPreview || state.isSavingRecording) return;
+  state.isSavingRecording = true;
+  setRecordingSaveProgress(false, { preserveSaving: true });
   try {
-    setRecordingSaveProgress(true);
-    showToast('Saving recording…', 'info');
     const result = await window.pico.saveRecording({
       data: state.recordingPreview.data,
       format: state.recordingPreview.format,
@@ -802,12 +802,15 @@ async function saveRecordingPreview() {
     }
     const savedPath = result.gif || result.mp4 || result.webm;
     const warning = result.warning ? ` (${result.warning})` : '';
-    showToast(`Saved recording: ${savedPath}${warning}`, result.warning ? 'info' : 'success');
+    setRecordingSaveProgress(true, { complete: true });
     discardRecordingPreview({ silent: true });
+    showToast(`Saved recording: ${savedPath}${warning}`, result.warning ? 'info' : 'success');
+    await new Promise((resolve) => setTimeout(resolve, 220));
   } catch (err) {
     showToast(`Recording save failed: ${err.message}`, 'error');
   } finally {
     setRecordingSaveProgress(false);
+    state.isSavingRecording = false;
   }
 }
 
