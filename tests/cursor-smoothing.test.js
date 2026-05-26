@@ -6,6 +6,7 @@ const vm = require('vm');
 const preloadSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'preload.js'), 'utf8');
 const rendererSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'renderer.js'), 'utf8');
 const stylesSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'styles.css'), 'utf8');
+const indexSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'index.html'), 'utf8');
 const captureOverlaySource = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'capture-overlay.html'), 'utf8');
 const policyStart = preloadSource.indexOf('const streamCursorModes');
 const policyEnd = preloadSource.indexOf('function getRecordingMimeType');
@@ -166,9 +167,31 @@ function createStreamWithCursorSetting(cursor) {
     /if \(dragging\) \{\s*scheduleAutoHide\(\);\s*return;\s*\}/.test(rendererSource),
     'toolbar auto-hide must reschedule while an active drag is still in progress',
   );
+  assert.ok(rendererSource.includes('const hideAfterAnimationMs = 340'), 'toolbar hide delay must match the pill disappear animation');
   assert.ok(!rendererSource.includes('past-threshold'), 'manual drag-threshold hide behavior must be removed');
   assert.ok(/\.toolbar\.dragging\s*\{[\s\S]*?cursor: all-scroll;/.test(stylesSource), 'all-scroll cursor must be scoped to explicit toolbar drags');
+  assert.ok(
+    /\.toolbar\.auto-hidden\s*\{[\s\S]*?opacity: 0;[\s\S]*?transform: translateX\(-50%\) translateY\(-6px\) scale\(0\.97\);[\s\S]*?pointer-events: none;[\s\S]*?\}/.test(stylesSource),
+    'toolbar hide animation must mirror the appearing pill transform',
+  );
+  assert.ok(!/\.toolbar\.auto-hidden\s*\{[\s\S]*?filter:/.test(stylesSource), 'toolbar hide animation must not use the old blur/shrink treatment');
   assert.ok(!/\.toolbar:active\s*\{[\s\S]*?cursor: all-scroll;/.test(stylesSource), 'toolbar active state must not show all-scroll on button presses');
+}
+
+{
+  assert.ok(rendererSource.includes('currentTool: null'), 'editor must not default to a selected annotation tool');
+  assert.ok(rendererSource.includes('clearToolSelection();'), 'loading an image must clear toolbar tool selection');
+  assert.ok(!rendererSource.includes('autoSelectRect'), 'captured images must not auto-select the rectangle tool');
+  assert.ok(rendererSource.includes("state.selectedAnnotationIndex = -1;\n  render();\n  updateStatus();"), 'new annotations must not stay selected after drawing');
+  assert.ok(
+    /function selectColor\(color\) \{[\s\S]*?if \(state\.selectedAnnotationIndex >= 0\)/.test(rendererSource),
+    'color changes must apply to the selected annotation regardless of the active tool',
+  );
+  assert.ok(!indexSource.includes('id="stroke-current" data-tooltip='), 'line weight control must not show the app tooltip');
+  assert.ok(indexSource.includes('<span class="status-tool" id="status-tool">Ready</span>'), 'status bar must not start on Rectangle');
+  assert.ok(/\.toolbar-btn\s*\{[\s\S]*?width: 36px;[\s\S]*?height: 36px;/.test(stylesSource), 'editor toolbar buttons must match the main pillbar size');
+  assert.ok(/\.toolbar-btn svg\s*\{\s*width: 18px;\s*height: 18px;\s*\}/.test(stylesSource), 'editor toolbar icons must match the main pillbar icon size');
+  assert.ok(/\.color-swatch\s*\{[\s\S]*?-webkit-app-region: no-drag;/.test(stylesSource), 'color swatches must be clickable inside the draggable toolbar');
 }
 
 console.log('pico proof regression tests passed');

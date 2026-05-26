@@ -12,7 +12,7 @@ const state = {
   imageWidth: 0,
   imageHeight: 0,
   zoom: 1,
-  currentTool: 'select',
+  currentTool: null,
   currentColor: '#f97316',
   strokeWidth: 4,
   textFontSize: 24,
@@ -364,10 +364,9 @@ function bindIPC() {
     loadImage(capturePayload?.dataUrl, {
       showPreview: capturePayload?.source === 'capture',
       captureMode: capturePayload?.captureMode || 'region',
-      autoSelectRect: capturePayload?.source === 'capture',
     });
   });
-  window.pico.onLoadCaptureData((captureData) => loadCaptureData(captureData, { autoSelectRect: true }));
+  window.pico.onLoadCaptureData((captureData) => loadCaptureData(captureData));
   window.pico.onToolbarOpenRequested?.(() => {
     resetFloatingToolbar({ fromMenu: true });
   });
@@ -1024,6 +1023,8 @@ function loadImage(dataUrl, options = {}) {
     state.annotations = [];
     state.history = [];
     state.historyIndex = -1;
+    state.selectedAnnotationIndex = -1;
+    clearToolSelection();
     state.zoom = 1;
     elements.canvas.width = img.width;
     elements.canvas.height = img.height;
@@ -1038,7 +1039,6 @@ function loadImage(dataUrl, options = {}) {
     render();
     updateStatus();
     updateToolbarState();
-    if (options.autoSelectRect) selectTool('rect');
     if (options.showPreview || state.pendingFullscreenPreview) {
       showCapturePreview(dataUrl, options.captureMode || 'fullscreen');
       state.pendingFullscreenPreview = false;
@@ -1098,10 +1098,16 @@ function selectTool(tool) {
   if (state.cropActive) cancelCrop();
   state.currentTool = tool;
   elements.toolBtns.forEach(btn => btn.classList.toggle('active', btn.dataset.tool === tool));
-  elements.container.className = 'canvas-container tool-' + tool;
-  elements.canvas.style.cursor = tool === 'text' ? 'text' : (tool === 'select' ? 'default' : 'crosshair');
+  elements.container.className = tool ? `canvas-container tool-${tool}` : 'canvas-container';
+  elements.canvas.style.cursor = !tool ? 'default' : (tool === 'text' ? 'text' : (tool === 'select' ? 'default' : 'crosshair'));
   toggleTextStyleControls();
   updateStatus();
+}
+
+function clearToolSelection() {
+  selectTool(null);
+  state.selectedAnnotationIndex = -1;
+  render();
 }
 
 function selectColor(color) {
@@ -1109,7 +1115,7 @@ function selectColor(color) {
   elements.colorSwatches.forEach(s => s.classList.toggle('active', s.dataset.color === color));
   if (state.isEditingText) elements.textInput.style.color = color;
 
-  if (state.currentTool === 'select' && state.selectedAnnotationIndex >= 0) {
+  if (state.selectedAnnotationIndex >= 0) {
     const selected = state.annotations[state.selectedAnnotationIndex];
     if (selected) {
       selected.color = color;
@@ -1254,6 +1260,7 @@ function moveAnnotation(annotation, dx, dy) {
 function onCanvasMouseDown(e) {
   if (!state.image || state.cropActive) return;
   if (state.isEditingText) { commitInlineText(); return; }
+  if (!state.currentTool) return;
   
   const coords = getCanvasCoords(e);
 
@@ -1476,7 +1483,7 @@ function addAnnotation(annotation) {
   state.history.push([...state.annotations, annotation]);
   state.historyIndex = state.history.length - 1;
   state.annotations = [...state.annotations, annotation];
-  state.selectedAnnotationIndex = state.annotations.length - 1;
+  state.selectedAnnotationIndex = -1;
   render();
   updateStatus();
   updateToolbarState();
@@ -1744,7 +1751,7 @@ function getCompositeImage() {
 
 function updateStatus() {
   const names = { select: 'Select', rect: 'Rectangle', ellipse: 'Ellipse', arrow: 'Arrow', line: 'Line', text: 'Text', highlight: 'Highlight', blur: 'Blur' };
-  elements.statusTool.textContent = state.cropActive ? 'Crop' : (names[state.currentTool] || state.currentTool);
+  elements.statusTool.textContent = state.cropActive ? 'Crop' : (names[state.currentTool] || 'Ready');
   elements.statusZoom.textContent = `${Math.round(state.zoom * 100)}%`;
 }
 
@@ -2046,7 +2053,7 @@ function initToolbarDismiss() {
   if (!toolbar) return;
 
   const inactivityDelay = 2500;
-  const hideAfterAnimationMs = 520;
+  const hideAfterAnimationMs = 340;
   let hidden = false;
   let hideTimer = null;
   let minimizeTimer = null;

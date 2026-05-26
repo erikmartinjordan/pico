@@ -27,6 +27,7 @@
   "build": {
     "appId": "com.pico.screenshot",
     "productName": "pico",
+    "buildVersion": "0.0.1",
     "directories": {
       "output": "dist",
       "buildResources": "build"
@@ -55,6 +56,9 @@
       ],
       "icon": "build/icon.icns",
       "identity": null
+    },
+    "dmg": {
+      "icon": "build/icon.icns"
     },
     "win": {
       "publisherName": [
