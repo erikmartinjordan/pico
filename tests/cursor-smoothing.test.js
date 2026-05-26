@@ -4,6 +4,7 @@ const path = require('path');
 const vm = require('vm');
 
 const preloadSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'preload.js'), 'utf8');
+const mainSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8');
 const rendererSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'renderer.js'), 'utf8');
 const stylesSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'styles.css'), 'utf8');
 const indexSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'index.html'), 'utf8');
@@ -140,6 +141,91 @@ function createStreamWithCursorSetting(cursor) {
   assert.ok(
     /captureMode === 'region' \|\| captureMode === 'record-region'[\s\S]*instructions\.classList\.add\('hidden'\)[\s\S]*instructions\.textContent = ''/.test(captureOverlaySource),
     'region and record-region overlays must not show Esc/instruction text',
+  );
+  assert.ok(
+    /#selection\s*\{[\s\S]*outline:\s*2px solid #f07d20;[\s\S]*background:\s*transparent;/.test(captureOverlaySource),
+    'selection chrome must render outside the selected content so overlay crops match recording pixels',
+  );
+  assert.ok(
+    /region\.initialFrameDataUrl = dataUrl;[\s\S]*recordingRegionComplete\(region\)/.test(captureOverlaySource),
+    'record-region completion must include a selected screenshot seed for first-frame alignment',
+  );
+  assert.ok(
+    /videoBitsPerSecond:\s*50_000_000/.test(preloadSource),
+    'screen recorder must request a high video bitrate to preserve screen-detail alignment checks',
+  );
+  assert.ok(
+    /autoZoom:\s*shouldCropRegion\s*\?\s*false\s*:\s*true/.test(preloadSource),
+    'region recording must crop the selected rectangle exactly instead of autozooming away from the overlay bounds',
+  );
+  assert.ok(
+    !mainSource.includes("type: process.platform === 'darwin' ? 'panel' : undefined"),
+    'recording indicator windows must not use macOS panel type because it emits NSWindow nonactivating panel errors',
+  );
+  assert.ok(
+    !/focusable:\s*false/.test(mainSource),
+    'recording overlay windows must not request non-focusable macOS windows because they can become nonactivating panels',
+  );
+  assert.ok(
+    /show:\s*false,[\s\S]*overlayWindow\.showInactive\(\)/.test(mainSource),
+    'recording overlay windows should be shown without activation instead of using nonactivating panel styles',
+  );
+  assert.ok(
+    /const shouldShowRegionOverlay = Boolean\(lastRecordingRegion\);/.test(mainSource),
+    'region recordings must keep a visible recording overlay on every platform',
+  );
+  assert.ok(
+    /const overlayWindow = new BrowserWindow\(\{[\s\S]*backgroundColor: '#00000000'[\s\S]*fullscreenable: true[\s\S]*enableLargerThanScreen: true/.test(mainSource),
+    'recording overlay window must match capture overlay screen coverage so macOS does not offset it below the menu bar',
+  );
+  assert.ok(
+    /overlayWindow\.webContents\.once\('did-finish-load'[\s\S]*overlayWindow\.setBounds\(\{[\s\S]*x: bounds\.x,[\s\S]*y: bounds\.y,[\s\S]*width: bounds\.width,[\s\S]*height: bounds\.height/.test(mainSource),
+    'recording overlay must re-apply exact display bounds after load before becoming visible',
+  );
+  assert.ok(
+    /const dimBlocks = regionOnDisplay \?[\s\S]*recording-dim[\s\S]*width:\$\{regionOnDisplay\.left\}px[\s\S]*width:\$\{regionOnDisplay\.right\}px/.test(mainSource),
+    'recording overlay must illuminate the selected region by dimming only the outside bands',
+  );
+  assert.ok(
+    !/recording-frame|recording-glow|outline:\s*2px solid rgba\(249, 115, 22/.test(mainSource),
+    'recording overlay must not draw orange borders that can misalign or leak into the captured video',
+  );
+  const recordingDimCss = mainSource.match(/\.recording-dim\s*\{[\s\S]*?\}/)?.[0] || '';
+  assert.ok(recordingDimCss && !recordingDimCss.includes('backdrop-filter'), 'recording overlay dim bands must not blur because blur can bleed into the illuminated capture region');
+  assert.ok(
+    /region: source\.mode === 'region' \? \(streamAlignedRegion \|\| source\.region\) : null/.test(preloadSource),
+    'recording overlay must use the same stream-aligned region as the capture crop',
+  );
+  assert.ok(
+    /dialog\.showSaveDialog\(mainWindow,[\s\S]*Save screen recording/.test(mainSource),
+    'recording save must show the native save dialog when no default save directory is configured',
+  );
+  assert.ok(
+    /setWindowMode: \(mode, options = \{\}\) => ipcRenderer\.invoke\('window-set-mode', mode, options\)/.test(preloadSource),
+    'window mode changes must support forcing the hidden recording window visible for preview',
+  );
+  assert.ok(
+    /setAppWindowMode\('editor', \{ show: true \}\)/.test(rendererSource),
+    'recording preview must reopen the app in editor mode instead of leaving the window hidden',
+  );
+  assert.ok(
+    /discardRecordingPreview\(\{ silent: true, keepWindowMode: true \}\)/.test(rendererSource),
+    'recording preview replacement must not race the window back to toolbar mode',
+  );
+  assert.ok(
+    !rendererSource.slice(
+      rendererSource.indexOf('async function saveRecordingPreview()'),
+      rendererSource.indexOf('function setRecordingPreviewFormat'),
+    ).includes('discardRecordingPreview'),
+    'saving a recording must keep the preview visible and steady in editor mode',
+  );
+  assert.ok(
+    /function applyEditorWindowMode[\s\S]*mainWindow\.setContentProtection\(false\)/.test(mainSource),
+    'returning to editor mode must remove recording content protection so preview and dialogs are visible',
+  );
+  assert.ok(
+    /function applyToolbarWindowMode[\s\S]*mainWindow\.setContentProtection\(false\)/.test(mainSource),
+    'returning to toolbar mode must remove recording content protection',
   );
 }
 

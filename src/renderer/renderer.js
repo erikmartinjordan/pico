@@ -124,8 +124,8 @@ const elements = {
 
 function on(el, event, handler) { if (el) el.addEventListener(event, handler); }
 
-function setAppWindowMode(mode) {
-  return window.pico?.setWindowMode?.(mode)?.catch?.(() => {});
+function setAppWindowMode(mode, options = {}) {
+  return window.pico?.setWindowMode?.(mode, options)?.catch?.(() => {});
 }
 
 function resetFloatingToolbar() {
@@ -666,7 +666,7 @@ async function startRecordingWithFormat(format = 'mp4', mode = 'region') {
     state.recordingMode = mode;
     showLiveRecordingPreview(started, normalizedFormat);
     setRecordingIndicator(true);
-    const targetLabel = mode === 'region' ? 'selected region with autozoom' : (started.source?.name || 'window');
+    const targetLabel = mode === 'region' ? 'selected region' : (started.source?.name || 'window');
     showToast(started.systemAudio ? `Recording ${targetLabel} as ${normalizedFormat.toUpperCase()}` : `Recording ${targetLabel} as ${normalizedFormat.toUpperCase()} without system audio`, started.systemAudio ? 'success' : 'info');
   } catch (err) {
     state.isRecording = false;
@@ -761,11 +761,11 @@ async function toggleRecording(event) {
 
 function showRecordingPreview(result = {}) {
   if (!result?.data || !elements.recordingPreview || !elements.recordingPreviewVideo) return;
-  discardRecordingPreview({ silent: true });
+  discardRecordingPreview({ silent: true, keepWindowMode: true });
   elements.emptyState.classList.add('hidden');
   document.body.classList.add('has-content');
   resetFloatingToolbar();
-  setAppWindowMode('editor');
+  setAppWindowMode('editor', { show: true });
   const bytes = result.data instanceof Uint8Array ? result.data : new Uint8Array(result.data);
   const blob = new Blob([bytes], { type: result.mimeType || 'video/webm' });
   const url = URL.createObjectURL(blob);
@@ -804,7 +804,7 @@ function discardRecordingPreview(options = {}) {
   elements.recordingPreview?.classList.add('hidden');
   elements.recordingPreview?.setAttribute('aria-hidden', 'true');
   elements.container?.classList.remove('recording-preview-active');
-  if (!state.image) {
+  if (!state.image && !options?.keepWindowMode) {
     document.body.classList.add('toolbar-transition');
     Promise.resolve(setAppWindowMode('toolbar')).finally(() => {
       document.body.classList.remove('has-content');
@@ -851,7 +851,9 @@ async function saveRecordingPreview() {
     const savedPath = result.gif || result.mp4 || result.webm;
     const warning = result.warning ? ` (${result.warning})` : '';
     setRecordingSaveProgress(true, { complete: true });
-    discardRecordingPreview({ silent: true });
+    if (elements.recordingPreviewMeta) {
+      elements.recordingPreviewMeta.textContent = `Saved ${state.recordingPreview.format.toUpperCase()} export: ${savedPath}`;
+    }
     showToast(`Saved recording: ${savedPath}${warning}`, result.warning ? 'info' : 'success');
     await new Promise((resolve) => setTimeout(resolve, 220));
   } catch (err) {

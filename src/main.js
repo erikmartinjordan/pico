@@ -235,6 +235,7 @@ function applyToolbarWindowMode(options = {}) {
   mainWindow.setResizable(false);
   mainWindow.setMaximizable(false);
   if (typeof mainWindow.setFullScreenable === 'function') mainWindow.setFullScreenable(false);
+  mainWindow.setContentProtection(false);
   mainWindow.setSkipTaskbar(process.platform === 'darwin');
   try { mainWindow.setHasShadow(false); } catch (_) {}
   try { mainWindow.setAlwaysOnTop(true, process.platform === 'darwin' ? 'floating' : 'normal'); } catch (_) { mainWindow.setAlwaysOnTop(true); }
@@ -258,6 +259,7 @@ function applyEditorWindowMode(options = {}) {
   mainWindow.setResizable(true);
   mainWindow.setMaximizable(true);
   if (typeof mainWindow.setFullScreenable === 'function') mainWindow.setFullScreenable(true);
+  mainWindow.setContentProtection(false);
   mainWindow.setMinimumSize(EDITOR_MIN_SIZE.width, EDITOR_MIN_SIZE.height);
   mainWindow.setSkipTaskbar(false);
   try { mainWindow.setAlwaysOnTop(false); } catch (_) {}
@@ -877,6 +879,7 @@ function showRecordingIndicator(options = {}) {
   const allDisplays = screen.getAllDisplays();
   const dimOpacity = 'rgba(0, 0, 0, 0.52)';
   const statusText = lastRecordingRegion ? 'Recording region' : 'Recording';
+  const shouldShowRegionOverlay = Boolean(lastRecordingRegion);
 
   for (const display of allDisplays) {
     const { bounds } = display;
@@ -898,11 +901,7 @@ function showRecordingIndicator(options = {}) {
           <div class="recording-dim" style="right:0;top:${regionOnDisplay.top}px;width:${regionOnDisplay.right}px;height:${regionOnDisplay.height}px"></div>
           <div class="recording-dim" style="left:0;bottom:0;width:100%;height:${regionOnDisplay.bottom}px"></div>`
       : (lastRecordingRegion ? '<div class="recording-dim full"></div>' : '');
-    const showRecordingGlow = process.platform !== 'darwin';
-    const glowStyle = regionOnDisplay
-      ? `left:${regionOnDisplay.left}px;top:${regionOnDisplay.top}px;width:${regionOnDisplay.width}px;height:${regionOnDisplay.height}px;border-radius:14px;`
-      : 'inset:0;border-radius:0;';
-    if (lastRecordingRegion) {
+    if (shouldShowRegionOverlay) {
       const overlayWindow = new BrowserWindow({
         width: bounds.width,
         height: bounds.height,
@@ -910,14 +909,16 @@ function showRecordingIndicator(options = {}) {
         y: bounds.y,
         frame: false,
         transparent: true,
+        backgroundColor: '#00000000',
         resizable: false,
         movable: false,
         alwaysOnTop: true,
         skipTaskbar: true,
-        focusable: false,
         hasShadow: false,
+        show: false,
         autoHideMenuBar: true,
-        type: process.platform === 'darwin' ? 'panel' : undefined,
+        fullscreenable: true,
+        enableLargerThanScreen: true,
         webPreferences: {
           contextIsolation: false,
           nodeIntegration: true,
@@ -948,30 +949,27 @@ function showRecordingIndicator(options = {}) {
             .recording-dim {
               position: fixed;
               background: ${dimOpacity};
-              backdrop-filter: blur(1px);
               pointer-events: none;
             }
             .recording-dim.full { inset: 0; }
-            ${showRecordingGlow ? `.recording-glow {
-              position: fixed;
-              ${glowStyle}
-              border: 3px solid rgba(239, 68, 68, 0.94);
-              box-shadow:
-                inset 0 0 24px rgba(248, 113, 113, 0.52),
-                inset 0 0 44px rgba(220, 38, 38, 0.22),
-                0 0 18px rgba(239, 68, 68, 0.62);
-              animation: glowPulse 1.25s ease-in-out infinite;
-              pointer-events: none;
-            }
-            @keyframes glowPulse { 0%, 100% { opacity: 0.75; } 50% { opacity: 1; } }` : ''}
           </style>
         </head>
         <body>
           ${dimBlocks}
-          ${showRecordingGlow ? '<div class="recording-glow"></div>' : ''}
         </body>
       </html>
     `)}`);
+
+      overlayWindow.webContents.once('did-finish-load', () => {
+        if (overlayWindow.isDestroyed()) return;
+        overlayWindow.setBounds({
+          x: bounds.x,
+          y: bounds.y,
+          width: bounds.width,
+          height: bounds.height,
+        }, false);
+        overlayWindow.showInactive();
+      });
 
       overlayWindow.on('closed', () => {
         recordingIndicatorWindows = recordingIndicatorWindows.filter(w => w !== overlayWindow);
@@ -998,7 +996,6 @@ function showRecordingIndicator(options = {}) {
     focusable: true,
     hasShadow: false,
     autoHideMenuBar: true,
-    type: process.platform === 'darwin' ? 'panel' : undefined,
     webPreferences: {
       contextIsolation: false,
       nodeIntegration: true,
@@ -1690,10 +1687,10 @@ ipcMain.handle('window-minimize', async () => {
   return { success: true };
 });
 
-ipcMain.handle('window-set-mode', async (event, mode) => {
+ipcMain.handle('window-set-mode', async (event, mode, options = {}) => {
   if (!mainWindow || mainWindow.isDestroyed()) return { success: false };
-  if (mode === 'editor') applyEditorWindowMode();
-  else applyToolbarWindowMode();
+  if (mode === 'editor') applyEditorWindowMode({ show: Boolean(options?.show) });
+  else applyToolbarWindowMode({ show: Boolean(options?.show) });
   return { success: true, mode: mainWindowMode };
 });
 

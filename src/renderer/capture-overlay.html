@@ -39,7 +39,8 @@
     
     #selection {
       position: absolute;
-      border: 2px solid #f07d20;
+      outline: 2px solid #f07d20;
+      outline-offset: 0;
       background: transparent;
       pointer-events: none;
       display: none;
@@ -52,8 +53,20 @@
     #selection::before {
       content: '';
       position: absolute;
-      inset: 0;
+      inset: -2px;
       background: rgba(240, 125, 32, 0.08);
+      clip-path: polygon(
+        0 0,
+        100% 0,
+        100% 100%,
+        0 100%,
+        0 0,
+        2px 2px,
+        2px calc(100% - 2px),
+        calc(100% - 2px) calc(100% - 2px),
+        calc(100% - 2px) 2px,
+        2px 2px
+      );
     }
     
     #dimensions {
@@ -603,7 +616,13 @@
       if (rect.width < 4 || rect.height < 4) return window.pico.captureCancel();
       if (captureMode === 'record-region') {
         const region = getRecordingRegionFromRect(rect);
-        return region?.sourceId ? window.pico.recordingRegionComplete(region) : window.pico.captureCancel();
+        if (!region?.sourceId) return window.pico.captureCancel();
+        return cropFromScreenRect(rect)
+          .then((dataUrl) => {
+            region.initialFrameDataUrl = dataUrl;
+            window.pico.recordingRegionComplete(region);
+          })
+          .catch(() => window.pico.recordingRegionComplete(region));
       }
       cropFromScreenRect(rect).then((dataUrl) => window.pico.captureComplete(dataUrl));
     });

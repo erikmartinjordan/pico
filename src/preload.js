@@ -216,6 +216,9 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
   canvas.width = evenDimension(pixelWidth);
   canvas.height = evenDimension(pixelHeight);
   const ctx = canvas.getContext('2d', { alpha: false });
+  const initialFrameDataUrl = typeof region.initialFrameDataUrl === 'string'
+    ? region.initialFrameDataUrl
+    : '';
 
   const srcRegion = {
     x: region.pixelX ?? Math.round(region.x * scaleFactor),
@@ -309,6 +312,30 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
     ctx.strokeStyle = 'rgba(0, 0, 0, 0.88)';
     ctx.stroke();
     ctx.restore();
+  }
+
+  function loadImage(src) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = src;
+    });
+  }
+
+  async function drawInitialFrame() {
+    if (!initialFrameDataUrl) return false;
+    try {
+      const img = await loadImage(initialFrameDataUrl);
+      ctx.fillStyle = '#09090b';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   function drawCursorOverlay(sx, sy, cropW, cropH, now, dt) {
@@ -475,13 +502,21 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
     if (rafId) cancelAnimationFrame(rafId);
   };
 
-  const ready = video.play().then(() => {
-    lastFrameTime = performance.now();
-    pollCursor();
-    pollTimer = setInterval(pollCursor, 16); // 60 Hz
-    draw();
-    return canvasStream;
-  });
+  const ready = (async () => {
+    const seeded = await drawInitialFrame();
+    const startLiveDrawing = video.play().then(() => {
+      lastFrameTime = performance.now();
+      pollCursor();
+      pollTimer = setInterval(pollCursor, 16); // 60 Hz
+      draw();
+      return canvasStream;
+    });
+    if (seeded) {
+      startLiveDrawing.catch(() => {});
+      return canvasStream;
+    }
+    return startLiveDrawing;
+  })();
 
   return { stream: canvasStream, ready, stop };
 }
@@ -615,7 +650,7 @@ async function startRecording(options = {}) {
       : (source.autoZoom === false || options?.autoZoom === false ? null : await getAutoZoomRegion(source, mode));
     if (autoZoomRegion) {
       zoomPipeline = createAutoZoomStream(rawStream, autoZoomRegion, {
-        autoZoom: shouldCropRegion ? options?.autoZoom !== false && source.autoZoom !== false : true,
+        autoZoom: shouldCropRegion ? false : true,
       });
       proRecordingStream = await zoomPipeline.ready;
       proRecordingRawStream = rawStream;
@@ -630,13 +665,16 @@ async function startRecording(options = {}) {
 
     const mimeType = getRecordingMimeType();
     proRecordingChunks = [];
-    proRecorder = new MediaRecorder(proRecordingStream, { mimeType });
+    proRecorder = new MediaRecorder(proRecordingStream, {
+      mimeType,
+      videoBitsPerSecond: 50_000_000,
+    });
     proRecorder.ondataavailable = (event) => {
       if (event.data && event.data.size > 0) proRecordingChunks.push(event.data);
     };
     proRecorder.start(1000);
     ipcRenderer.invoke('pro-recording-indicator-show', {
-      region: source.mode === 'region' ? source.region : null,
+      region: source.mode === 'region' ? (streamAlignedRegion || source.region) : null,
       inlinePreview: Boolean(options?.previewVideoId),
     }).catch(() => {});
     return { success: true, pro: true, source, systemAudio, mimeType };
@@ -749,7 +787,7 @@ contextBridge.exposeInMainWorld('pico', {
   // Window controls
   closeWindow: () => ipcRenderer.invoke('window-close'),
   minimizeWindow: () => ipcRenderer.invoke('window-minimize'),
-  setWindowMode: (mode) => ipcRenderer.invoke('window-set-mode', mode),
+  setWindowMode: (mode, options = {}) => ipcRenderer.invoke('window-set-mode', mode, options),
   toggleMaximizeWindow: () => ipcRenderer.invoke('window-toggle-maximize'),
 
   // Display info
