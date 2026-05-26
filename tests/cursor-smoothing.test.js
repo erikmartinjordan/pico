@@ -5,6 +5,7 @@ const vm = require('vm');
 
 const preloadSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'preload.js'), 'utf8');
 const rendererSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'renderer.js'), 'utf8');
+const stylesSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'styles.css'), 'utf8');
 const captureOverlaySource = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'capture-overlay.html'), 'utf8');
 const policyStart = preloadSource.indexOf('const streamCursorModes');
 const policyEnd = preloadSource.indexOf('function getRecordingMimeType');
@@ -150,6 +151,24 @@ function createStreamWithCursorSetting(cursor) {
 {
   assert.ok(preloadSource.includes("getTrialStatus: () => ipcRenderer.invoke('get-trial-status')"), 'preload must expose trial status');
   assert.ok(rendererSource.includes('state.trialStatus?.expired'), 'renderer must block recording after trial expiry');
+}
+
+{
+  assert.ok(
+    preloadSource.includes("onToolbarOpenRequested: (callback) => ipcRenderer.on('toolbar-open-requested'"),
+    'preload must expose the menu-only toolbar restore event',
+  );
+  assert.ok(rendererSource.includes('const inactivityDelay = 2500'), 'toolbar auto-hide delay must be 2.5 seconds');
+  assert.ok(rendererSource.includes("toolbar.classList.add('auto-hidden')"), 'toolbar must use the auto-hidden animation state');
+  assert.ok(rendererSource.includes('const finishDragging = () =>'), 'toolbar drag completion must be shared across release paths');
+  assert.ok(rendererSource.includes("window.addEventListener(eventName, finishDragging, true)"), 'toolbar drag completion must survive native window drags');
+  assert.ok(
+    /if \(dragging\) \{\s*scheduleAutoHide\(\);\s*return;\s*\}/.test(rendererSource),
+    'toolbar auto-hide must reschedule while an active drag is still in progress',
+  );
+  assert.ok(!rendererSource.includes('past-threshold'), 'manual drag-threshold hide behavior must be removed');
+  assert.ok(/\.toolbar\.dragging\s*\{[\s\S]*?cursor: all-scroll;/.test(stylesSource), 'all-scroll cursor must be scoped to explicit toolbar drags');
+  assert.ok(!/\.toolbar:active\s*\{[\s\S]*?cursor: all-scroll;/.test(stylesSource), 'toolbar active state must not show all-scroll on button presses');
 }
 
 console.log('pico proof regression tests passed');

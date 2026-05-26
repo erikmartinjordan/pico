@@ -1117,15 +1117,25 @@ function hideRecordingIndicator() {
 
 function createMainWindow() {
   mainWindowMode = 'toolbar';
-  const triggerCaptureRegion = () => {
+  const openPicoWindow = () => {
     if (!mainWindow || mainWindow.isDestroyed()) createMainWindow();
-    showMainWindowForCurrentMode();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      const sendOpenRequest = () => mainWindow?.webContents.send('toolbar-open-requested');
+      if (mainWindow.webContents.isLoading()) mainWindow.webContents.once('did-finish-load', sendOpenRequest);
+      else sendOpenRequest();
+      showMainWindowForCurrentMode();
+    }
+  };
+  const triggerCaptureRegion = () => {
+    openPicoWindow();
     mainWindow.webContents.send('trigger-capture');
   };
   const menu = Menu.buildFromTemplate([
     {
       label: 'File',
       submenu: [
+        { label: 'Open pico', click: openPicoWindow },
+        { type: 'separator' },
         { label: 'Capture Region', click: triggerCaptureRegion },
         { label: 'Capture Window', click: () => mainWindow?.webContents.send('trigger-capture-window') },
         { label: 'Capture Fullscreen', click: () => mainWindow?.webContents.send('trigger-capture-fullscreen') },
@@ -1918,6 +1928,11 @@ function setupTray() {
       label: 'Open pico',
       click: () => {
         if (!mainWindow || mainWindow.isDestroyed()) createMainWindow();
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          const sendOpenRequest = () => mainWindow?.webContents.send('toolbar-open-requested');
+          if (mainWindow.webContents.isLoading()) mainWindow.webContents.once('did-finish-load', sendOpenRequest);
+          else sendOpenRequest();
+        }
         showMainWindowForCurrentMode();
       },
     },

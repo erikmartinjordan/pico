@@ -368,6 +368,9 @@ function bindIPC() {
     });
   });
   window.pico.onLoadCaptureData((captureData) => loadCaptureData(captureData, { autoSelectRect: true }));
+  window.pico.onToolbarOpenRequested?.(() => {
+    resetFloatingToolbar({ fromMenu: true });
+  });
   window.pico.onRecordingStopRequested(() => {
     if (state.isRecording) toggleRecording();
   });
@@ -2038,110 +2041,94 @@ function bindContextMenu() {
 }
 
 
-let isDismissed = false;
-
 function initToolbarDismiss() {
   const toolbar = document.querySelector('.toolbar');
   if (!toolbar) return;
 
-  const threshold = 42;
-  const dismissOffset = 94;
+  const inactivityDelay = 2500;
+  const hideAfterAnimationMs = 520;
+  let hidden = false;
+  let hideTimer = null;
+  let minimizeTimer = null;
   let dragging = false;
-  let pointerId = null;
-  let startY = 0;
-  let currentOffset = 0;
 
   const isFloatingMode = () =>
     !document.body.classList.contains('has-image') &&
     !document.body.classList.contains('has-content') &&
     !state.image;
 
-  const setToolbarTransform = (offset) => {
-    toolbar.style.setProperty('--toolbar-offset', `${offset}px`);
-  };
-
   const restoreToolbar = (options = {}) => {
-    isDismissed = false;
-    toolbar.classList.remove('dismissed', 'past-threshold', 'dragging');
+    hidden = false;
+    window.clearTimeout(hideTimer);
+    window.clearTimeout(minimizeTimer);
+    toolbar.classList.remove('auto-hidden', 'dragging');
     if (options.animate === false) toolbar.style.transition = 'none';
     else toolbar.style.transition = '';
     toolbar.style.opacity = '';
     toolbar.style.pointerEvents = '';
-    setToolbarTransform(0);
     if (options.animate === false) requestAnimationFrame(() => { toolbar.style.transition = ''; });
+    if (options.fromMenu || isFloatingMode()) scheduleAutoHide();
   };
 
-  resetToolbarDismissState = () => restoreToolbar({ animate: false });
+  resetToolbarDismissState = (options = {}) => restoreToolbar({ animate: false, ...options });
 
-  const finishDismiss = () => {
-    isDismissed = true;
-    toolbar.classList.add('dismissed');
-    toolbar.classList.remove('past-threshold');
-    toolbar.style.transition = '';
-    setToolbarTransform(dismissOffset);
-    window.setTimeout(() => {
-      window.pico.minimizeWindow().finally(() => restoreToolbar({ animate: false }));
-    }, 150);
+  const autoHide = () => {
+    if (hidden || !isFloatingMode()) return;
+    if (dragging) {
+      scheduleAutoHide();
+      return;
+    }
+    hidden = true;
+    toolbar.classList.add('auto-hidden');
+    minimizeTimer = window.setTimeout(() => {
+      if (!hidden || !isFloatingMode()) return;
+      window.pico.minimizeWindow().catch(() => {});
+    }, hideAfterAnimationMs);
   };
 
-  const cancelDrag = () => {
+  function scheduleAutoHide() {
+    window.clearTimeout(hideTimer);
+    if (hidden || !isFloatingMode()) return;
+    hideTimer = window.setTimeout(autoHide, inactivityDelay);
+  }
+
+  const markActivity = () => {
+    if (hidden) return;
+    scheduleAutoHide();
+  };
+
+  const finishDragging = () => {
+    if (!dragging) return;
     dragging = false;
-    pointerId = null;
-    toolbar.classList.remove('dragging', 'past-threshold');
-    toolbar.style.transition = '';
-    setToolbarTransform(0);
+    toolbar.classList.remove('dragging');
+    markActivity();
   };
 
   toolbar.addEventListener('pointerdown', (event) => {
     if (event.target.closest('button, .color-swatch, .stroke-picker')) return;
-    if (isDismissed || !isFloatingMode()) return;
-    event.preventDefault();
-    event.stopPropagation();
+    if (hidden || !isFloatingMode()) return;
     dragging = true;
-    pointerId = event.pointerId;
-    startY = event.clientY;
-    currentOffset = 0;
-    toolbar.setPointerCapture?.(event.pointerId);
     toolbar.classList.add('dragging');
-    toolbar.classList.remove('past-threshold');
-    toolbar.style.transition = 'none';
+    markActivity();
   });
 
-  toolbar.addEventListener('pointermove', (event) => {
-    if (!dragging || event.pointerId !== pointerId) return;
-    const deltaY = Math.max(0, event.clientY - startY);
-    currentOffset = Math.min(dismissOffset, deltaY);
-    setToolbarTransform(currentOffset);
+  toolbar.addEventListener('pointermove', markActivity);
 
-    const isPastThreshold = currentOffset > threshold;
-    toolbar.classList.toggle('past-threshold', isPastThreshold);
+  toolbar.addEventListener('pointerup', finishDragging);
+  toolbar.addEventListener('pointercancel', finishDragging);
+
+  ['pointermove', 'pointerdown', 'keydown'].forEach((eventName) => {
+    document.addEventListener(eventName, markActivity, true);
   });
 
-  toolbar.addEventListener('pointerup', (event) => {
-    if (!dragging || event.pointerId !== pointerId) return;
-    toolbar.releasePointerCapture?.(event.pointerId);
-    dragging = false;
-    pointerId = null;
-    toolbar.classList.remove('dragging');
-    const isPastThreshold = currentOffset > threshold;
-
-    if (isPastThreshold) {
-      finishDismiss();
-      return;
-    }
-
-    cancelDrag();
+  ['pointerup', 'pointercancel'].forEach((eventName) => {
+    document.addEventListener(eventName, finishDragging, true);
+    window.addEventListener(eventName, finishDragging, true);
   });
 
-  toolbar.addEventListener('pointercancel', (event) => {
-    if (!dragging || event.pointerId !== pointerId) return;
-    cancelDrag();
-  });
+  window.addEventListener('blur', finishDragging);
 
-  window.addEventListener('focus', () => {
-    if (!isDismissed) return;
-    restoreToolbar({ animate: false });
-  });
+  scheduleAutoHide();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
