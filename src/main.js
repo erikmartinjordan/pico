@@ -1331,7 +1331,12 @@ function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) 
             x: display.bounds.x, y: display.bounds.y,
             width: display.bounds.width, height: display.bounds.height,
           });
-          win.show();
+          if (process.platform === 'darwin') {
+            win.showInactive();
+            win.moveTop();
+          } else {
+            win.show();
+          }
   
           const screenData = captureData.type === 'multi'
             ? captureData.screens.find(s =>
@@ -1403,14 +1408,16 @@ ipcMain.handle('start-capture', async (event, options = {}) => {
       const captureData = await withHiddenDesktopIcons(options, async () => captureAllScreens());
       console.log('[pico][capture] capture data ready; creating overlays');
 
-      if (mainWindow) {
+      await createCaptureOverlays(captureData, 'region', []);
+
+      if (mainWindow && !mainWindow.isDestroyed()) {
         showMainWindowForCurrentMode();
         if (process.platform === 'darwin') {
           mainWindow.setAlwaysOnTop(true, 'screen-saver');
         }
+        mainWindow.moveTop();
       }
 
-      await createCaptureOverlays(captureData, 'region', []);
       return { success: true };
     } catch (err) {
       console.error('[pico][capture] start-capture failed:', err.message);
