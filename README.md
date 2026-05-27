@@ -83,6 +83,17 @@ Builds are written to `dist/`.
 
 ## Release strategy
 
+pico uses Release Please with Conventional Commits for all official GitHub Releases. Pushes to `main` can build and upload CI artifacts, but they do not create official releases.
+
+Use Conventional Commits for changes:
+
+- `feat: add region presets`
+- `fix: handle denied screen recording permission`
+- `docs: update installation notes`
+- `refactor: simplify capture state`
+
+After commits are merged to `main`, Release Please opens or updates a release PR containing the next version bump and `CHANGELOG.md` changes. Merge that Release Please PR only when you are ready to publish officially; merging it creates the Git tag, GitHub Release, changelog update, and package version update. The release workflow then builds the desktop binaries and attaches them to that GitHub Release.
+
 pico's no-budget launch path is to treat Windows and Linux as the primary downloadable platforms while keeping macOS transparent and experimental until notarization is affordable.
 
 Before publishing a release:

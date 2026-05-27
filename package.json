@@ -27,7 +27,7 @@
   "build": {
     "appId": "com.pico.screenshot",
     "productName": "pico",
-    "buildVersion": "0.0.1",
+    "buildVersion": "0.0.0",
     "directories": {
       "output": "dist",
       "buildResources": "build"
