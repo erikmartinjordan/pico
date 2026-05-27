@@ -903,6 +903,7 @@ function showRecordingIndicator(options = {}) {
       : (lastRecordingRegion ? '<div class="recording-dim full"></div>' : '');
     if (shouldShowRegionOverlay) {
       const overlayWindow = new BrowserWindow({
+        ...(process.platform === 'darwin' ? { type: 'panel' } : {}),
         width: bounds.width,
         height: bounds.height,
         x: bounds.x,
@@ -917,7 +918,7 @@ function showRecordingIndicator(options = {}) {
         hasShadow: false,
         show: false,
         autoHideMenuBar: true,
-        fullscreenable: true,
+        fullscreenable: false,
         enableLargerThanScreen: true,
         webPreferences: {
           contextIsolation: false,
@@ -1298,6 +1299,7 @@ function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) 
   
     displays.forEach((display) => {
       const win = new BrowserWindow({
+        ...(process.platform === 'darwin' ? { type: 'panel' } : {}),
         x: display.bounds.x,
         y: display.bounds.y,
         width: display.bounds.width,
@@ -1309,7 +1311,7 @@ function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) 
         skipTaskbar: true,
         resizable: false,
         movable: false,
-        fullscreenable: true,
+        fullscreenable: false,
         enableLargerThanScreen: true,
         show: false,
         webPreferences: {
@@ -1388,25 +1390,27 @@ function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) 
 
 ipcMain.handle('start-capture', async (event, options = {}) => {
     console.log('[pico][capture] start-capture invoked');
+
     if (mainWindow) mainWindow.hide();
     await new Promise(r => setTimeout(r, 200));
-  
+
     try {
       if (!await ensureMacScreenRecordingPermission()) {
         if (mainWindow) showMainWindowForCurrentMode();
         return { success: false, error: 'Screen Recording permission is required.' };
       }
+
       const captureData = await withHiddenDesktopIcons(options, async () => captureAllScreens());
       console.log('[pico][capture] capture data ready; creating overlays');
-      await createCaptureOverlays(captureData, 'region', []);  // ← await
-  
-      // All overlays are now visible — lift pill above them
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        try { mainWindow.setAlwaysOnTop(true, 'screen-saver'); } catch (_) { mainWindow.setAlwaysOnTop(true); }
-        mainWindow.showInactive();
-        mainWindow.moveTop();
+
+      if (mainWindow) {
+        showMainWindowForCurrentMode();
+        if (process.platform === 'darwin') {
+          mainWindow.setAlwaysOnTop(true, 'screen-saver');
+        }
       }
-  
+
+      await createCaptureOverlays(captureData, 'region', []);
       return { success: true };
     } catch (err) {
       console.error('[pico][capture] start-capture failed:', err.message);
