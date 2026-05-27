@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Existing release tag to build/upload assets for, for example v1.0.0'
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -25,8 +30,9 @@ jobs:
 
   build-release-assets:
     needs: release-please
-    if: needs.release-please.outputs.release_created == 'true'
+    if: needs.release-please.outputs.release_created == 'true' || inputs.release_tag != ''
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: macos-latest
@@ -40,7 +46,7 @@ jobs:
       - name: Checkout release tag
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.release-please.outputs.tag_name }}
+          ref: ${{ inputs.release_tag || needs.release-please.outputs.tag_name }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -60,25 +66,26 @@ jobs:
 
       - name: Build (macOS)
         if: matrix.platform == 'mac'
-        run: npm run build:mac
+        run: npm run build:mac -- --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
       - name: Build legacy macOS DMG
         if: matrix.platform == 'mac'
-        run: npm run build:mac:legacy
+        run: npm run build:mac:legacy -- --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
       - name: Build (Windows)
         if: matrix.platform == 'win'
-        run: npm run build:win
+        run: npm run build:win -- --publish never
         env:
           CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
       - name: Upload artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: release-${{ matrix.platform }}
@@ -92,7 +99,7 @@ jobs:
     needs:
       - release-please
       - build-release-assets
-    if: needs.release-please.outputs.release_created == 'true'
+    if: always() && (needs.release-please.outputs.release_created == 'true' || inputs.release_tag != '')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -109,8 +116,9 @@ jobs:
           mkdir -p release
           find artifacts -type f \( -name "*.dmg" -o -name "*.zip" -o -name "*.exe" \) -exec cp {} release/ \;
           ls -lh release/
+          test "$(find release -type f | wc -l)" -gt 0
 
       - name: Upload binaries to GitHub Release
-        run: gh release upload "${{ needs.release-please.outputs.tag_name }}" release/* --clobber
+        run: gh release upload "${{ inputs.release_tag || needs.release-please.outputs.tag_name }}" release/* --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
