@@ -1,0 +1,31 @@
+name: Delete all releases and tags
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  delete:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete all releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh release list --repo "$REPO" --limit 1000 | awk '{print $1}' | while read tag; do
+            echo "Deleting release + tag: $tag"
+            gh release delete "$tag" --repo "$REPO" --yes --cleanup-tag || true
+          done
+
+      - name: Delete remaining tags
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh api repos/$REPO/tags --paginate --jq '.[].name' | while read tag; do
+            echo "Deleting tag: $tag"
+            gh api --method DELETE repos/$REPO/git/refs/tags/$tag || true
+          done
