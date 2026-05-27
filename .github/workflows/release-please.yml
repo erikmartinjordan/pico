@@ -119,6 +119,6 @@ jobs:
           test "$(find release -type f | wc -l)" -gt 0
 
       - name: Upload binaries to GitHub Release
-        run: gh release upload "${{ inputs.release_tag || needs.release-please.outputs.tag_name }}" release/* --clobber
+        run: gh release upload "${{ inputs.release_tag || needs.release-please.outputs.tag_name }}" release/* --repo "${{ github.repository }}" --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
