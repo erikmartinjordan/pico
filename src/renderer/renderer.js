@@ -94,7 +94,7 @@ const elements = {
   macosBtnClose: $('#macos-btn-close'),
   macosBtnMinimize: $('#macos-btn-minimize'),
   macosBtnZoom: $('#macos-btn-zoom'),
-  toolBtns: Array.from($$('.tool-btn')).filter((btn) => !btn.id?.startsWith('btn-capture')),
+  toolBtns: $$('.tool-btn'),
   colorSwatches: $$('.color-swatch'),
   strokePicker: $('#stroke-picker'),
   strokeCurrentLine: $('#stroke-current-line'),
