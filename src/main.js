@@ -1983,8 +1983,12 @@ app.whenReady().then(() => {
     // app.focus / app.show / app.dock.show cause macOS to jump to pico's space.
     if (mainWindow && !mainWindow.isDestroyed()) {
       applyToolbarWindowMode(); // ensures screen-saver level + visibleOnAllWorkspaces
+      if (process.platform === 'darwin') {
+        try { mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch (_) {}
+      }
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.showInactive(); // makes the window visible without stealing focus
+      if (!mainWindow.isVisible()) mainWindow.show(); // fallback when showInactive is ignored by macOS fullscreen apps
       mainWindow.moveTop();
     }
 
