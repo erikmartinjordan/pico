@@ -94,7 +94,7 @@ const elements = {
   macosBtnClose: $('#macos-btn-close'),
   macosBtnMinimize: $('#macos-btn-minimize'),
   macosBtnZoom: $('#macos-btn-zoom'),
-  toolBtns: $$('.tool-btn'),
+  toolBtns: Array.from($$('.tool-btn')).filter((btn) => !btn.id?.startsWith('btn-capture')),
   colorSwatches: $$('.color-swatch'),
   strokePicker: $('#stroke-picker'),
   strokeCurrentLine: $('#stroke-current-line'),
@@ -294,6 +294,7 @@ function bindTooltips() {
     tooltip.style.top = `${y}px`;
   };
 
+  document.addEventListener('click', hide);
   document.querySelectorAll('[data-tooltip]').forEach((node) => {
     node.addEventListener('mouseenter', show);
     node.addEventListener('mouseleave', hide);
