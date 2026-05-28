@@ -68,6 +68,12 @@ const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
 
 let resetToolbarDismissState = () => {};
+let isCaptureMode = false;
+let pauseAutoHideController = () => {};
+let resumeAutoHideController = () => {};
+
+window.pauseAutoHide = () => pauseAutoHideController();
+window.resumeAutoHide = () => resumeAutoHideController();
 
 const elements = {
   canvas: $('#canvas'),
@@ -2097,9 +2103,20 @@ function initToolbarDismiss() {
 
   function scheduleAutoHide() {
     window.clearTimeout(hideTimer);
-    if (hidden || !isFloatingMode()) return;
+    if (hidden || !isFloatingMode() || isCaptureMode) return;
     hideTimer = window.setTimeout(autoHide, inactivityDelay);
   }
+
+  pauseAutoHideController = () => {
+    isCaptureMode = true;
+    window.clearTimeout(hideTimer);
+    toolbar.classList.remove('auto-hidden');
+  };
+
+  resumeAutoHideController = () => {
+    isCaptureMode = false;
+    scheduleAutoHide();
+  };
 
   const markActivity = () => {
     if (hidden) return;
