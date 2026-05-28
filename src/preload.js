@@ -750,6 +750,8 @@ contextBridge.exposeInMainWorld('pico', {
   onShortcutCaptureReady: (callback) => ipcRenderer.on('trigger-shortcut-capture-ready', () => callback()),
   onOpenPreferences: (callback) => ipcRenderer.on('open-preferences', () => callback()),
   onToolbarOpenRequested: (callback) => ipcRenderer.on('toolbar-open-requested', () => callback()),
+  onCaptureModeStarted: (callback) => ipcRenderer.on('capture-mode-started', () => callback()),
+  onCaptureFinished: (callback) => ipcRenderer.on('capture-finished', () => callback()),
   openNativePreferences: () => ipcRenderer.invoke('open-native-preferences'),
   onLoadCaptureData: (callback) => ipcRenderer.on('load-capture-data', (_, data) => callback(data)),
   onRecordingStopRequested: (callback) => ipcRenderer.on('pro-recording-stop-requested', () => callback()),

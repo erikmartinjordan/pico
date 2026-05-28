@@ -68,6 +68,7 @@ const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
 
 let resetToolbarDismissState = () => {};
+let isCaptureMode = false;
 
 const elements = {
   canvas: $('#canvas'),
@@ -155,6 +156,18 @@ function init() {
   selectStrokeWidth(state.strokeWidth);
   toggleTextStyleControls();
   updateStatus();
+
+  window.pico.onCaptureModeStarted(() => {
+    isCaptureMode = true;
+    const toolbar = document.querySelector('.toolbar');
+    if (toolbar) toolbar.classList.remove('auto-hidden');
+    resetFloatingToolbar();
+  });
+
+  window.pico.onCaptureFinished(() => {
+    isCaptureMode = false;
+    resetFloatingToolbar();
+  });
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -2097,7 +2110,7 @@ function initToolbarDismiss() {
 
   function scheduleAutoHide() {
     window.clearTimeout(hideTimer);
-    if (hidden || !isFloatingMode()) return;
+    if (hidden || !isFloatingMode() || isCaptureMode) return;
     hideTimer = window.setTimeout(autoHide, inactivityDelay);
   }
 
