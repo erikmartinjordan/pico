@@ -238,7 +238,7 @@ function applyToolbarWindowMode(options = {}) {
   mainWindow.setContentProtection(false);
   mainWindow.setSkipTaskbar(process.platform === 'darwin');
   try { mainWindow.setHasShadow(false); } catch (_) {}
-  try { mainWindow.setAlwaysOnTop(true, process.platform === 'darwin' ? 'screen-saver' : 'normal'); } catch (_) { mainWindow.setAlwaysOnTop(true); }
+  try { mainWindow.setAlwaysOnTop(true, process.platform === 'darwin' ? 'floating' : 'normal'); } catch (_) { mainWindow.setAlwaysOnTop(true); }
   if (process.platform === 'darwin') {
     try { mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch (_) {}
   }
@@ -1297,7 +1297,7 @@ async function captureAllScreens() {
   };
 }
 
-function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) {
+async function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) {
     const displays = screen.getAllDisplays();
     const readyPromises = [];
   
@@ -1390,7 +1390,23 @@ function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) 
       captureWindows.push(win);
     });
   
-    return Promise.all(readyPromises);
+    await Promise.all(readyPromises);
+
+    // Once overlays are visible, lift the toolbar pill above them without stealing focus.
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      applyToolbarWindowMode();
+
+      if (process.platform === 'darwin') {
+        try { mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch (_) {}
+        try { mainWindow.setAlwaysOnTop(true, 'screen-saver'); } catch (_) { mainWindow.setAlwaysOnTop(true); }
+      }
+
+      mainWindow.showInactive();
+
+      if (process.platform === 'darwin') {
+        mainWindow.moveTop();
+      }
+    }
   }
 
 // ── IPC Handlers ────────────────────────────────────────────────────────────
@@ -1407,14 +1423,7 @@ ipcMain.handle('start-capture', async (event, options = {}) => {
       }
       const captureData = await withHiddenDesktopIcons(options, async () => captureAllScreens());
       console.log('[pico][capture] capture data ready; creating overlays');
-      await createCaptureOverlays(captureData, 'region', []);  // ← await
-  
-      // All overlays are now visible — lift pill above them
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        try { mainWindow.setAlwaysOnTop(true, 'screen-saver'); } catch (_) { mainWindow.setAlwaysOnTop(true); }
-        mainWindow.showInactive();
-        mainWindow.moveTop();
-      }
+      await createCaptureOverlays(captureData, 'region', []);
   
       return { success: true };
     } catch (err) {
@@ -1449,7 +1458,7 @@ ipcMain.handle('start-capture-window', async (event, options = {}) => {
       return openWindowPickerFallback();
     }
 
-    createCaptureOverlays(captureData, 'window', winBounds);
+    await createCaptureOverlays(captureData, 'window', winBounds);
     return { success: true };
   } catch (err) {
     if (mainWindow) showMainWindowForCurrentMode();
@@ -1763,7 +1772,7 @@ async function chooseRecordingRegionSource(options = {}) {
         throw new Error('Screen Recording permission is required.');
       }
       const captureData = await withHiddenDesktopIcons({ ...options, hideDesktopIcons: false }, async () => captureAllScreens());
-      createCaptureOverlays(captureData, 'record-region', []);
+      await createCaptureOverlays(captureData, 'record-region', []);
     } catch (error) {
       recordingRegionSelection = null;
       if (mainWindow) showMainWindowForCurrentMode();
