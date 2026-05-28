@@ -246,8 +246,12 @@ function applyToolbarWindowMode(options = {}) {
 
   if (options.show) {
     if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.show();
-    mainWindow.focus();
+    if (process.platform === 'darwin') {
+      mainWindow.showInactive();
+    } else {
+      mainWindow.show();
+      mainWindow.focus();
+    }
   }
 }
 
@@ -1148,6 +1152,7 @@ function createMainWindow() {
   const toolbarBounds = getToolbarWindowBounds();
   mainWindow = new BrowserWindow({
     ...toolbarBounds,
+    type: 'panel',
     minWidth: TOOLBAR_MIN_SIZE.width,
     minHeight: TOOLBAR_MIN_SIZE.height,
     resizable: false,
@@ -1302,6 +1307,7 @@ function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) 
         y: display.bounds.y,
         width: display.bounds.width,
         height: display.bounds.height,
+        type: 'panel',
         frame: false,
         transparent: true,
         backgroundColor: '#00000000',
@@ -1988,7 +1994,6 @@ app.whenReady().then(() => {
       }
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.showInactive(); // makes the window visible without stealing focus
-      if (!mainWindow.isVisible()) mainWindow.show(); // fallback when showInactive is ignored by macOS fullscreen apps
       mainWindow.moveTop();
     }
 
