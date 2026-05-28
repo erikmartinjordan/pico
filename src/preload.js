@@ -650,7 +650,7 @@ async function startRecording(options = {}) {
       : (source.autoZoom === false || options?.autoZoom === false ? null : await getAutoZoomRegion(source, mode));
     if (autoZoomRegion) {
       zoomPipeline = createAutoZoomStream(rawStream, autoZoomRegion, {
-        autoZoom: shouldCropRegion ? false : true,
+        autoZoom: shouldCropRegion ? options?.autoZoom !== false && source.autoZoom !== false : true,
       });
       proRecordingStream = await zoomPipeline.ready;
       proRecordingRawStream = rawStream;
@@ -781,7 +781,6 @@ contextBridge.exposeInMainWorld('pico', {
   saveFile: (dataUrl) => ipcRenderer.invoke('save-file', dataUrl),
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
-  getTrialStatus: () => ipcRenderer.invoke('get-trial-status'),
   chooseDefaultSavePath: (currentPath) => ipcRenderer.invoke('choose-default-save-path', currentPath),
   copyToClipboard: (dataUrl) => ipcRenderer.invoke('copy-to-clipboard', dataUrl),
   readClipboardImage: () => ipcRenderer.invoke('read-clipboard-image'),

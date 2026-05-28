@@ -33,10 +33,8 @@ const EDITOR_DEFAULT_SIZE = { width: 1200, height: 800 };
 const EDITOR_MIN_SIZE = { width: 900, height: 600 };
 
 const SETTINGS_FILE = 'settings.json';
-const TRIAL_DAYS = 30;
 const DEFAULT_SETTINGS = {
   defaultSavePath: '',
-  trialStartedAt: '',
 };
 
 function settingsPath() {
@@ -46,14 +44,18 @@ function settingsPath() {
 function normalizeSettings(candidate = {}) {
   return {
     defaultSavePath: typeof candidate.defaultSavePath === 'string' ? candidate.defaultSavePath : DEFAULT_SETTINGS.defaultSavePath,
-    trialStartedAt: typeof candidate.trialStartedAt === 'string' ? candidate.trialStartedAt : DEFAULT_SETTINGS.trialStartedAt,
   };
 }
 
 function readSettings() {
   try {
     if (!fs.existsSync(settingsPath())) return { ...DEFAULT_SETTINGS };
-    return normalizeSettings(JSON.parse(fs.readFileSync(settingsPath(), 'utf8')));
+    const rawSettings = JSON.parse(fs.readFileSync(settingsPath(), 'utf8'));
+    const settings = normalizeSettings(rawSettings);
+    if (Object.prototype.hasOwnProperty.call(rawSettings, 'trialStartedAt')) {
+      fs.writeFileSync(settingsPath(), JSON.stringify(settings, null, 2));
+    }
+    return settings;
   } catch (error) {
     console.error('[pico] failed to read settings:', error.message);
     return { ...DEFAULT_SETTINGS };
@@ -65,26 +67,6 @@ function writeSettings(nextSettings = {}) {
   fs.mkdirSync(path.dirname(settingsPath()), { recursive: true });
   fs.writeFileSync(settingsPath(), JSON.stringify(settings, null, 2));
   return settings;
-}
-
-function getTrialStatus(now = new Date()) {
-  let settings = readSettings();
-  let startedAt = Date.parse(settings.trialStartedAt);
-  if (!Number.isFinite(startedAt)) {
-    settings = writeSettings({ trialStartedAt: now.toISOString() });
-    startedAt = Date.parse(settings.trialStartedAt);
-  }
-
-  const elapsedMs = Math.max(0, now.getTime() - startedAt);
-  const trialMs = TRIAL_DAYS * 24 * 60 * 60 * 1000;
-  const remainingMs = Math.max(0, trialMs - elapsedMs);
-  return {
-    trialDays: TRIAL_DAYS,
-    startedAt: new Date(startedAt).toISOString(),
-    endsAt: new Date(startedAt + trialMs).toISOString(),
-    daysRemaining: Math.ceil(remainingMs / (24 * 60 * 60 * 1000)),
-    expired: remainingMs <= 0,
-  };
 }
 
 function configuredDefaultSaveDirectory() {
@@ -1661,8 +1643,6 @@ ipcMain.handle('get-settings', async () => readSettings());
 
 ipcMain.handle('save-settings', async (event, nextSettings = {}) => writeSettings(nextSettings));
 
-ipcMain.handle('get-trial-status', async () => getTrialStatus());
-
 ipcMain.handle('open-native-preferences', async () => {
   openPreferencesWindow();
   return { success: true };
@@ -1848,11 +1828,6 @@ function chooseRecordingWindowSource() {
 }
 
 ipcMain.handle('pro-recording-source', async (event, options = {}) => {
-  const trialStatus = getTrialStatus();
-  if (trialStatus.expired) {
-    throw new Error('Your 30-day trial has expired.');
-  }
-
   if (!await ensureMacScreenRecordingPermission()) {
     throw new Error('Screen Recording permission is required.');
   }

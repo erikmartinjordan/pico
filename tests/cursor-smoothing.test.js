@@ -155,8 +155,8 @@ function createStreamWithCursorSetting(cursor) {
     'screen recorder must request a high video bitrate to preserve screen-detail alignment checks',
   );
   assert.ok(
-    /autoZoom:\s*shouldCropRegion\s*\?\s*false\s*:\s*true/.test(preloadSource),
-    'region recording must crop the selected rectangle exactly instead of autozooming away from the overlay bounds',
+    /autoZoom:\s*shouldCropRegion\s*\?\s*options\?\.autoZoom !== false && source\.autoZoom !== false\s*:\s*true/.test(preloadSource),
+    'region recording must pass the user autozoom setting into the Ken Burns pipeline',
   );
   assert.ok(
     !mainSource.includes("type: process.platform === 'darwin' ? 'panel' : undefined"),
@@ -236,8 +236,16 @@ function createStreamWithCursorSetting(cursor) {
 }
 
 {
-  assert.ok(preloadSource.includes("getTrialStatus: () => ipcRenderer.invoke('get-trial-status')"), 'preload must expose trial status');
-  assert.ok(rendererSource.includes('state.trialStatus?.expired'), 'renderer must block recording after trial expiry');
+  assert.ok(!mainSource.includes('getTrialStatus'), 'main process must not keep trial status logic');
+  assert.ok(!mainSource.includes('get-trial-status'), 'main process must not expose trial IPC');
+  assert.ok(!preloadSource.includes('getTrialStatus'), 'preload must not expose trial status');
+  assert.ok(!rendererSource.includes('trialStatus'), 'renderer must not gate recording behind trial state');
+  assert.ok(!indexSource.includes('pro-feature'), 'recording button must not keep trial/pro feature styling hooks');
+  assert.ok(!stylesSource.includes('pro-feature'), 'styles must not keep trial/pro feature hooks');
+  assert.ok(!stylesSource.includes('pro-badge'), 'styles must not keep pro/trial badges');
+  assert.ok(!indexSource.includes('trial'), 'main renderer markup must not mention trial');
+  assert.ok(!fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'preferences.html'), 'utf8').includes('Trial'), 'preferences must not show trial status');
+  assert.ok(!fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'preferences.js'), 'utf8').includes('trial'), 'preferences script must not read trial status');
 }
 
 {
