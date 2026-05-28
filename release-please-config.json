@@ -7,7 +7,47 @@
       "changelog-path": "CHANGELOG.md",
       "include-component-in-tag": false,
       "draft": false,
-      "prerelease": false
+      "prerelease": false,
+
+      "pull-request-header": "## 🚀 Pico Release\n\nThis PR prepares the next Pico release.\n\nReview the changelog below, test the app, and merge only when you are ready to publish.",
+      "pull-request-footer": "",
+      "changelog-sections": [
+        {
+          "type": "feat",
+          "section": "✨ Features",
+          "hidden": false
+        },
+        {
+          "type": "fix",
+          "section": "🐛 Fixes",
+          "hidden": false
+        },
+        {
+          "type": "docs",
+          "section": "📝 Documentation",
+          "hidden": false
+        },
+        {
+          "type": "perf",
+          "section": "⚡ Performance",
+          "hidden": false
+        },
+        {
+          "type": "refactor",
+          "section": "♻️ Refactoring",
+          "hidden": false
+        },
+        {
+          "type": "ci",
+          "section": "👷 CI",
+          "hidden": false
+        },
+        {
+          "type": "chore",
+          "section": "🧹 Chores",
+          "hidden": true
+        }
+      ]
     }
   }
 }
