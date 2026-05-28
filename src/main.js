@@ -289,14 +289,14 @@ function showMainWindowForCurrentMode() {
   else applyToolbarWindowMode({ show: true });
 }
 
-function notifyRendererPauseAutoHide() {
+function notifyRendererCaptureModeStarted() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
-  mainWindow.webContents.executeJavaScript('window.pauseAutoHide?.()').catch(() => {});
+  mainWindow.webContents.send('capture-mode-started');
 }
 
-function notifyRendererResumeAutoHide() {
+function notifyRendererCaptureFinished() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
-  mainWindow.webContents.executeJavaScript('window.resumeAutoHide?.()').catch(() => {});
+  mainWindow.webContents.send('capture-finished');
 }
 
 function openPreferencesWindow() {
@@ -1423,13 +1423,18 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
 
 ipcMain.handle('start-capture', async (event, options = {}) => {
     console.log('[pico][capture] start-capture invoked');
-    notifyRendererPauseAutoHide();
-    if (mainWindow) mainWindow.hide();
+    notifyRendererCaptureModeStarted();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (process.platform === 'darwin') mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+      mainWindow.setAlwaysOnTop(true, process.platform === 'darwin' ? 'screen-saver' : 'normal');
+      mainWindow.show();
+      mainWindow.moveTop();
+    }
     await new Promise(r => setTimeout(r, 200));
   
     try {
       if (!await ensureMacScreenRecordingPermission()) {
-        notifyRendererResumeAutoHide();
+        notifyRendererCaptureFinished();
         if (mainWindow) showMainWindowForCurrentMode();
         return { success: false, error: 'Screen Recording permission is required.' };
       }
@@ -1439,7 +1444,7 @@ ipcMain.handle('start-capture', async (event, options = {}) => {
   
       return { success: true };
     } catch (err) {
-      notifyRendererResumeAutoHide();
+      notifyRendererCaptureFinished();
       console.error('[pico][capture] start-capture failed:', err.message);
       if (mainWindow) showMainWindowForCurrentMode();
       return { success: false, error: err.message };
@@ -1447,8 +1452,13 @@ ipcMain.handle('start-capture', async (event, options = {}) => {
   });
 
 ipcMain.handle('start-capture-window', async (event, options = {}) => {
-  notifyRendererPauseAutoHide();
-  if (mainWindow) mainWindow.hide();
+  notifyRendererCaptureModeStarted();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (process.platform === 'darwin') mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    mainWindow.setAlwaysOnTop(true, process.platform === 'darwin' ? 'screen-saver' : 'normal');
+    mainWindow.show();
+    mainWindow.moveTop();
+  }
   await new Promise(r => setTimeout(r, process.platform === 'darwin' ? 180 : 80));
   try {
     if (process.platform === 'darwin') {
@@ -1475,32 +1485,37 @@ ipcMain.handle('start-capture-window', async (event, options = {}) => {
     await createCaptureOverlays(captureData, 'window', winBounds);
     return { success: true };
   } catch (err) {
-    notifyRendererResumeAutoHide();
+    notifyRendererCaptureFinished();
     if (mainWindow) showMainWindowForCurrentMode();
     return { success: false, error: err.message };
   }
 });
 
 ipcMain.handle('start-capture-fullscreen', async (event, options = {}) => {
-  notifyRendererPauseAutoHide();
-  if (mainWindow) mainWindow.hide();
+  notifyRendererCaptureModeStarted();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (process.platform === 'darwin') mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    mainWindow.setAlwaysOnTop(true, process.platform === 'darwin' ? 'screen-saver' : 'normal');
+    mainWindow.show();
+    mainWindow.moveTop();
+  }
   await new Promise(r => setTimeout(r, 200));
   try {
     if (!await ensureMacScreenRecordingPermission()) {
-      notifyRendererResumeAutoHide();
+      notifyRendererCaptureFinished();
       if (mainWindow) showMainWindowForCurrentMode();
       return { success: false, error: 'Screen Recording permission is required.' };
     }
     const captureData = await withHiddenDesktopIcons(options, async () => captureAllScreens());
     copyCaptureDataToClipboard(captureData);
     if (mainWindow) {
-      notifyRendererResumeAutoHide();
+      notifyRendererCaptureFinished();
       applyEditorWindowMode({ show: true });
       mainWindow.webContents.send('load-capture-data', captureData);
     }
     return { success: true };
   } catch (err) {
-    notifyRendererResumeAutoHide();
+    notifyRendererCaptureFinished();
     if (mainWindow) showMainWindowForCurrentMode();
     return { success: false, error: err.message };
   }
@@ -1533,7 +1548,7 @@ ipcMain.on('window-overlay-select', async (event, windowName) => {
       windowPickerSources = [];
       copyDataUrlToClipboard(dataUrl);
       if (mainWindow) {
-        notifyRendererResumeAutoHide();
+        notifyRendererCaptureFinished();
         applyEditorWindowMode({ show: true });
         mainWindow.webContents.send('load-capture', { dataUrl, source: 'capture', captureMode: 'window' });
       }
@@ -1545,7 +1560,7 @@ ipcMain.on('window-overlay-select', async (event, windowName) => {
 
   // Fallback: if no matching source found, just show main window
   windowPickerSources = [];
-  notifyRendererResumeAutoHide();
+  notifyRendererCaptureFinished();
   if (mainWindow) showMainWindowForCurrentMode();
 });
 
@@ -1554,7 +1569,7 @@ ipcMain.on('capture-complete', (event, imageDataUrl) => {
   captureWindows = [];
   copyDataUrlToClipboard(imageDataUrl);
   if (mainWindow) {
-    notifyRendererResumeAutoHide();
+    notifyRendererCaptureFinished();
     applyEditorWindowMode({ show: true });
     mainWindow.webContents.send('load-capture', {
       dataUrl: imageDataUrl, source: 'capture', captureMode: 'region',
@@ -1568,11 +1583,11 @@ ipcMain.on('capture-cancel', () => {
   if (recordingRegionSelection) {
     recordingRegionSelection.resolve(null);
     recordingRegionSelection = null;
-    notifyRendererResumeAutoHide();
+    notifyRendererCaptureFinished();
     if (mainWindow) showMainWindowForCurrentMode();
     return;
   }
-  notifyRendererResumeAutoHide();
+  notifyRendererCaptureFinished();
   if (mainWindow) showMainWindowForCurrentMode();
 });
 
@@ -1583,7 +1598,7 @@ ipcMain.on('recording-region-complete', (event, region) => {
     recordingRegionSelection.resolve(region);
     recordingRegionSelection = null;
   }
-  notifyRendererResumeAutoHide();
+  notifyRendererCaptureFinished();
 });
 
 
@@ -1791,8 +1806,13 @@ async function chooseRecordingRegionSource(options = {}) {
   const promise = new Promise(async (resolve, reject) => {
     recordingRegionSelection = { resolve, reject, promise: null };
     try {
-      notifyRendererPauseAutoHide();
-      if (mainWindow) mainWindow.hide();
+      notifyRendererCaptureModeStarted();
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        if (process.platform === 'darwin') mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+        mainWindow.setAlwaysOnTop(true, process.platform === 'darwin' ? 'screen-saver' : 'normal');
+        mainWindow.show();
+        mainWindow.moveTop();
+      }
       await new Promise(r => setTimeout(r, 200));
       if (!await ensureMacScreenRecordingPermission()) {
         throw new Error('Screen Recording permission is required.');

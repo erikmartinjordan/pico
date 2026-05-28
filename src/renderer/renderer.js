@@ -69,11 +69,6 @@ const $$ = (sel) => document.querySelectorAll(sel);
 
 let resetToolbarDismissState = () => {};
 let isCaptureMode = false;
-let pauseAutoHideController = () => {};
-let resumeAutoHideController = () => {};
-
-window.pauseAutoHide = () => pauseAutoHideController();
-window.resumeAutoHide = () => resumeAutoHideController();
 
 const elements = {
   canvas: $('#canvas'),
@@ -161,6 +156,18 @@ function init() {
   selectStrokeWidth(state.strokeWidth);
   toggleTextStyleControls();
   updateStatus();
+
+  window.pico.onCaptureModeStarted(() => {
+    isCaptureMode = true;
+    const toolbar = document.querySelector('.toolbar');
+    if (toolbar) toolbar.classList.remove('auto-hidden');
+    resetFloatingToolbar();
+  });
+
+  window.pico.onCaptureFinished(() => {
+    isCaptureMode = false;
+    resetFloatingToolbar();
+  });
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -2106,17 +2113,6 @@ function initToolbarDismiss() {
     if (hidden || !isFloatingMode() || isCaptureMode) return;
     hideTimer = window.setTimeout(autoHide, inactivityDelay);
   }
-
-  pauseAutoHideController = () => {
-    isCaptureMode = true;
-    window.clearTimeout(hideTimer);
-    toolbar.classList.remove('auto-hidden');
-  };
-
-  resumeAutoHideController = () => {
-    isCaptureMode = false;
-    scheduleAutoHide();
-  };
 
   const markActivity = () => {
     if (hidden) return;
