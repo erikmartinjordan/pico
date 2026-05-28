@@ -238,7 +238,7 @@ function applyToolbarWindowMode(options = {}) {
   mainWindow.setContentProtection(false);
   mainWindow.setSkipTaskbar(process.platform === 'darwin');
   try { mainWindow.setHasShadow(false); } catch (_) {}
-  try { mainWindow.setAlwaysOnTop(true, process.platform === 'darwin' ? 'floating' : 'normal'); } catch (_) { mainWindow.setAlwaysOnTop(true); }
+  try { mainWindow.setAlwaysOnTop(true, process.platform === 'darwin' ? 'screen-saver' : 'normal'); } catch (_) { mainWindow.setAlwaysOnTop(true); }
   if (process.platform === 'darwin') {
     try { mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch (_) {}
   }
@@ -246,8 +246,12 @@ function applyToolbarWindowMode(options = {}) {
 
   if (options.show) {
     if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.show();
-    mainWindow.focus();
+    if (process.platform === 'darwin') {
+      mainWindow.showInactive();
+    } else {
+      mainWindow.show();
+      mainWindow.focus();
+    }
   }
 }
 
@@ -1148,6 +1152,7 @@ function createMainWindow() {
   const toolbarBounds = getToolbarWindowBounds();
   mainWindow = new BrowserWindow({
     ...toolbarBounds,
+    type: 'panel',
     minWidth: TOOLBAR_MIN_SIZE.width,
     minHeight: TOOLBAR_MIN_SIZE.height,
     resizable: false,
@@ -1302,6 +1307,7 @@ function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) 
         y: display.bounds.y,
         width: display.bounds.width,
         height: display.bounds.height,
+        type: 'panel',
         frame: false,
         transparent: true,
         backgroundColor: '#00000000',
@@ -1321,6 +1327,9 @@ function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) 
       });
   
       win.setAlwaysOnTop(true, 'screen-saver');
+      if (process.platform === 'darwin') {
+        try { win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch (_) {}
+      }
       win.loadFile(path.join(__dirname, 'renderer', 'capture-overlay.html'));
   
       const p = new Promise((resolve) => {
@@ -1974,7 +1983,20 @@ app.whenReady().then(() => {
   };
   const triggerCaptureFromShortcut = () => {
     const wasMissingWindow = !mainWindow || mainWindow.isDestroyed();
-    focusAndShowMainWindow();
+    if (wasMissingWindow) createMainWindow();
+
+    // On macOS: show the pill WITHOUT switching spaces.
+    // app.focus / app.show / app.dock.show cause macOS to jump to pico's space.
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      applyToolbarWindowMode(); // ensures screen-saver level + visibleOnAllWorkspaces
+      if (process.platform === 'darwin') {
+        try { mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch (_) {}
+      }
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.showInactive(); // makes the window visible without stealing focus
+      mainWindow.moveTop();
+    }
+
     const sendTrigger = () => {
       if (!mainWindow || mainWindow.isDestroyed()) return;
       mainWindow.webContents.send('trigger-capture-menu');

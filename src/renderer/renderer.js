@@ -733,7 +733,7 @@ function openPreferences() {
 }
 
 function showWindow() {
-  window.focus();
+  // window.focus(); // Avoid forcing a macOS space switch when opening capture UI
 }
 
 async function toggleRecording(event) {
