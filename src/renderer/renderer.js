@@ -69,6 +69,7 @@ let resetToolbarDismissState = () => {};
 let isCaptureMode = false;
 let pendingMiniPreview = null;
 let recordingPreviewTimelineFrame = null;
+const recordingPreviewSpeeds = [1, 1.5, 2, 0.5];
 
 const elements = {
   canvas: $('#canvas'),
@@ -109,6 +110,14 @@ const elements = {
   recordingPreviewTimeline: $('#recording-preview-timeline'),
   recordingPreviewDuration: $('#recording-preview-duration'),
   recordingPreviewSave: $('#recording-preview-save'),
+  recordingPreviewToolbarPlay: $('#btn-recording-play'),
+  recordingPreviewJumpBack: $('#btn-recording-jump-back'),
+  recordingPreviewJumpForward: $('#btn-recording-jump-forward'),
+  recordingPreviewSpeed: $('#btn-recording-speed'),
+  recordingPreviewTrimStart: $('#btn-recording-trim-start'),
+  recordingPreviewTrimEnd: $('#btn-recording-trim-end'),
+  recordingPreviewResetTrim: $('#btn-recording-reset-trim'),
+  recordingPreviewMute: $('#btn-recording-mute'),
   recordingPreviewDiscard: $('#recording-preview-discard'),
   recordingPreviewClose: $('#recording-preview-close'),
   statusTool: $('#status-tool'),
@@ -263,6 +272,14 @@ function bindToolbar() {
   });
   on(elements.recordingPreviewPlay, 'click', toggleRecordingPreviewPlayback);
   on(elements.recordingPreviewTimeline, 'input', scrubRecordingPreview);
+  on(elements.recordingPreviewToolbarPlay, 'click', toggleRecordingPreviewPlayback);
+  on(elements.recordingPreviewJumpBack, 'click', () => jumpRecordingPreview(-1));
+  on(elements.recordingPreviewJumpForward, 'click', () => jumpRecordingPreview(1));
+  on(elements.recordingPreviewSpeed, 'click', cycleRecordingPreviewSpeed);
+  on(elements.recordingPreviewTrimStart, 'click', setRecordingPreviewTrimStart);
+  on(elements.recordingPreviewTrimEnd, 'click', setRecordingPreviewTrimEnd);
+  on(elements.recordingPreviewResetTrim, 'click', resetRecordingPreviewTrim);
+  on(elements.recordingPreviewMute, 'click', toggleRecordingPreviewMute);
   on(elements.recordingPreviewVideo, 'loadedmetadata', updateRecordingPreviewControls);
   on(elements.recordingPreviewVideo, 'timeupdate', updateRecordingPreviewControls);
   on(elements.recordingPreviewVideo, 'play', startRecordingPreviewTimeline);
@@ -801,9 +818,12 @@ function showRecordingPreview(result = {}) {
     url,
     format: result.format || state.recordingFormat || 'mp4',
     mimeType: result.mimeType || 'video/webm',
+    trimStart: 0,
+    trimEnd: null,
   };
   elements.recordingPreview.classList.remove('is-live');
   elements.recordingPreviewVideo.muted = false;
+  elements.recordingPreviewVideo.playbackRate = 1;
   elements.recordingPreviewVideo.controls = false;
   elements.recordingPreviewVideo.srcObject = null;
   elements.recordingPreviewVideo.src = url;
@@ -811,6 +831,7 @@ function showRecordingPreview(result = {}) {
   const playPromise = elements.recordingPreviewVideo.play();
   if (playPromise?.catch) playPromise.catch(() => {});
   updateRecordingPreviewFormatUi();
+  updateRecordingPreviewToolbar();
   updateRecordingPreviewControls();
   elements.container?.classList.add('recording-preview-active');
   elements.recordingPreview.classList.remove('hidden');
@@ -824,6 +845,7 @@ function discardRecordingPreview(options = {}) {
     elements.recordingPreviewVideo.pause();
     elements.recordingPreviewVideo.srcObject = null;
     elements.recordingPreviewVideo.muted = true;
+    elements.recordingPreviewVideo.playbackRate = 1;
     elements.recordingPreviewVideo.removeAttribute('src');
     elements.recordingPreviewVideo.load();
   }
@@ -855,6 +877,7 @@ function showLiveRecordingPreview(started = {}, format = state.recordingFormat) 
   state.recordingPreview = null;
   elements.recordingPreviewVideo.removeAttribute('src');
   elements.recordingPreviewVideo.muted = true;
+  elements.recordingPreviewVideo.playbackRate = 1;
   elements.recordingPreviewVideo.controls = false;
   if (elements.recordingPreviewMeta) {
     elements.recordingPreviewMeta.textContent = `Recording ${format.toUpperCase()} source${started.systemAudio ? '' : ' · no system audio'}`;
@@ -873,6 +896,9 @@ async function saveRecordingPreview() {
     const result = await window.pico.saveRecording({
       data: state.recordingPreview.data,
       format: state.recordingPreview.format,
+      trimStart: state.recordingPreview.trimStart || 0,
+      trimEnd: state.recordingPreview.trimEnd,
+      muted: elements.recordingPreviewVideo?.muted === true,
     });
     if (result.canceled) {
       showToast('Save canceled', 'info');
@@ -923,6 +949,55 @@ function toggleRecordingPreviewPlayback() {
   } else {
     video.pause();
   }
+  updateRecordingPreviewToolbar();
+}
+
+function jumpRecordingPreview(delta = 0) {
+  const video = elements.recordingPreviewVideo;
+  if (!video || !Number.isFinite(video.duration) || video.duration <= 0) return;
+  video.currentTime = Math.max(0, Math.min(video.duration, video.currentTime + delta));
+  updateRecordingPreviewControls();
+}
+
+function cycleRecordingPreviewSpeed() {
+  const video = elements.recordingPreviewVideo;
+  if (!video) return;
+  const currentIndex = recordingPreviewSpeeds.indexOf(video.playbackRate);
+  const nextSpeed = recordingPreviewSpeeds[(currentIndex + 1) % recordingPreviewSpeeds.length] || 1;
+  video.playbackRate = nextSpeed;
+  updateRecordingPreviewToolbar();
+}
+
+function toggleRecordingPreviewMute() {
+  const video = elements.recordingPreviewVideo;
+  if (!video) return;
+  video.muted = !video.muted;
+  updateRecordingPreviewToolbar();
+}
+
+function setRecordingPreviewTrimStart() {
+  const video = elements.recordingPreviewVideo;
+  if (!video || !state.recordingPreview) return;
+  const currentTime = Number.isFinite(video.currentTime) ? video.currentTime : 0;
+  const trimEnd = Number.isFinite(state.recordingPreview.trimEnd) ? state.recordingPreview.trimEnd : video.duration;
+  state.recordingPreview.trimStart = Math.max(0, Math.min(currentTime, Math.max(0, trimEnd - 0.1)));
+  updateRecordingPreviewToolbar();
+}
+
+function setRecordingPreviewTrimEnd() {
+  const video = elements.recordingPreviewVideo;
+  if (!video || !state.recordingPreview || !Number.isFinite(video.duration)) return;
+  const currentTime = Number.isFinite(video.currentTime) ? video.currentTime : video.duration;
+  const trimStart = state.recordingPreview.trimStart || 0;
+  state.recordingPreview.trimEnd = Math.min(video.duration, Math.max(currentTime, trimStart + 0.1));
+  updateRecordingPreviewToolbar();
+}
+
+function resetRecordingPreviewTrim() {
+  if (!state.recordingPreview) return;
+  state.recordingPreview.trimStart = 0;
+  state.recordingPreview.trimEnd = null;
+  updateRecordingPreviewToolbar();
 }
 
 function scrubRecordingPreview() {
@@ -951,6 +1026,44 @@ function updateRecordingPreviewControls() {
     const isPlaying = !video.paused && !video.ended;
     elements.recordingPreviewPlay.textContent = isPlaying ? '❚❚' : '▶';
     elements.recordingPreviewPlay.setAttribute('aria-label', isPlaying ? 'Pause recording' : 'Play recording');
+  }
+  updateRecordingPreviewToolbar();
+}
+
+function updateRecordingPreviewToolbar() {
+  const video = elements.recordingPreviewVideo;
+  if (!video) return;
+  const isPlaying = !video.paused && !video.ended;
+  if (elements.recordingPreviewToolbarPlay) {
+    const icon = isPlaying ? 'pause' : 'play';
+    elements.recordingPreviewToolbarPlay.classList.toggle('active', isPlaying);
+    elements.recordingPreviewToolbarPlay.setAttribute('aria-label', isPlaying ? 'Pause video' : 'Play video');
+    if (elements.recordingPreviewToolbarPlay.dataset.icon !== icon) {
+      elements.recordingPreviewToolbarPlay.dataset.icon = icon;
+      elements.recordingPreviewToolbarPlay.innerHTML = isPlaying
+        ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 5v14"/><path d="M16 5v14"/></svg>'
+        : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/></svg>';
+    }
+  }
+  if (elements.recordingPreviewSpeed) {
+    const speedLabel = `${Number.isInteger(video.playbackRate) ? video.playbackRate : video.playbackRate.toFixed(1)}×`;
+    if (elements.recordingPreviewSpeed.textContent !== speedLabel) elements.recordingPreviewSpeed.textContent = speedLabel;
+    elements.recordingPreviewSpeed.classList.toggle('active', video.playbackRate !== 1);
+  }
+  if (elements.recordingPreviewTrimStart) {
+    elements.recordingPreviewTrimStart.classList.toggle('active', Boolean(state.recordingPreview?.trimStart));
+  }
+  if (elements.recordingPreviewTrimEnd) {
+    elements.recordingPreviewTrimEnd.classList.toggle('active', Number.isFinite(state.recordingPreview?.trimEnd));
+  }
+  if (elements.recordingPreviewResetTrim) {
+    const trimActive = Boolean(state.recordingPreview?.trimStart) || Number.isFinite(state.recordingPreview?.trimEnd);
+    elements.recordingPreviewResetTrim.classList.toggle('active', trimActive);
+    elements.recordingPreviewResetTrim.disabled = !trimActive;
+  }
+  if (elements.recordingPreviewMute) {
+    elements.recordingPreviewMute.classList.toggle('active', video.muted);
+    elements.recordingPreviewMute.setAttribute('aria-label', video.muted ? 'Unmute preview audio' : 'Mute preview audio');
   }
 }
 

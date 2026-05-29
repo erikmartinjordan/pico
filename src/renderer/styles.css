@@ -1607,3 +1607,28 @@ body.toolbar-transition .toast-container {
 body.has-content .canvas-container.recording-preview-active {
   padding: 24px;
 }
+
+.toolbar-group.video-tools,
+.video-tools-separator {
+  display: none;
+}
+
+.video-tool-text {
+  min-width: 44px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.canvas-container.recording-preview-active .toolbar-group:not(.video-tools),
+.canvas-container.recording-preview-active .toolbar-separator {
+  display: none;
+}
+
+.canvas-container.recording-preview-active .toolbar-group.video-tools {
+  display: flex;
+}
+
+.canvas-container.recording-preview-active .toolbar {
+  min-width: 0;
+}

@@ -44,21 +44,27 @@ function saveWebmFallback(webmPath, requestedOutputPath = null) {
   return webmOutputPath;
 }
 
-async function convertWebmToMp4(webmPath, requestedOutputPath = null) {
+async function convertWebmToMp4(webmPath, requestedOutputPath = null, options = {}) {
   const ffmpeg = resolveBundledBinary('ffmpeg');
   const mp4Path = requestedOutputPath || path.join(recordingsDir(), `recording-${Date.now()}.mp4`);
+  const trimStart = Number.isFinite(options.trimStart) && options.trimStart > 0 ? options.trimStart : 0;
+  const trimEnd = Number.isFinite(options.trimEnd) && options.trimEnd > trimStart ? options.trimEnd : 0;
+  const trimDuration = trimEnd > trimStart ? trimEnd - trimStart : 0;
+  const audioArgs = options.muted ? ['-an'] : ['-c:a', 'aac'];
   ensureOutputDir(mp4Path);
   await runBinary(ffmpeg, [
     '-y',
     '-fflags', '+genpts',
+    ...(trimStart > 0 ? ['-ss', String(trimStart)] : []),
     '-i', webmPath,
+    ...(trimDuration > 0 ? ['-t', String(trimDuration)] : []),
     '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2',
     '-c:v', 'libx264',
     '-preset', 'medium',
     '-crf', '20',
     '-r', '60',
     '-pix_fmt', 'yuv420p',
-    '-c:a', 'aac',
+    ...audioArgs,
     '-movflags', '+faststart',
     mp4Path,
   ]);
