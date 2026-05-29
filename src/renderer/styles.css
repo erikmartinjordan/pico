@@ -264,6 +264,16 @@ body:not(.has-image) .toolbar .toolbar-separator {
   display: none;
 }
 
+body.has-image .toolbar-group.capture-modes,
+body.has-content .toolbar-group.capture-modes {
+  display: none;
+}
+
+body.has-image .toolbar-group.capture-modes + .toolbar-separator,
+body.has-content .toolbar-group.capture-modes + .toolbar-separator {
+  display: none;
+}
+
 #btn-record-screen.recording {
   background: rgba(239, 68, 68, 0.24);
   box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.70), 0 0 18px rgba(239, 68, 68, 0.35);
@@ -1381,8 +1391,9 @@ body.has-content .empty-state:not(.hidden) {
 
 .capture-preview {
   position: absolute;
-  right: 14px;
-  bottom: 14px;
+  top: 76px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 90;
   display: none;
   width: 220px;
@@ -1392,8 +1403,14 @@ body.has-content .empty-state:not(.hidden) {
   background: rgba(8,10,14,0.72);
   backdrop-filter: blur(10px);
   color: rgba(255,255,255,0.9);
+  transition: transform .15s ease, background .15s ease;
+  cursor: pointer;
 }
 .capture-preview.visible { display: block; }
+.capture-preview:hover {
+  transform: translateX(-50%) scale(1.02);
+  background: rgba(18,20,24,.85);
+}
 #capture-preview-image {
   width: 100%;
   border-radius: 8px;

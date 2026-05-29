@@ -36,7 +36,6 @@ const state = {
   selectedAnnotationIndex: -1,
   isResizingAnnotation: false,
   resizeHandle: null,
-  pendingFullscreenPreview: false,
   windowContainerApplied: false,
   containerGradient: 'none',
   originalImageBeforeContainer: null,
@@ -68,6 +67,7 @@ const $$ = (sel) => document.querySelectorAll(sel);
 
 let resetToolbarDismissState = () => {};
 let isCaptureMode = false;
+let pendingMiniPreview = null;
 
 const elements = {
   canvas: $('#canvas'),
@@ -190,6 +190,26 @@ function bindToolbar() {
   on(elements.btnCaptureRegion, 'click', () => { setCaptureModeButton('region'); startCapture(); });
   on(elements.btnCaptureWindow, 'click', () => { setCaptureModeButton('window'); startCaptureWindow(); });
   on(elements.btnCaptureFullscreen, 'click', () => { setCaptureModeButton('fullscreen'); startCaptureFullscreen(); });
+  on(document.getElementById('capture-preview'), 'click', () => {
+    if (!pendingMiniPreview) return;
+    window.clearTimeout(showCapturePreview.timeoutId);
+    const capturePreview = document.getElementById('capture-preview');
+    capturePreview?.classList.remove('visible');
+    capturePreview?.setAttribute('aria-hidden', 'true');
+    const preview = pendingMiniPreview;
+    pendingMiniPreview = null;
+    setAppWindowMode('editor', { show: true });
+    window.setTimeout(() => {
+      if (preview.type === 'multi') {
+        loadCaptureData(preview.payload, { showPreview: false });
+      } else {
+        loadImage(preview.payload.dataUrl, {
+          showPreview: false,
+          captureMode: preview.payload.captureMode || 'region',
+        });
+      }
+    }, 50);
+  });
   on(elements.btnRecordScreen, 'click', onRecordButtonClick);
   on(elements.recordingFormatSetting, 'change', () => {
     state.recordingSettings.format = elements.recordingFormatSetting.value === 'gif' ? 'gif' : 'mp4';
@@ -379,6 +399,17 @@ function bindIPC() {
     });
   });
   window.pico.onLoadCaptureData((captureData) => loadCaptureData(captureData));
+  window.pico.onShowMiniPreview?.((payload) => {
+    pendingMiniPreview = { type: 'single', payload };
+    showCapturePreview(payload.dataUrl, payload.captureMode || 'region');
+  });
+  window.pico.onShowMiniPreviewData?.((captureData) => {
+    pendingMiniPreview = { type: 'multi', payload: captureData };
+    const dataUrl = captureData?.type === 'single'
+      ? captureData.dataUrl
+      : captureData?.screens?.[0]?.dataUrl;
+    if (dataUrl) showCapturePreview(dataUrl, 'fullscreen');
+  });
   window.pico.onToolbarOpenRequested?.(() => {
     resetFloatingToolbar({ fromMenu: true });
   });
@@ -881,15 +912,12 @@ async function startCaptureWindow() {
 
 async function startCaptureFullscreen() {
   if (state.cropActive) cancelCrop();
-  state.pendingFullscreenPreview = true;
   try {
     const result = await window.pico.startCaptureFullscreen({ hideDesktopIcons: state.captureSettings.hideDesktopIcons });
     if (!result.success) {
-      state.pendingFullscreenPreview = false;
       showToast(result.error || 'Failed to capture screen', 'error');
     }
   } catch (err) {
-    state.pendingFullscreenPreview = false;
     showToast(err?.message || 'Failed to capture screen', 'error');
   } finally {
     setCaptureModeButton();
@@ -1024,10 +1052,6 @@ function loadImage(dataUrl, options = {}) {
     render();
     updateStatus();
     updateToolbarState();
-    if (options.showPreview || state.pendingFullscreenPreview) {
-      showCapturePreview(dataUrl, options.captureMode || 'fullscreen');
-      state.pendingFullscreenPreview = false;
-    }
   };
   img.src = dataUrl;
 }
@@ -1788,13 +1812,17 @@ function showCapturePreview(dataUrl, captureMode = 'region') {
   const mode = document.getElementById('capture-preview-mode');
   if (!preview || !image || !mode) return;
   image.src = dataUrl;
-  mode.textContent = `${captureMode.charAt(0).toUpperCase()}${captureMode.slice(1)} capture ready`;
+  mode.textContent = `Click to edit ${captureMode} capture`;
   preview.classList.add('visible');
+  preview.setAttribute('aria-hidden', 'false');
   playCaptureChime();
+  resetFloatingToolbar();
   window.clearTimeout(showCapturePreview.timeoutId);
   showCapturePreview.timeoutId = window.setTimeout(() => {
     preview.classList.remove('visible');
-  }, 2300);
+    preview.setAttribute('aria-hidden', 'true');
+    pendingMiniPreview = null;
+  }, 4000);
 }
 
 function showToast(message, type = 'info') {

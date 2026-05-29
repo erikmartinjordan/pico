@@ -27,8 +27,8 @@ let mainWindowMode = 'toolbar';
 let lastEditorBounds = null;
 let lastToolbarBounds = null;
 
-const TOOLBAR_WINDOW_SIZE = { width: 340, height: 108 };
-const TOOLBAR_MIN_SIZE = { width: 280, height: 86 };
+const TOOLBAR_WINDOW_SIZE = { width: 340, height: 260 };
+const TOOLBAR_MIN_SIZE = { width: 280, height: 260 };
 const EDITOR_DEFAULT_SIZE = { width: 1200, height: 800 };
 const EDITOR_MIN_SIZE = { width: 900, height: 600 };
 
@@ -434,10 +434,9 @@ async function captureNativeMacWindow() {
     const dataUrl = readImageFileAsDataUrl(filePath);
     copyDataUrlToClipboard(dataUrl);
     if (mainWindow) {
-      applyEditorWindowMode({ show: true });
-      mainWindow.webContents.send('load-capture', {
+      applyToolbarWindowMode({ show: true });
+      mainWindow.webContents.send('show-mini-preview', {
         dataUrl,
-        source: 'capture',
         captureMode: 'window',
       });
       completed = true;
@@ -1492,8 +1491,8 @@ ipcMain.handle('start-capture-fullscreen', async (event, options = {}) => {
     copyCaptureDataToClipboard(captureData);
     if (mainWindow) {
       notifyRendererCaptureFinished();
-      applyEditorWindowMode({ show: true });
-      mainWindow.webContents.send('load-capture-data', captureData);
+      applyToolbarWindowMode({ show: true });
+      mainWindow.webContents.send('show-mini-preview-data', captureData);
     }
     return { success: true };
   } catch (err) {
@@ -1531,8 +1530,8 @@ ipcMain.on('window-overlay-select', async (event, windowName) => {
       copyDataUrlToClipboard(dataUrl);
       if (mainWindow) {
         notifyRendererCaptureFinished();
-        applyEditorWindowMode({ show: true });
-        mainWindow.webContents.send('load-capture', { dataUrl, source: 'capture', captureMode: 'window' });
+        applyToolbarWindowMode({ show: true });
+        mainWindow.webContents.send('show-mini-preview', { dataUrl, captureMode: 'window' });
       }
       return;
     }
@@ -1552,10 +1551,8 @@ ipcMain.on('capture-complete', (event, imageDataUrl) => {
   copyDataUrlToClipboard(imageDataUrl);
   if (mainWindow) {
     notifyRendererCaptureFinished();
-    applyEditorWindowMode({ show: true });
-    mainWindow.webContents.send('load-capture', {
-      dataUrl: imageDataUrl, source: 'capture', captureMode: 'region',
-    });
+    applyToolbarWindowMode({ show: true });
+    mainWindow.webContents.send('show-mini-preview', { dataUrl: imageDataUrl, captureMode: 'region' });
   }
 });
 
@@ -1620,8 +1617,8 @@ ipcMain.on('window-source-select', async (event, sourceId) => {
     const dataUrl = selected.thumbnail.toDataURL();
     copyDataUrlToClipboard(dataUrl);
     if (mainWindow) {
-      applyEditorWindowMode({ show: true });
-      mainWindow.webContents.send('load-capture', { dataUrl, source: 'capture', captureMode: 'window' });
+      applyToolbarWindowMode({ show: true });
+      mainWindow.webContents.send('show-mini-preview', { dataUrl, captureMode: 'window' });
     }
   } catch (err) {
     if (windowPickerWindow && !windowPickerWindow.isDestroyed()) windowPickerWindow.close();
