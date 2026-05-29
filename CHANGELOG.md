@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.1.0](https://github.com/erikmartinjordan/pico/compare/v1.0.0...v1.1.0) (2026-05-29)
+
+
+### ✨ Features
+
+* add recording preview video tools ([853befd](https://github.com/erikmartinjordan/pico/commit/853befd0d61b1ad40f46c3c128d9bac59c1615dc))
+
+
+### 🐛 Fixes
+
+* refine recording preview layout ([9d86038](https://github.com/erikmartinjordan/pico/commit/9d86038bb047415a77624c61fce8021316c03054))
+* remove the recording autozoom and delete trial ([a2a1b04](https://github.com/erikmartinjordan/pico/commit/a2a1b041be7eda155fe9acca66ce814e33d3a94d))
+* removed buttons from edition mode ([99de179](https://github.com/erikmartinjordan/pico/commit/99de179efeaa5a57468ca393ff31eb7914821f73))
+* scope editable tool selection to edition tools group ([1df4432](https://github.com/erikmartinjordan/pico/commit/1df44320d143d2b7f01706f4e445e5b6c64e2eff))
+* show recording preview toolbar tools ([aabaaff](https://github.com/erikmartinjordan/pico/commit/aabaaff1586ccdfa36d8f2885fd50ed9625b6d0e))
+
+
+### ♻️ Refactoring
+
+* simplify recording preview editor ([fb6ec0f](https://github.com/erikmartinjordan/pico/commit/fb6ec0fbcb060266d6ae49dd4296602b520712ee))
+* streamline recording preview editor ([7d9fddb](https://github.com/erikmartinjordan/pico/commit/7d9fddb5a6ebe35aefa8bf90175a21e4464d0da4))
+* streamline recording preview editor ([f8ed390](https://github.com/erikmartinjordan/pico/commit/f8ed39014e0e8d3c5e27b474c0e899dd91d61640))
+
 ## 1.0.0 (2026-05-27)
 
 
