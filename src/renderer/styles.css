@@ -1282,85 +1282,134 @@ body.has-content .empty-state:not(.hidden) {
 .recording-preview {
   position: relative;
   z-index: 2;
-  width: min(960px, calc(100vw - 56px));
-  max-height: calc(100vh - 112px);
+  width: min(980px, calc(100vw - 32px));
+  max-height: calc(100vh - 72px);
 }
 
 .recording-preview.hidden { display: none; }
 
 .recording-preview__panel {
   width: 100%;
-  max-height: calc(100vh - 112px);
+  max-height: calc(100vh - 72px);
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 16px;
+  overflow: hidden;
   border: 1px solid rgba(255,255,255,0.14);
-  border-radius: 8px;
-  background: rgba(17,17,20,0.92);
+  border-radius: 10px;
+  background: rgba(17,17,20,0.94);
   box-shadow: 0 18px 54px rgba(0,0,0,0.42), 0 1px 0 rgba(255,255,255,0.08) inset;
 }
 
-.recording-preview__header,
-.recording-preview__actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.recording-preview__header h3 {
-  font-size: 14px;
-  margin-bottom: 4px;
-}
-
-.recording-preview__header p {
-  font-size: 11px;
-  color: rgba(255,255,255,0.62);
-}
-
-.recording-preview__close {
-  width: 32px;
-  height: 32px;
-  border: 1px solid rgba(255,255,255,0.18);
-  border-radius: 8px;
-  background: rgba(255,255,255,0.10);
-  color: #fff;
-  font-size: 20px;
-  cursor: pointer;
+.recording-preview__media {
+  position: relative;
+  min-height: min(56vh, 540px);
+  background: #050507;
 }
 
 #recording-preview-video {
+  display: block;
   width: 100%;
-  max-height: calc(100vh - 276px);
-  border-radius: 6px;
+  height: min(56vh, 540px);
+  min-height: 320px;
+  object-fit: contain;
   background: #050507;
-  box-shadow: 0 0 0 1px rgba(255,255,255,0.12);
+}
+
+.recording-preview__video-controls {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 14px;
+  display: grid;
+  grid-template-columns: 34px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(18,18,22,0.78), rgba(8,8,10,0.86));
+  box-shadow: 0 12px 30px rgba(0,0,0,0.32), 0 1px 0 rgba(255,255,255,0.08) inset;
+  backdrop-filter: blur(14px);
+}
+
+.recording-preview__play {
+  width: 34px;
+  height: 28px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.14);
+  color: #fff;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.recording-preview__play:hover {
+  background: rgba(249, 115, 22, 0.28);
+}
+
+#recording-preview-timeline {
+  width: 100%;
+  accent-color: #f97316;
+}
+
+.recording-preview__duration,
+.recording-preview__status {
+  font-size: 11px;
+  color: rgba(255,255,255,0.66);
+  white-space: nowrap;
 }
 
 .recording-preview__actions {
-  justify-content: flex-end;
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-top: 1px solid rgba(255,255,255,0.10);
+  background: rgba(15,15,18,0.98);
+}
+
+.recording-preview__status {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recording-preview__format-toggle {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 999px;
+  background: rgba(0,0,0,0.24);
+}
+
+.recording-preview__format-toggle button {
+  min-width: 52px;
+  border: none;
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: transparent;
+  color: rgba(255,255,255,0.58);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.recording-preview__format-toggle button.active {
+  background: rgba(249, 115, 22, 0.24);
+  color: #fed7aa;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.10) inset;
+}
+
+.recording-preview__button-row {
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
 }
 
 .recording-preview__actions .btn {
-  min-width: 96px;
+  min-width: 94px;
   justify-content: center;
-}
-.recording-preview__format-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-right: auto;
-  font-size: 11px;
-  color: rgba(255,255,255,0.72);
-}
-.recording-preview__format-label select {
-  background: rgba(0,0,0,0.28);
-  border: 1px solid rgba(255,255,255,0.22);
-  color: #fff;
-  border-radius: 8px;
-  padding: 4px 6px;
 }
 
 #recording-preview-discard {
@@ -1385,8 +1434,24 @@ body.has-content .empty-state:not(.hidden) {
 }
 
 .recording-preview.is-live .recording-preview__actions,
-.recording-preview.is-live .recording-preview__close {
+.recording-preview.is-live .recording-preview__video-controls {
   display: none;
+}
+
+@media (max-width: 720px) {
+  .recording-preview__actions {
+    grid-template-columns: 1fr;
+  }
+
+  .recording-preview__button-row,
+  .recording-preview__format-toggle {
+    justify-self: stretch;
+  }
+
+  .recording-preview__format-toggle button,
+  .recording-preview__button-row .btn {
+    flex: 1;
+  }
 }
 
 .capture-preview {
@@ -1493,4 +1558,19 @@ body.toolbar-transition .toast-container {
     --toolbar-icon-hover: rgba(2, 6, 23, 0.97);
     --toolbar-icon-active: rgba(2, 6, 23, 0.97);
   }
+}
+
+.canvas-container.recording-preview-active {
+  align-items: flex-start;
+  justify-content: center;
+  overflow: hidden;
+  padding: 0;
+}
+
+.canvas-container.recording-preview-active + .statusbar {
+  display: none;
+}
+
+body.has-content .canvas-container.recording-preview-active {
+  padding: 0;
 }

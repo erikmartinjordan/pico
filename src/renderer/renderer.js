@@ -104,6 +104,9 @@ const elements = {
   recordingPreviewVideo: $('#recording-preview-video'),
   recordingPreviewMeta: $('#recording-preview-meta'),
   recordingPreviewFormat: $('#recording-preview-format'),
+  recordingPreviewPlay: $('#recording-preview-play'),
+  recordingPreviewTimeline: $('#recording-preview-timeline'),
+  recordingPreviewDuration: $('#recording-preview-duration'),
   recordingPreviewSave: $('#recording-preview-save'),
   recordingPreviewDiscard: $('#recording-preview-discard'),
   recordingPreviewClose: $('#recording-preview-close'),
@@ -254,7 +257,16 @@ function bindToolbar() {
   on(elements.recordingPreviewSave, 'click', saveRecordingPreview);
   on(elements.recordingPreviewDiscard, 'click', discardRecordingPreview);
   on(elements.recordingPreviewClose, 'click', discardRecordingPreview);
-  on(elements.recordingPreviewFormat, 'change', () => setRecordingPreviewFormat(elements.recordingPreviewFormat.value));
+  elements.recordingPreviewFormat?.querySelectorAll('[data-format]').forEach((button) => {
+    button.addEventListener('click', () => setRecordingPreviewFormat(button.dataset.format));
+  });
+  on(elements.recordingPreviewPlay, 'click', toggleRecordingPreviewPlayback);
+  on(elements.recordingPreviewTimeline, 'input', scrubRecordingPreview);
+  on(elements.recordingPreviewVideo, 'loadedmetadata', updateRecordingPreviewControls);
+  on(elements.recordingPreviewVideo, 'timeupdate', updateRecordingPreviewControls);
+  on(elements.recordingPreviewVideo, 'play', updateRecordingPreviewControls);
+  on(elements.recordingPreviewVideo, 'pause', updateRecordingPreviewControls);
+  on(elements.recordingPreviewVideo, 'ended', updateRecordingPreviewControls);
   on(elements.textFontFamily, 'change', () => selectTextFontFamily(elements.textFontFamily.value));
   on(elements.textFontSize, 'change', () => selectTextFontSize(parseInt(elements.textFontSize.value)));
 }
@@ -791,14 +803,14 @@ function showRecordingPreview(result = {}) {
   };
   elements.recordingPreview.classList.remove('is-live');
   elements.recordingPreviewVideo.muted = false;
-  elements.recordingPreviewVideo.controls = true;
+  elements.recordingPreviewVideo.controls = false;
   elements.recordingPreviewVideo.srcObject = null;
   elements.recordingPreviewVideo.src = url;
   elements.recordingPreviewVideo.load();
   const playPromise = elements.recordingPreviewVideo.play();
   if (playPromise?.catch) playPromise.catch(() => {});
-  elements.recordingPreviewMeta.textContent = `Unsaved ${state.recordingPreview.format.toUpperCase()} export · previewing captured WebM source`;
-  if (elements.recordingPreviewFormat) elements.recordingPreviewFormat.value = state.recordingPreview.format;
+  updateRecordingPreviewStatus();
+  updateRecordingPreviewFormatUi();
   elements.container?.classList.add('recording-preview-active');
   elements.recordingPreview.classList.remove('hidden');
   elements.recordingPreview.setAttribute('aria-hidden', 'false');
@@ -842,7 +854,7 @@ function showLiveRecordingPreview(started = {}, format = state.recordingFormat) 
   elements.recordingPreviewVideo.removeAttribute('src');
   elements.recordingPreviewVideo.muted = true;
   elements.recordingPreviewVideo.controls = false;
-  elements.recordingPreviewMeta.textContent = `Recording ${format.toUpperCase()} source preview${started.systemAudio ? '' : ' · no system audio'}`;
+  elements.recordingPreviewMeta.textContent = `Recording ${format.toUpperCase()} source${started.systemAudio ? '' : ' · no system audio'}`;
   elements.recordingPreview.classList.add('is-live');
   elements.container?.classList.add('recording-preview-active');
   elements.recordingPreview.classList.remove('hidden');
@@ -866,7 +878,7 @@ async function saveRecordingPreview() {
     const warning = result.warning ? ` (${result.warning})` : '';
     setRecordingSaveProgress(true, { complete: true });
     if (elements.recordingPreviewMeta) {
-      elements.recordingPreviewMeta.textContent = `Saved ${state.recordingPreview.format.toUpperCase()} export: ${savedPath}`;
+      elements.recordingPreviewMeta.textContent = `Saved ${state.recordingPreview.format.toUpperCase()}: ${savedPath}`;
     }
     showToast(`Saved recording: ${savedPath}${warning}`, result.warning ? 'info' : 'success');
     await new Promise((resolve) => setTimeout(resolve, 220));
@@ -881,9 +893,72 @@ async function saveRecordingPreview() {
 function setRecordingPreviewFormat(format = 'mp4') {
   if (!state.recordingPreview) return;
   state.recordingPreview.format = format === 'gif' ? 'gif' : 'mp4';
-  if (elements.recordingPreviewMeta) {
-    elements.recordingPreviewMeta.textContent = `Unsaved ${state.recordingPreview.format.toUpperCase()} export · previewing captured WebM source`;
+  updateRecordingPreviewFormatUi();
+  updateRecordingPreviewStatus();
+}
+
+function updateRecordingPreviewFormatUi() {
+  const format = state.recordingPreview?.format === 'gif' ? 'gif' : 'mp4';
+  elements.recordingPreviewFormat?.querySelectorAll('[data-format]').forEach((button) => {
+    const active = button.dataset.format === format;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-checked', active ? 'true' : 'false');
+  });
+  if (elements.recordingPreviewSave) {
+    elements.recordingPreviewSave.setAttribute('aria-label', `Save ${format.toUpperCase()} recording`);
+    const label = elements.recordingPreviewSave.querySelector('span');
+    if (label) label.textContent = `Save ${format.toUpperCase()}`;
   }
+}
+
+function updateRecordingPreviewStatus() {
+  if (!elements.recordingPreviewMeta) return;
+  const duration = formatRecordingTime(elements.recordingPreviewVideo?.duration);
+  elements.recordingPreviewMeta.textContent = `${duration} · WebM source`;
+}
+
+function toggleRecordingPreviewPlayback() {
+  const video = elements.recordingPreviewVideo;
+  if (!video) return;
+  if (video.paused || video.ended) {
+    const playPromise = video.play();
+    if (playPromise?.catch) playPromise.catch(() => {});
+  } else {
+    video.pause();
+  }
+}
+
+function scrubRecordingPreview() {
+  const video = elements.recordingPreviewVideo;
+  const timeline = elements.recordingPreviewTimeline;
+  if (!video || !timeline || !Number.isFinite(video.duration) || video.duration <= 0) return;
+  video.currentTime = (Number(timeline.value) / Number(timeline.max || 1000)) * video.duration;
+}
+
+function updateRecordingPreviewControls() {
+  const video = elements.recordingPreviewVideo;
+  if (!video) return;
+  const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0;
+  const currentTime = Number.isFinite(video.currentTime) ? video.currentTime : 0;
+  if (elements.recordingPreviewTimeline) {
+    elements.recordingPreviewTimeline.value = duration > 0 ? String(Math.round((currentTime / duration) * Number(elements.recordingPreviewTimeline.max || 1000))) : '0';
+  }
+  if (elements.recordingPreviewDuration) {
+    elements.recordingPreviewDuration.textContent = `${formatRecordingTime(currentTime)} / ${formatRecordingTime(duration)}`;
+  }
+  if (elements.recordingPreviewPlay) {
+    const isPlaying = !video.paused && !video.ended;
+    elements.recordingPreviewPlay.textContent = isPlaying ? '❚❚' : '▶';
+    elements.recordingPreviewPlay.setAttribute('aria-label', isPlaying ? 'Pause recording' : 'Play recording');
+  }
+  updateRecordingPreviewStatus();
+}
+
+function formatRecordingTime(seconds = 0) {
+  const safeSeconds = Number.isFinite(seconds) && seconds > 0 ? Math.round(seconds) : 0;
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainder = safeSeconds % 60;
+  return `${minutes}:${String(remainder).padStart(2, '0')}`;
 }
 
 async function startCapture() {
