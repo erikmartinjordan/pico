@@ -68,6 +68,8 @@ const $$ = (sel) => document.querySelectorAll(sel);
 let resetToolbarDismissState = () => {};
 let isCaptureMode = false;
 let pendingMiniPreview = null;
+let recordingPreviewTimelineFrame = null;
+const recordingPreviewSpeeds = [1, 1.5, 2, 0.5];
 
 const elements = {
   canvas: $('#canvas'),
@@ -104,7 +106,18 @@ const elements = {
   recordingPreviewVideo: $('#recording-preview-video'),
   recordingPreviewMeta: $('#recording-preview-meta'),
   recordingPreviewFormat: $('#recording-preview-format'),
+  recordingPreviewPlay: $('#recording-preview-play'),
+  recordingPreviewTimeline: $('#recording-preview-timeline'),
+  recordingPreviewDuration: $('#recording-preview-duration'),
   recordingPreviewSave: $('#recording-preview-save'),
+  recordingPreviewToolbarPlay: $('#btn-recording-play'),
+  recordingPreviewJumpBack: $('#btn-recording-jump-back'),
+  recordingPreviewJumpForward: $('#btn-recording-jump-forward'),
+  recordingPreviewSpeed: $('#btn-recording-speed'),
+  recordingPreviewTrimStart: $('#btn-recording-trim-start'),
+  recordingPreviewTrimEnd: $('#btn-recording-trim-end'),
+  recordingPreviewResetTrim: $('#btn-recording-reset-trim'),
+  recordingPreviewMute: $('#btn-recording-mute'),
   recordingPreviewDiscard: $('#recording-preview-discard'),
   recordingPreviewClose: $('#recording-preview-close'),
   statusTool: $('#status-tool'),
@@ -254,7 +267,24 @@ function bindToolbar() {
   on(elements.recordingPreviewSave, 'click', saveRecordingPreview);
   on(elements.recordingPreviewDiscard, 'click', discardRecordingPreview);
   on(elements.recordingPreviewClose, 'click', discardRecordingPreview);
-  on(elements.recordingPreviewFormat, 'change', () => setRecordingPreviewFormat(elements.recordingPreviewFormat.value));
+  elements.recordingPreviewFormat?.querySelectorAll('[data-format]').forEach((button) => {
+    button.addEventListener('click', () => setRecordingPreviewFormat(button.dataset.format));
+  });
+  on(elements.recordingPreviewPlay, 'click', toggleRecordingPreviewPlayback);
+  on(elements.recordingPreviewTimeline, 'input', scrubRecordingPreview);
+  on(elements.recordingPreviewToolbarPlay, 'click', toggleRecordingPreviewPlayback);
+  on(elements.recordingPreviewJumpBack, 'click', () => jumpRecordingPreview(-1));
+  on(elements.recordingPreviewJumpForward, 'click', () => jumpRecordingPreview(1));
+  on(elements.recordingPreviewSpeed, 'click', cycleRecordingPreviewSpeed);
+  on(elements.recordingPreviewTrimStart, 'click', setRecordingPreviewTrimStart);
+  on(elements.recordingPreviewTrimEnd, 'click', setRecordingPreviewTrimEnd);
+  on(elements.recordingPreviewResetTrim, 'click', resetRecordingPreviewTrim);
+  on(elements.recordingPreviewMute, 'click', toggleRecordingPreviewMute);
+  on(elements.recordingPreviewVideo, 'loadedmetadata', updateRecordingPreviewControls);
+  on(elements.recordingPreviewVideo, 'timeupdate', updateRecordingPreviewControls);
+  on(elements.recordingPreviewVideo, 'play', startRecordingPreviewTimeline);
+  on(elements.recordingPreviewVideo, 'pause', stopRecordingPreviewTimeline);
+  on(elements.recordingPreviewVideo, 'ended', stopRecordingPreviewTimeline);
   on(elements.textFontFamily, 'change', () => selectTextFontFamily(elements.textFontFamily.value));
   on(elements.textFontSize, 'change', () => selectTextFontSize(parseInt(elements.textFontSize.value)));
 }
@@ -788,17 +818,21 @@ function showRecordingPreview(result = {}) {
     url,
     format: result.format || state.recordingFormat || 'mp4',
     mimeType: result.mimeType || 'video/webm',
+    trimStart: 0,
+    trimEnd: null,
   };
   elements.recordingPreview.classList.remove('is-live');
   elements.recordingPreviewVideo.muted = false;
-  elements.recordingPreviewVideo.controls = true;
+  elements.recordingPreviewVideo.playbackRate = 1;
+  elements.recordingPreviewVideo.controls = false;
   elements.recordingPreviewVideo.srcObject = null;
   elements.recordingPreviewVideo.src = url;
   elements.recordingPreviewVideo.load();
   const playPromise = elements.recordingPreviewVideo.play();
   if (playPromise?.catch) playPromise.catch(() => {});
-  elements.recordingPreviewMeta.textContent = `Unsaved ${state.recordingPreview.format.toUpperCase()} export · previewing captured WebM source`;
-  if (elements.recordingPreviewFormat) elements.recordingPreviewFormat.value = state.recordingPreview.format;
+  updateRecordingPreviewFormatUi();
+  updateRecordingPreviewToolbar();
+  updateRecordingPreviewControls();
   elements.container?.classList.add('recording-preview-active');
   elements.recordingPreview.classList.remove('hidden');
   elements.recordingPreview.setAttribute('aria-hidden', 'false');
@@ -811,9 +845,11 @@ function discardRecordingPreview(options = {}) {
     elements.recordingPreviewVideo.pause();
     elements.recordingPreviewVideo.srcObject = null;
     elements.recordingPreviewVideo.muted = true;
+    elements.recordingPreviewVideo.playbackRate = 1;
     elements.recordingPreviewVideo.removeAttribute('src');
     elements.recordingPreviewVideo.load();
   }
+  stopRecordingPreviewTimeline();
   elements.recordingPreview?.classList.remove('is-live');
   elements.recordingPreview?.classList.add('hidden');
   elements.recordingPreview?.setAttribute('aria-hidden', 'true');
@@ -841,8 +877,11 @@ function showLiveRecordingPreview(started = {}, format = state.recordingFormat) 
   state.recordingPreview = null;
   elements.recordingPreviewVideo.removeAttribute('src');
   elements.recordingPreviewVideo.muted = true;
+  elements.recordingPreviewVideo.playbackRate = 1;
   elements.recordingPreviewVideo.controls = false;
-  elements.recordingPreviewMeta.textContent = `Recording ${format.toUpperCase()} source preview${started.systemAudio ? '' : ' · no system audio'}`;
+  if (elements.recordingPreviewMeta) {
+    elements.recordingPreviewMeta.textContent = `Recording ${format.toUpperCase()} source${started.systemAudio ? '' : ' · no system audio'}`;
+  }
   elements.recordingPreview.classList.add('is-live');
   elements.container?.classList.add('recording-preview-active');
   elements.recordingPreview.classList.remove('hidden');
@@ -857,6 +896,9 @@ async function saveRecordingPreview() {
     const result = await window.pico.saveRecording({
       data: state.recordingPreview.data,
       format: state.recordingPreview.format,
+      trimStart: state.recordingPreview.trimStart || 0,
+      trimEnd: state.recordingPreview.trimEnd,
+      muted: elements.recordingPreviewVideo?.muted === true,
     });
     if (result.canceled) {
       showToast('Save canceled', 'info');
@@ -866,7 +908,7 @@ async function saveRecordingPreview() {
     const warning = result.warning ? ` (${result.warning})` : '';
     setRecordingSaveProgress(true, { complete: true });
     if (elements.recordingPreviewMeta) {
-      elements.recordingPreviewMeta.textContent = `Saved ${state.recordingPreview.format.toUpperCase()} export: ${savedPath}`;
+      elements.recordingPreviewMeta.textContent = `Saved ${state.recordingPreview.format.toUpperCase()}: ${savedPath}`;
     }
     showToast(`Saved recording: ${savedPath}${warning}`, result.warning ? 'info' : 'success');
     await new Promise((resolve) => setTimeout(resolve, 220));
@@ -881,9 +923,178 @@ async function saveRecordingPreview() {
 function setRecordingPreviewFormat(format = 'mp4') {
   if (!state.recordingPreview) return;
   state.recordingPreview.format = format === 'gif' ? 'gif' : 'mp4';
-  if (elements.recordingPreviewMeta) {
-    elements.recordingPreviewMeta.textContent = `Unsaved ${state.recordingPreview.format.toUpperCase()} export · previewing captured WebM source`;
+  updateRecordingPreviewFormatUi();
+}
+
+function updateRecordingPreviewFormatUi() {
+  const format = state.recordingPreview?.format === 'gif' ? 'gif' : 'mp4';
+  elements.recordingPreviewFormat?.querySelectorAll('[data-format]').forEach((button) => {
+    const active = button.dataset.format === format;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-checked', active ? 'true' : 'false');
+  });
+  if (elements.recordingPreviewSave) {
+    elements.recordingPreviewSave.setAttribute('aria-label', `Save ${format.toUpperCase()} recording`);
+    const label = elements.recordingPreviewSave.querySelector('span');
+    if (label) label.textContent = `Save ${format.toUpperCase()}`;
   }
+}
+
+function toggleRecordingPreviewPlayback() {
+  const video = elements.recordingPreviewVideo;
+  if (!video) return;
+  if (video.paused || video.ended) {
+    const playPromise = video.play();
+    if (playPromise?.catch) playPromise.catch(() => {});
+  } else {
+    video.pause();
+  }
+  updateRecordingPreviewToolbar();
+}
+
+function jumpRecordingPreview(delta = 0) {
+  const video = elements.recordingPreviewVideo;
+  if (!video || !Number.isFinite(video.duration) || video.duration <= 0) return;
+  video.currentTime = Math.max(0, Math.min(video.duration, video.currentTime + delta));
+  updateRecordingPreviewControls();
+}
+
+function cycleRecordingPreviewSpeed() {
+  const video = elements.recordingPreviewVideo;
+  if (!video) return;
+  const currentIndex = recordingPreviewSpeeds.indexOf(video.playbackRate);
+  const nextSpeed = recordingPreviewSpeeds[(currentIndex + 1) % recordingPreviewSpeeds.length] || 1;
+  video.playbackRate = nextSpeed;
+  updateRecordingPreviewToolbar();
+}
+
+function toggleRecordingPreviewMute() {
+  const video = elements.recordingPreviewVideo;
+  if (!video) return;
+  video.muted = !video.muted;
+  updateRecordingPreviewToolbar();
+}
+
+function setRecordingPreviewTrimStart() {
+  const video = elements.recordingPreviewVideo;
+  if (!video || !state.recordingPreview) return;
+  const currentTime = Number.isFinite(video.currentTime) ? video.currentTime : 0;
+  const trimEnd = Number.isFinite(state.recordingPreview.trimEnd) ? state.recordingPreview.trimEnd : video.duration;
+  state.recordingPreview.trimStart = Math.max(0, Math.min(currentTime, Math.max(0, trimEnd - 0.1)));
+  updateRecordingPreviewToolbar();
+}
+
+function setRecordingPreviewTrimEnd() {
+  const video = elements.recordingPreviewVideo;
+  if (!video || !state.recordingPreview || !Number.isFinite(video.duration)) return;
+  const currentTime = Number.isFinite(video.currentTime) ? video.currentTime : video.duration;
+  const trimStart = state.recordingPreview.trimStart || 0;
+  state.recordingPreview.trimEnd = Math.min(video.duration, Math.max(currentTime, trimStart + 0.1));
+  updateRecordingPreviewToolbar();
+}
+
+function resetRecordingPreviewTrim() {
+  if (!state.recordingPreview) return;
+  state.recordingPreview.trimStart = 0;
+  state.recordingPreview.trimEnd = null;
+  updateRecordingPreviewToolbar();
+}
+
+function scrubRecordingPreview() {
+  const video = elements.recordingPreviewVideo;
+  const timeline = elements.recordingPreviewTimeline;
+  if (!video || !timeline || !Number.isFinite(video.duration) || video.duration <= 0) return;
+  video.currentTime = (Number(timeline.value) / Number(timeline.max || 1000)) * video.duration;
+  updateRecordingPreviewControls();
+}
+
+function updateRecordingPreviewControls() {
+  const video = elements.recordingPreviewVideo;
+  if (!video) return;
+  const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0;
+  const currentTime = Number.isFinite(video.currentTime) ? video.currentTime : 0;
+  const progress = duration > 0 ? currentTime / duration : 0;
+  if (elements.recordingPreviewTimeline) {
+    const max = Number(elements.recordingPreviewTimeline.max || 1000);
+    elements.recordingPreviewTimeline.value = duration > 0 ? String(progress * max) : '0';
+    elements.recordingPreviewTimeline.style.setProperty('--progress', `${Math.max(0, Math.min(progress, 1)) * 100}%`);
+  }
+  if (elements.recordingPreviewDuration) {
+    elements.recordingPreviewDuration.textContent = `${formatRecordingTime(currentTime)} / ${formatRecordingTime(duration)}`;
+  }
+  if (elements.recordingPreviewPlay) {
+    const isPlaying = !video.paused && !video.ended;
+    elements.recordingPreviewPlay.textContent = isPlaying ? '❚❚' : '▶';
+    elements.recordingPreviewPlay.setAttribute('aria-label', isPlaying ? 'Pause recording' : 'Play recording');
+  }
+  updateRecordingPreviewToolbar();
+}
+
+function updateRecordingPreviewToolbar() {
+  const video = elements.recordingPreviewVideo;
+  if (!video) return;
+  const isPlaying = !video.paused && !video.ended;
+  if (elements.recordingPreviewToolbarPlay) {
+    const icon = isPlaying ? 'pause' : 'play';
+    elements.recordingPreviewToolbarPlay.classList.toggle('active', isPlaying);
+    elements.recordingPreviewToolbarPlay.setAttribute('aria-label', isPlaying ? 'Pause video' : 'Play video');
+    if (elements.recordingPreviewToolbarPlay.dataset.icon !== icon) {
+      elements.recordingPreviewToolbarPlay.dataset.icon = icon;
+      elements.recordingPreviewToolbarPlay.innerHTML = isPlaying
+        ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 5v14"/><path d="M16 5v14"/></svg>'
+        : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/></svg>';
+    }
+  }
+  if (elements.recordingPreviewSpeed) {
+    const speedLabel = `${Number.isInteger(video.playbackRate) ? video.playbackRate : video.playbackRate.toFixed(1)}×`;
+    if (elements.recordingPreviewSpeed.textContent !== speedLabel) elements.recordingPreviewSpeed.textContent = speedLabel;
+    elements.recordingPreviewSpeed.classList.toggle('active', video.playbackRate !== 1);
+  }
+  if (elements.recordingPreviewTrimStart) {
+    elements.recordingPreviewTrimStart.classList.toggle('active', Boolean(state.recordingPreview?.trimStart));
+  }
+  if (elements.recordingPreviewTrimEnd) {
+    elements.recordingPreviewTrimEnd.classList.toggle('active', Number.isFinite(state.recordingPreview?.trimEnd));
+  }
+  if (elements.recordingPreviewResetTrim) {
+    const trimActive = Boolean(state.recordingPreview?.trimStart) || Number.isFinite(state.recordingPreview?.trimEnd);
+    elements.recordingPreviewResetTrim.classList.toggle('active', trimActive);
+    elements.recordingPreviewResetTrim.disabled = !trimActive;
+  }
+  if (elements.recordingPreviewMute) {
+    elements.recordingPreviewMute.classList.toggle('active', video.muted);
+    elements.recordingPreviewMute.setAttribute('aria-label', video.muted ? 'Unmute preview audio' : 'Mute preview audio');
+  }
+}
+
+function startRecordingPreviewTimeline() {
+  stopRecordingPreviewTimeline();
+  updateRecordingPreviewControls();
+  const tick = () => {
+    updateRecordingPreviewControls();
+    const video = elements.recordingPreviewVideo;
+    if (video && !video.paused && !video.ended) {
+      recordingPreviewTimelineFrame = requestAnimationFrame(tick);
+    } else {
+      recordingPreviewTimelineFrame = null;
+    }
+  };
+  recordingPreviewTimelineFrame = requestAnimationFrame(tick);
+}
+
+function stopRecordingPreviewTimeline() {
+  if (recordingPreviewTimelineFrame) {
+    cancelAnimationFrame(recordingPreviewTimelineFrame);
+    recordingPreviewTimelineFrame = null;
+  }
+  updateRecordingPreviewControls();
+}
+
+function formatRecordingTime(seconds = 0) {
+  const safeSeconds = Number.isFinite(seconds) && seconds > 0 ? Math.round(seconds) : 0;
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainder = safeSeconds % 60;
+  return `${minutes}:${String(remainder).padStart(2, '0')}`;
 }
 
 async function startCapture() {

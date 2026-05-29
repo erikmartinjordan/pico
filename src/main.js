@@ -1878,6 +1878,9 @@ ipcMain.handle('pro-save-recording', async (event, payload) => {
 
   const format = payload?.format === 'gif' || payload?.gif ? 'gif' : 'mp4';
   const extension = format === 'gif' ? 'gif' : 'mp4';
+  const trimStart = Number.isFinite(payload?.trimStart) && payload.trimStart > 0 ? payload.trimStart : 0;
+  const trimEnd = Number.isFinite(payload?.trimEnd) && payload.trimEnd > trimStart ? payload.trimEnd : 0;
+  const muted = payload?.muted === true;
   const filename = `pico-recording-${Date.now()}.${extension}`;
   const configuredSaveDirectory = configuredDefaultSaveDirectory();
   let outputPath = configuredSaveDirectory ? path.join(configuredSaveDirectory, filename) : '';
@@ -1907,7 +1910,7 @@ ipcMain.handle('pro-save-recording', async (event, payload) => {
 
     let mp4;
     try {
-      mp4 = await convertWebmToMp4(webmPath, mp4Path);
+      mp4 = await convertWebmToMp4(webmPath, mp4Path, { trimStart, trimEnd, muted });
     } catch (conversionError) {
       fs.rmSync(mp4Path, { force: true });
       if (format === 'mp4') fs.rmSync(outputPath, { force: true });

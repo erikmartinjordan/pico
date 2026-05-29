@@ -32,6 +32,17 @@
           </div>
         </div>
       </div>
+      <div class="toolbar-group video-tools" aria-label="Video editing tools">
+        <button class="toolbar-btn" id="btn-recording-jump-back" data-tooltip="Back 1 second" aria-label="Back 1 second"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11 7l-5 5 5 5"/><path d="M18 7l-5 5 5 5"/></svg></button>
+        <button class="toolbar-btn" id="btn-recording-play" data-tooltip="Play / pause video" aria-label="Play video"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path class="video-tool-play-icon" d="M8 5v14l11-7z" fill="currentColor" stroke="none"/></svg></button>
+        <button class="toolbar-btn" id="btn-recording-jump-forward" data-tooltip="Forward 1 second" aria-label="Forward 1 second"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 7l5 5-5 5"/><path d="M6 7l5 5-5 5"/></svg></button>
+        <button class="toolbar-btn video-tool-text" id="btn-recording-speed" data-tooltip="Cycle playback speed" aria-label="Playback speed">1×</button>
+        <button class="toolbar-btn video-tool-text" id="btn-recording-trim-start" data-tooltip="Trim start to playhead" aria-label="Trim start to playhead">In</button>
+        <button class="toolbar-btn video-tool-text" id="btn-recording-trim-end" data-tooltip="Trim end to playhead" aria-label="Trim end to playhead">Out</button>
+        <button class="toolbar-btn" id="btn-recording-reset-trim" data-tooltip="Reset trim" aria-label="Reset trim"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 12a8 8 0 111.7 4.9"/><path d="M4 18v-6h6"/></svg></button>
+        <button class="toolbar-btn" id="btn-recording-mute" data-tooltip="Mute preview audio" aria-label="Mute preview audio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 10v4h4l5 4V6l-5 4H4z"/><path d="M17 9l4 4m0-4l-4 4"/></svg></button>
+      </div>
+      <div class="toolbar-separator video-tools-separator"></div>
       <div class="toolbar-separator"></div>
       <div class="toolbar-group tools">
         <button class="toolbar-btn tool-btn" data-tool="select" data-tooltip="Select / Move"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 4l6 15 2-6 6-2z"/></svg></button>
@@ -116,23 +127,23 @@
     <canvas id="canvas"></canvas>
     <div class="recording-preview hidden" id="recording-preview" aria-hidden="true">
       <div class="recording-preview__panel">
-        <div class="recording-preview__header">
-          <div>
-            <h3>Recording preview</h3>
-            <p id="recording-preview-meta">Review your capture before saving.</p>
+        <div class="recording-preview__media">
+          <video id="recording-preview-video" playsinline muted></video>
+          <div class="recording-preview__video-controls" aria-label="Recording playback controls">
+            <button type="button" class="recording-preview__play" id="recording-preview-play" aria-label="Play recording">▶</button>
+            <input type="range" id="recording-preview-timeline" min="0" max="1000" value="0" step="0.1" aria-label="Recording timeline">
+            <span class="recording-preview__duration" id="recording-preview-duration">0:00</span>
           </div>
-          <button class="recording-preview__close" id="recording-preview-close" aria-label="Close recording preview">×</button>
         </div>
-        <video id="recording-preview-video" controls playsinline muted></video>
         <div class="recording-preview__actions">
-          <label class="recording-preview__format-label">Export format
-            <select id="recording-preview-format" aria-label="Recording export format">
-              <option value="mp4">MP4</option>
-              <option value="gif">GIF</option>
-            </select>
-          </label>
-          <button type="button" class="btn btn-secondary" id="recording-preview-discard" aria-label="Discard recording"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="14" height="14"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M5 6v14a2 2 0 002 2h10a2 2 0 002-2V6"/></svg>Discard</button>
-          <button type="button" class="btn btn-primary" id="recording-preview-save" aria-label="Save recording"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="14" height="14"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>Save</button>
+          <div class="recording-preview__format-toggle" id="recording-preview-format" role="radiogroup" aria-label="Recording export format">
+            <button type="button" class="active" data-format="mp4" role="radio" aria-checked="true">MP4</button>
+            <button type="button" data-format="gif" role="radio" aria-checked="false">GIF</button>
+          </div>
+          <div class="recording-preview__button-row">
+            <button type="button" class="btn btn-secondary" id="recording-preview-discard" aria-label="Discard recording"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="14" height="14"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M5 6v14a2 2 0 002 2h10a2 2 0 002-2V6"/></svg>Discard</button>
+            <button type="button" class="btn btn-primary" id="recording-preview-save" aria-label="Save MP4 recording"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="14" height="14"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg><span>Save MP4</span></button>
+          </div>
         </div>
       </div>
     </div>
