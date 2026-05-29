@@ -1620,15 +1620,24 @@ body.has-content .canvas-container.recording-preview-active {
   letter-spacing: -0.02em;
 }
 
-.canvas-container.recording-preview-active .toolbar-group:not(.video-tools),
-.canvas-container.recording-preview-active .toolbar-separator {
-  display: none;
+body .canvas-container.recording-preview-active .toolbar .toolbar-group:not(.video-tools),
+body .canvas-container.recording-preview-active .toolbar .toolbar-separator {
+  display: none !important;
 }
 
-.canvas-container.recording-preview-active .toolbar-group.video-tools {
-  display: flex;
+body .canvas-container.recording-preview-active .toolbar .toolbar-group.video-tools {
+  display: flex !important;
 }
 
-.canvas-container.recording-preview-active .toolbar {
-  min-width: 0;
+body .canvas-container.recording-preview-active .toolbar {
+  min-width: max-content;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+body .canvas-container.recording-preview-active .toolbar.auto-hidden {
+  --toolbar-offset: 0px;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(var(--toolbar-offset));
 }
