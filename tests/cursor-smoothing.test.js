@@ -215,7 +215,7 @@ function createStreamWithCursorSetting(cursor) {
   assert.ok(
     !rendererSource.slice(
       rendererSource.indexOf('async function saveRecordingPreview()'),
-      rendererSource.indexOf('function setRecordingPreviewFormat'),
+      rendererSource.indexOf('async function startCapture()'),
     ).includes('discardRecordingPreview'),
     'saving a recording must keep the preview visible and steady in editor mode',
   );

@@ -102,11 +102,12 @@ const elements = {
   strokeBtns: $$('.stroke-option'),
   recordingPreview: $('#recording-preview'),
   recordingPreviewVideo: $('#recording-preview-video'),
-  recordingPreviewMeta: $('#recording-preview-meta'),
-  recordingPreviewFormat: $('#recording-preview-format'),
+  recordingPreviewPlay: $('#recording-preview-play'),
+  recordingPreviewDuration: $('#recording-preview-duration'),
+  recordingPreviewFullscreen: $('#recording-preview-fullscreen'),
+  recordingPreviewFormatToggle: $('.recording-preview__format-toggle'),
   recordingPreviewSave: $('#recording-preview-save'),
   recordingPreviewDiscard: $('#recording-preview-discard'),
-  recordingPreviewClose: $('#recording-preview-close'),
   statusTool: $('#status-tool'),
   statusZoom: $('#status-zoom'),
   textWrapper: $('#text-input-wrapper'),
@@ -253,8 +254,38 @@ function bindToolbar() {
   bindStrokePicker();
   on(elements.recordingPreviewSave, 'click', saveRecordingPreview);
   on(elements.recordingPreviewDiscard, 'click', discardRecordingPreview);
-  on(elements.recordingPreviewClose, 'click', discardRecordingPreview);
-  on(elements.recordingPreviewFormat, 'change', () => setRecordingPreviewFormat(elements.recordingPreviewFormat.value));
+  on(elements.recordingPreviewPlay, 'click', () => {
+    const video = elements.recordingPreviewVideo;
+    if (!video) return;
+    if (video.paused) {
+      const playPromise = video.play();
+      if (playPromise?.catch) playPromise.catch(() => {});
+    } else {
+      video.pause();
+    }
+  });
+  on(elements.recordingPreviewFullscreen, 'click', () => {
+    const video = elements.recordingPreviewVideo;
+    if (!video?.requestFullscreen) return;
+    const fullscreenPromise = video.requestFullscreen();
+    if (fullscreenPromise?.catch) fullscreenPromise.catch(() => {});
+  });
+  on(elements.recordingPreviewFormatToggle, 'click', (event) => {
+    const btn = event.target.closest('button[data-format]');
+    if (!btn || !elements.recordingPreviewFormatToggle.contains(btn)) return;
+    elements.recordingPreviewFormatToggle.querySelectorAll('button[data-format]').forEach((button) => {
+      button.classList.toggle('active', button === btn);
+    });
+    const format = btn.dataset.format === 'gif' ? 'gif' : 'mp4';
+    if (state.recordingPreview) state.recordingPreview.format = format;
+    if (elements.recordingPreviewSave) elements.recordingPreviewSave.textContent = `Save ${format.toUpperCase()}`;
+  });
+  on(elements.recordingPreviewVideo, 'timeupdate', updateRecordingPreviewTimeline);
+  on($('.recording-preview__scrubber'), 'click', (event) => {
+    const video = elements.recordingPreviewVideo;
+    if (!video?.duration || !Number.isFinite(video.duration)) return;
+    video.currentTime = (event.offsetX / event.currentTarget.clientWidth) * video.duration;
+  });
   on(elements.textFontFamily, 'change', () => selectTextFontFamily(elements.textFontFamily.value));
   on(elements.textFontSize, 'change', () => selectTextFontSize(parseInt(elements.textFontSize.value)));
 }
@@ -773,6 +804,36 @@ async function toggleRecording(event) {
   }
 }
 
+function formatRecordingPreviewTime(seconds = 0) {
+  if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
+  const totalSeconds = Math.floor(seconds);
+  const minutes = Math.floor(totalSeconds / 60);
+  const remainingSeconds = String(totalSeconds % 60).padStart(2, '0');
+  return `${minutes}:${remainingSeconds}`;
+}
+
+function updateRecordingPreviewTimeline() {
+  const video = elements.recordingPreviewVideo;
+  if (!video) return;
+  const duration = Number.isFinite(video.duration) ? video.duration : 0;
+  const currentTime = Number.isFinite(video.currentTime) ? video.currentTime : 0;
+  if (elements.recordingPreviewDuration) {
+    elements.recordingPreviewDuration.textContent = `${formatRecordingPreviewTime(currentTime)} / ${formatRecordingPreviewTime(duration)}`;
+  }
+  const fill = $('.recording-preview__scrubber-fill');
+  if (fill) {
+    fill.style.width = duration > 0 ? `${Math.min(100, Math.max(0, (currentTime / duration) * 100))}%` : '0%';
+  }
+}
+
+function resetRecordingPreviewFormatToggle(format = 'mp4') {
+  const normalizedFormat = format === 'gif' ? 'gif' : 'mp4';
+  elements.recordingPreviewFormatToggle?.querySelectorAll('button[data-format]').forEach((button) => {
+    button.classList.toggle('active', button.dataset.format === normalizedFormat);
+  });
+  if (elements.recordingPreviewSave) elements.recordingPreviewSave.textContent = `Save ${normalizedFormat.toUpperCase()}`;
+}
+
 function showRecordingPreview(result = {}) {
   if (!result?.data || !elements.recordingPreview || !elements.recordingPreviewVideo) return;
   discardRecordingPreview({ silent: true, keepWindowMode: true });
@@ -786,19 +847,19 @@ function showRecordingPreview(result = {}) {
   state.recordingPreview = {
     data: bytes,
     url,
-    format: result.format || state.recordingFormat || 'mp4',
+    format: 'mp4',
     mimeType: result.mimeType || 'video/webm',
   };
   elements.recordingPreview.classList.remove('is-live');
   elements.recordingPreviewVideo.muted = false;
-  elements.recordingPreviewVideo.controls = true;
+  elements.recordingPreviewVideo.removeAttribute('controls');
   elements.recordingPreviewVideo.srcObject = null;
   elements.recordingPreviewVideo.src = url;
   elements.recordingPreviewVideo.load();
   const playPromise = elements.recordingPreviewVideo.play();
   if (playPromise?.catch) playPromise.catch(() => {});
-  elements.recordingPreviewMeta.textContent = `Unsaved ${state.recordingPreview.format.toUpperCase()} export · previewing captured WebM source`;
-  if (elements.recordingPreviewFormat) elements.recordingPreviewFormat.value = state.recordingPreview.format;
+  resetRecordingPreviewFormatToggle('mp4');
+  updateRecordingPreviewTimeline();
   elements.container?.classList.add('recording-preview-active');
   elements.recordingPreview.classList.remove('hidden');
   elements.recordingPreview.setAttribute('aria-hidden', 'false');
@@ -813,6 +874,7 @@ function discardRecordingPreview(options = {}) {
     elements.recordingPreviewVideo.muted = true;
     elements.recordingPreviewVideo.removeAttribute('src');
     elements.recordingPreviewVideo.load();
+    updateRecordingPreviewTimeline();
   }
   elements.recordingPreview?.classList.remove('is-live');
   elements.recordingPreview?.classList.add('hidden');
@@ -841,8 +903,8 @@ function showLiveRecordingPreview(started = {}, format = state.recordingFormat) 
   state.recordingPreview = null;
   elements.recordingPreviewVideo.removeAttribute('src');
   elements.recordingPreviewVideo.muted = true;
-  elements.recordingPreviewVideo.controls = false;
-  elements.recordingPreviewMeta.textContent = `Recording ${format.toUpperCase()} source preview${started.systemAudio ? '' : ' · no system audio'}`;
+  elements.recordingPreviewVideo.removeAttribute('controls');
+  updateRecordingPreviewTimeline();
   elements.recordingPreview.classList.add('is-live');
   elements.container?.classList.add('recording-preview-active');
   elements.recordingPreview.classList.remove('hidden');
@@ -865,9 +927,6 @@ async function saveRecordingPreview() {
     const savedPath = result.gif || result.mp4 || result.webm;
     const warning = result.warning ? ` (${result.warning})` : '';
     setRecordingSaveProgress(true, { complete: true });
-    if (elements.recordingPreviewMeta) {
-      elements.recordingPreviewMeta.textContent = `Saved ${state.recordingPreview.format.toUpperCase()} export: ${savedPath}`;
-    }
     showToast(`Saved recording: ${savedPath}${warning}`, result.warning ? 'info' : 'success');
     await new Promise((resolve) => setTimeout(resolve, 220));
   } catch (err) {
@@ -875,14 +934,6 @@ async function saveRecordingPreview() {
   } finally {
     setRecordingSaveProgress(false);
     state.isSavingRecording = false;
-  }
-}
-
-function setRecordingPreviewFormat(format = 'mp4') {
-  if (!state.recordingPreview) return;
-  state.recordingPreview.format = format === 'gif' ? 'gif' : 'mp4';
-  if (elements.recordingPreviewMeta) {
-    elements.recordingPreviewMeta.textContent = `Unsaved ${state.recordingPreview.format.toUpperCase()} export · previewing captured WebM source`;
   }
 }
 
