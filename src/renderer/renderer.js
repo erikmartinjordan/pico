@@ -939,6 +939,22 @@ function clearCanvas() {
   discardRecordingPreview({ silent: true });
   const capturePreview = document.getElementById('capture-preview');
   if (capturePreview) capturePreview.classList.remove('visible');
+
+  if (elements.canvas) {
+    // Fully reset the backing store while preserving a valid render target.
+    const resetWidth = Math.max(1, elements.canvas.width || 1);
+    const resetHeight = Math.max(1, elements.canvas.height || 1);
+    elements.canvas.width = resetWidth;
+    elements.canvas.height = resetHeight;
+
+    // Reacquire a fresh context after resize and clear to a transparent frame.
+    elements.ctx = elements.canvas.getContext('2d');
+    elements.ctx?.clearRect(0, 0, resetWidth, resetHeight);
+
+    // Force compositor/layout commit before hiding the layer.
+    void elements.canvas.getBoundingClientRect();
+  }
+
   state.image = null;
   state.imageWidth = 0;
   state.imageHeight = 0;
@@ -948,18 +964,21 @@ function clearCanvas() {
   state.selectedAnnotationIndex = -1;
   state.windowContainerApplied = false;
   state.originalImageBeforeContainer = null;
+
   elements.canvas.classList.remove('visible');
   elements.emptyState.classList.add('hidden');
   document.body.classList.remove('has-image');
   document.body.classList.remove('has-content');
-  document.body.offsetHeight; // force reflow
+  void document.body.offsetHeight;
+
   resetFloatingToolbar();
   setAppWindowMode('toolbar');
   elements.statusTool?.parentElement?.classList.remove('visible');
-  elements.ctx.clearRect(0, 0, elements.canvas.width, elements.canvas.height);
+
   updateStatus();
   updateToolbarState();
 }
+
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Image Loading
