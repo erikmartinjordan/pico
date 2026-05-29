@@ -68,6 +68,7 @@ const $$ = (sel) => document.querySelectorAll(sel);
 let resetToolbarDismissState = () => {};
 let isCaptureMode = false;
 let pendingMiniPreview = null;
+let recordingPreviewTimelineFrame = null;
 
 const elements = {
   canvas: $('#canvas'),
@@ -264,9 +265,9 @@ function bindToolbar() {
   on(elements.recordingPreviewTimeline, 'input', scrubRecordingPreview);
   on(elements.recordingPreviewVideo, 'loadedmetadata', updateRecordingPreviewControls);
   on(elements.recordingPreviewVideo, 'timeupdate', updateRecordingPreviewControls);
-  on(elements.recordingPreviewVideo, 'play', updateRecordingPreviewControls);
-  on(elements.recordingPreviewVideo, 'pause', updateRecordingPreviewControls);
-  on(elements.recordingPreviewVideo, 'ended', updateRecordingPreviewControls);
+  on(elements.recordingPreviewVideo, 'play', startRecordingPreviewTimeline);
+  on(elements.recordingPreviewVideo, 'pause', stopRecordingPreviewTimeline);
+  on(elements.recordingPreviewVideo, 'ended', stopRecordingPreviewTimeline);
   on(elements.textFontFamily, 'change', () => selectTextFontFamily(elements.textFontFamily.value));
   on(elements.textFontSize, 'change', () => selectTextFontSize(parseInt(elements.textFontSize.value)));
 }
@@ -809,8 +810,8 @@ function showRecordingPreview(result = {}) {
   elements.recordingPreviewVideo.load();
   const playPromise = elements.recordingPreviewVideo.play();
   if (playPromise?.catch) playPromise.catch(() => {});
-  updateRecordingPreviewStatus();
   updateRecordingPreviewFormatUi();
+  updateRecordingPreviewControls();
   elements.container?.classList.add('recording-preview-active');
   elements.recordingPreview.classList.remove('hidden');
   elements.recordingPreview.setAttribute('aria-hidden', 'false');
@@ -826,6 +827,7 @@ function discardRecordingPreview(options = {}) {
     elements.recordingPreviewVideo.removeAttribute('src');
     elements.recordingPreviewVideo.load();
   }
+  stopRecordingPreviewTimeline();
   elements.recordingPreview?.classList.remove('is-live');
   elements.recordingPreview?.classList.add('hidden');
   elements.recordingPreview?.setAttribute('aria-hidden', 'true');
@@ -854,7 +856,9 @@ function showLiveRecordingPreview(started = {}, format = state.recordingFormat) 
   elements.recordingPreviewVideo.removeAttribute('src');
   elements.recordingPreviewVideo.muted = true;
   elements.recordingPreviewVideo.controls = false;
-  elements.recordingPreviewMeta.textContent = `Recording ${format.toUpperCase()} source${started.systemAudio ? '' : ' · no system audio'}`;
+  if (elements.recordingPreviewMeta) {
+    elements.recordingPreviewMeta.textContent = `Recording ${format.toUpperCase()} source${started.systemAudio ? '' : ' · no system audio'}`;
+  }
   elements.recordingPreview.classList.add('is-live');
   elements.container?.classList.add('recording-preview-active');
   elements.recordingPreview.classList.remove('hidden');
@@ -894,7 +898,6 @@ function setRecordingPreviewFormat(format = 'mp4') {
   if (!state.recordingPreview) return;
   state.recordingPreview.format = format === 'gif' ? 'gif' : 'mp4';
   updateRecordingPreviewFormatUi();
-  updateRecordingPreviewStatus();
 }
 
 function updateRecordingPreviewFormatUi() {
@@ -909,12 +912,6 @@ function updateRecordingPreviewFormatUi() {
     const label = elements.recordingPreviewSave.querySelector('span');
     if (label) label.textContent = `Save ${format.toUpperCase()}`;
   }
-}
-
-function updateRecordingPreviewStatus() {
-  if (!elements.recordingPreviewMeta) return;
-  const duration = formatRecordingTime(elements.recordingPreviewVideo?.duration);
-  elements.recordingPreviewMeta.textContent = `${duration} · WebM source`;
 }
 
 function toggleRecordingPreviewPlayback() {
@@ -933,6 +930,7 @@ function scrubRecordingPreview() {
   const timeline = elements.recordingPreviewTimeline;
   if (!video || !timeline || !Number.isFinite(video.duration) || video.duration <= 0) return;
   video.currentTime = (Number(timeline.value) / Number(timeline.max || 1000)) * video.duration;
+  updateRecordingPreviewControls();
 }
 
 function updateRecordingPreviewControls() {
@@ -940,8 +938,11 @@ function updateRecordingPreviewControls() {
   if (!video) return;
   const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0;
   const currentTime = Number.isFinite(video.currentTime) ? video.currentTime : 0;
+  const progress = duration > 0 ? currentTime / duration : 0;
   if (elements.recordingPreviewTimeline) {
-    elements.recordingPreviewTimeline.value = duration > 0 ? String(Math.round((currentTime / duration) * Number(elements.recordingPreviewTimeline.max || 1000))) : '0';
+    const max = Number(elements.recordingPreviewTimeline.max || 1000);
+    elements.recordingPreviewTimeline.value = duration > 0 ? String(progress * max) : '0';
+    elements.recordingPreviewTimeline.style.setProperty('--progress', `${Math.max(0, Math.min(progress, 1)) * 100}%`);
   }
   if (elements.recordingPreviewDuration) {
     elements.recordingPreviewDuration.textContent = `${formatRecordingTime(currentTime)} / ${formatRecordingTime(duration)}`;
@@ -951,7 +952,29 @@ function updateRecordingPreviewControls() {
     elements.recordingPreviewPlay.textContent = isPlaying ? '❚❚' : '▶';
     elements.recordingPreviewPlay.setAttribute('aria-label', isPlaying ? 'Pause recording' : 'Play recording');
   }
-  updateRecordingPreviewStatus();
+}
+
+function startRecordingPreviewTimeline() {
+  stopRecordingPreviewTimeline();
+  updateRecordingPreviewControls();
+  const tick = () => {
+    updateRecordingPreviewControls();
+    const video = elements.recordingPreviewVideo;
+    if (video && !video.paused && !video.ended) {
+      recordingPreviewTimelineFrame = requestAnimationFrame(tick);
+    } else {
+      recordingPreviewTimelineFrame = null;
+    }
+  };
+  recordingPreviewTimelineFrame = requestAnimationFrame(tick);
+}
+
+function stopRecordingPreviewTimeline() {
+  if (recordingPreviewTimelineFrame) {
+    cancelAnimationFrame(recordingPreviewTimelineFrame);
+    recordingPreviewTimelineFrame = null;
+  }
+  updateRecordingPreviewControls();
 }
 
 function formatRecordingTime(seconds = 0) {

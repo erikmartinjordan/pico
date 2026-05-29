@@ -120,12 +120,11 @@
           <video id="recording-preview-video" playsinline muted></video>
           <div class="recording-preview__video-controls" aria-label="Recording playback controls">
             <button type="button" class="recording-preview__play" id="recording-preview-play" aria-label="Play recording">▶</button>
-            <input type="range" id="recording-preview-timeline" min="0" max="1000" value="0" step="1" aria-label="Recording timeline">
+            <input type="range" id="recording-preview-timeline" min="0" max="1000" value="0" step="0.1" aria-label="Recording timeline">
             <span class="recording-preview__duration" id="recording-preview-duration">0:00</span>
           </div>
         </div>
         <div class="recording-preview__actions">
-          <p class="recording-preview__status" id="recording-preview-meta">0:00 · WebM source</p>
           <div class="recording-preview__format-toggle" id="recording-preview-format" role="radiogroup" aria-label="Recording export format">
             <button type="button" class="active" data-format="mp4" role="radio" aria-checked="true">MP4</button>
             <button type="button" data-format="gif" role="radio" aria-checked="false">GIF</button>

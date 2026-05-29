@@ -1348,12 +1348,50 @@ body.has-content .empty-state:not(.hidden) {
 }
 
 #recording-preview-timeline {
+  --progress: 0%;
   width: 100%;
-  accent-color: #f97316;
+  height: 6px;
+  appearance: none;
+  -webkit-appearance: none;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #f97316 var(--progress), rgba(255,255,255,0.24) var(--progress));
+  cursor: pointer;
 }
 
-.recording-preview__duration,
-.recording-preview__status {
+#recording-preview-timeline::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: transparent;
+}
+
+#recording-preview-timeline::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+  margin-top: -4px;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 2px solid #fb923c;
+  border-radius: 50%;
+  background: #f97316;
+  box-shadow: 0 1px 8px rgba(249, 115, 22, 0.36);
+}
+
+#recording-preview-timeline::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: transparent;
+}
+
+#recording-preview-timeline::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #fb923c;
+  border-radius: 50%;
+  background: #f97316;
+  box-shadow: 0 1px 8px rgba(249, 115, 22, 0.36);
+}
+
+.recording-preview__duration {
   font-size: 11px;
   color: rgba(255,255,255,0.66);
   white-space: nowrap;
@@ -1361,18 +1399,12 @@ body.has-content .empty-state:not(.hidden) {
 
 .recording-preview__actions {
   display: grid;
-  grid-template-columns: minmax(120px, 1fr) auto auto;
+  grid-template-columns: auto 1fr;
   align-items: center;
   gap: 12px;
   padding: 12px;
   border-top: 1px solid rgba(255,255,255,0.10);
   background: rgba(15,15,18,0.98);
-}
-
-.recording-preview__status {
-  margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .recording-preview__format-toggle {
@@ -1404,6 +1436,7 @@ body.has-content .empty-state:not(.hidden) {
 .recording-preview__button-row {
   display: inline-flex;
   align-items: center;
+  justify-self: end;
   gap: 8px;
 }
 
@@ -1561,10 +1594,10 @@ body.toolbar-transition .toast-container {
 }
 
 .canvas-container.recording-preview-active {
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
   overflow: hidden;
-  padding: 0;
+  padding: 24px;
 }
 
 .canvas-container.recording-preview-active + .statusbar {
@@ -1572,5 +1605,5 @@ body.toolbar-transition .toast-container {
 }
 
 body.has-content .canvas-container.recording-preview-active {
-  padding: 0;
+  padding: 24px;
 }
