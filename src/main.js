@@ -339,106 +339,12 @@ function triggerPreviewToast(payload) {
   }
 
   const captureMode = isCaptureDataToastPayload(payload) ? 'fullscreen' : (payload?.captureMode || 'region');
-  const html = `<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8">
-    <style>
-      * { box-sizing: border-box; }
-      html, body {
-        width: 100%;
-        height: 100%;
-        margin: 0;
-        overflow: hidden;
-        background: transparent;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        user-select: none;
-      }
-      body {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 8px;
-      }
-      .toast {
-        width: 224px;
-        height: 164px;
-        padding: 8px;
-        border: 1px solid rgba(255,255,255,0.22);
-        border-radius: 14px;
-        background: rgba(8,10,14,0.78);
-        backdrop-filter: blur(16px);
-        box-shadow: 0 16px 48px rgba(0,0,0,0.38), 0 1px 0 rgba(255,255,255,0.08) inset;
-        color: rgba(255,255,255,0.92);
-        cursor: pointer;
-        transition: transform 0.15s ease, background 0.15s ease;
-      }
-      .toast:hover { transform: scale(1.025); background: rgba(18,20,24,0.9); }
-      img {
-        display: block;
-        width: 100%;
-        height: 120px;
-        object-fit: contain;
-        border-radius: 9px;
-        background: rgba(255,255,255,0.06);
-      }
-      .label {
-        margin-top: 7px;
-        overflow: hidden;
-        white-space: nowrap;
-        text-overflow: ellipsis;
-        color: rgba(255,255,255,0.86);
-        font-size: 11px;
-        font-weight: 600;
-        letter-spacing: 0.01em;
-        text-align: center;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="toast" id="toast" role="button" tabindex="0" aria-label="Open capture preview">
-      <img src="${escapeHtml(dataUrl)}" alt="Capture preview">
-      <div class="label">Click to edit ${escapeHtml(captureMode)} capture</div>
-    </div>
-    <script>
-      const { ipcRenderer } = require('electron');
-      function playCaptureChime() {
-        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-        if (!AudioContextClass) return;
-        const ctx = new AudioContextClass();
-        const now = ctx.currentTime;
-        [659.25, 783.99, 1046.5].forEach((frequency, index) => {
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(frequency, now);
-          gain.gain.setValueAtTime(0.0001, now);
-          const start = now + index * 0.08;
-          const end = start + 0.23;
-          gain.gain.exponentialRampToValueAtTime(0.08, start + 0.03);
-          gain.gain.exponentialRampToValueAtTime(0.0001, end);
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-          osc.start(start);
-          osc.stop(end);
-        });
-        setTimeout(() => ctx.close().catch(() => {}), 700);
-      }
-      const toast = document.getElementById('toast');
-      const openPreview = () => ipcRenderer.send('preview-toast-clicked');
-      toast.addEventListener('click', openPreview);
-      toast.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          openPreview();
-        }
-      });
-      window.addEventListener('DOMContentLoaded', playCaptureChime);
-    </script>
-  </body>
-</html>`;
-
-  toastWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+  try { toastWindow.setHasShadow(false); } catch (_) {}
+  toastWindow.loadFile(path.join(__dirname, 'renderer', 'preview-toast.html'), {
+    query: {
+      captureMode,
+    },
+  });
   toastWindow.once('ready-to-show', () => {
     if (toastWindow.isDestroyed()) return;
     if (process.platform === 'darwin') toastWindow.showInactive();
@@ -1592,6 +1498,14 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
 
 // ── IPC Handlers ────────────────────────────────────────────────────────────
 
+ipcMain.handle('preview-toast-data', async () => {
+  const payload = pendingPreviewToastPayload;
+  return {
+    dataUrl: getPreviewToastDataUrl(payload),
+    captureMode: isCaptureDataToastPayload(payload) ? 'fullscreen' : (payload?.captureMode || 'region'),
+  };
+});
+
 ipcMain.on('preview-toast-clicked', () => {
   const payload = pendingPreviewToastPayload;
   pendingPreviewToastPayload = null;
@@ -1614,13 +1528,14 @@ ipcMain.on('preview-toast-clicked', () => {
 ipcMain.handle('start-capture', async (event, options = {}) => {
     console.log('[pico][capture] start-capture invoked');
     notifyRendererCaptureModeStarted();
-    if (mainWindow && !mainWindow.isDestroyed()) {
+    const showToolbarBeforeCapture = options?.showToolbar !== false;
+    if (showToolbarBeforeCapture && mainWindow && !mainWindow.isDestroyed()) {
       if (process.platform === 'darwin') mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
       mainWindow.setAlwaysOnTop(true, process.platform === 'darwin' ? 'screen-saver' : 'normal');
       mainWindow.show();
       mainWindow.moveTop();
     }
-    await new Promise(r => setTimeout(r, 200));
+    if (showToolbarBeforeCapture) await new Promise(r => setTimeout(r, 120));
   
     try {
       if (!await ensureMacScreenRecordingPermission()) {
@@ -2224,32 +2139,23 @@ app.whenReady().then(() => {
     const wasMissingWindow = !mainWindow || mainWindow.isDestroyed();
     if (wasMissingWindow) createMainWindow();
 
-    // On macOS: show the pill WITHOUT switching spaces.
-    // app.focus / app.show / app.dock.show cause macOS to jump to pico's space.
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      applyToolbarWindowMode(); // ensures screen-saver level + visibleOnAllWorkspaces
-      if (process.platform === 'darwin') {
-        try { mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch (_) {}
-      }
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.showInactive(); // makes the window visible without stealing focus
-      mainWindow.moveTop();
-    }
-
     const sendTrigger = () => {
       if (!mainWindow || mainWindow.isDestroyed()) return;
-      mainWindow.webContents.send('trigger-capture-menu');
+      mainWindow.webContents.send('trigger-capture-menu', {
+        hideDesktopIcons: false,
+        showToolbar: false,
+      });
       console.log('[pico][shortcut] sent trigger-capture-menu');
     };
     if (wasMissingWindow) {
-      runWhenWindowReady(() => setTimeout(sendTrigger, 40));
+      runWhenWindowReady(sendTrigger);
       return;
     }
     if (mainWindow?.webContents?.isLoading()) {
-      mainWindow.webContents.once('did-finish-load', () => setTimeout(sendTrigger, 80));
+      mainWindow.webContents.once('did-finish-load', sendTrigger);
       return;
     }
-    setTimeout(sendTrigger, 80);
+    sendTrigger();
   };
   // On macOS users may press either Cmd+Shift+S or Ctrl+Shift+S.
   // Register both explicitly to improve reliability while minimized/hidden.

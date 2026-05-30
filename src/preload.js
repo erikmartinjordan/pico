@@ -743,7 +743,7 @@ contextBridge.exposeInMainWorld('pico', {
   startCaptureFullscreen: (options = {}) => ipcRenderer.invoke('start-capture-fullscreen', options),
   onLoadCapture: (callback) => ipcRenderer.on('load-capture', (_, data) => callback(data)),
   onTriggerCapture: (callback) => ipcRenderer.on('trigger-capture', () => callback()),
-  onTriggerCaptureMenu: (callback) => ipcRenderer.on('trigger-capture-menu', () => callback()),
+  onTriggerCaptureMenu: (callback) => ipcRenderer.on('trigger-capture-menu', (_, options) => callback(options)),
   onTriggerCaptureWindow: (callback) => ipcRenderer.on('trigger-capture-window', () => callback()),
   onTriggerRecordScreen: (callback) => ipcRenderer.on('trigger-record-screen', () => callback()),
   onTriggerCaptureFullscreen: (callback) => ipcRenderer.on('trigger-capture-fullscreen', () => callback()),

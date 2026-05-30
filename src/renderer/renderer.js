@@ -389,10 +389,10 @@ function bindIPC() {
     console.log('[pico][renderer] received trigger-capture');
     startCapture();
   });
-  window.pico.onTriggerCaptureMenu(() => {
+  window.pico.onTriggerCaptureMenu((options = {}) => {
     console.log('[pico][renderer] received trigger-capture-menu');
     showWindow();
-    startCapture();
+    startCapture(options);
   });
   window.pico.onTriggerCaptureWindow(() => startCaptureWindow());
   window.pico.onTriggerRecordScreen(() => startRecordingWithFormat(state.recordingSettings.format, 'region'));
@@ -1066,10 +1066,13 @@ function formatRecordingTime(seconds = 0) {
   return `${minutes}:${String(remainder).padStart(2, '0')}`;
 }
 
-async function startCapture() {
+async function startCapture(options = {}) {
   if (state.cropActive) cancelCrop();
   try {
-    const result = await window.pico.startCapture({ hideDesktopIcons: state.captureSettings.hideDesktopIcons });
+    const result = await window.pico.startCapture({
+      hideDesktopIcons: options?.hideDesktopIcons ?? state.captureSettings.hideDesktopIcons,
+      showToolbar: options?.showToolbar,
+    });
     if (!result.success) showToast(result.error || 'Failed to start capture', 'error');
   } catch (err) {
     showToast(err?.message || 'Failed to start capture', 'error');
