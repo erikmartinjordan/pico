@@ -23,6 +23,8 @@ let tray = null;
 let desktopIconsHidden = false;
 let desktopIconsVisibleBeforeRecording = true;
 let preferencesWindow = null;
+let previewToastWindow = null;
+let pendingPreviewToastPayload = null;
 let mainWindowMode = 'toolbar';
 let lastEditorBounds = null;
 let lastToolbarBounds = null;
@@ -271,6 +273,188 @@ function showMainWindowForCurrentMode() {
   else applyToolbarWindowMode({ show: true });
 }
 
+
+function isCaptureDataToastPayload(payload) {
+  return payload?.type === 'single' || payload?.type === 'multi' || Array.isArray(payload?.screens);
+}
+
+function getPreviewToastDataUrl(payload) {
+  if (typeof payload?.dataUrl === 'string') return payload.dataUrl;
+  return payload?.screens?.find?.((screenData) => typeof screenData?.dataUrl === 'string')?.dataUrl || '';
+}
+
+function getPreviewToastDisplay() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    const bounds = mainWindow.getBounds();
+    return screen.getDisplayNearestPoint({
+      x: Math.round(bounds.x + bounds.width / 2),
+      y: Math.round(bounds.y + bounds.height / 2),
+    }) || screen.getPrimaryDisplay();
+  }
+  return screen.getDisplayNearestPoint(screen.getCursorScreenPoint()) || screen.getPrimaryDisplay();
+}
+
+function triggerPreviewToast(payload) {
+  const dataUrl = getPreviewToastDataUrl(payload);
+  if (!dataUrl) return;
+
+  pendingPreviewToastPayload = payload;
+
+  if (previewToastWindow && !previewToastWindow.isDestroyed()) {
+    previewToastWindow.close();
+  }
+
+  const toastSize = { width: 240, height: 180 };
+  const margin = 18;
+  const { workArea } = getPreviewToastDisplay();
+  const toastWindow = new BrowserWindow({
+    width: toastSize.width,
+    height: toastSize.height,
+    x: Math.round(workArea.x + workArea.width - toastSize.width - margin),
+    y: Math.round(workArea.y + workArea.height - toastSize.height - margin),
+    frame: false,
+    transparent: true,
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    hasShadow: false,
+    backgroundColor: '#00000000',
+    show: false,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+      sandbox: false,
+    },
+  });
+
+  previewToastWindow = toastWindow;
+
+  toastWindow.setAlwaysOnTop(true, process.platform === 'darwin' ? 'floating' : 'normal');
+  if (process.platform === 'darwin') {
+    try { toastWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch (_) {}
+  }
+
+  const captureMode = isCaptureDataToastPayload(payload) ? 'fullscreen' : (payload?.captureMode || 'region');
+  const html = `<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <style>
+      * { box-sizing: border-box; }
+      html, body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: transparent;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        user-select: none;
+      }
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 8px;
+      }
+      .toast {
+        width: 224px;
+        height: 164px;
+        padding: 8px;
+        border: 1px solid rgba(255,255,255,0.22);
+        border-radius: 14px;
+        background: rgba(8,10,14,0.78);
+        backdrop-filter: blur(16px);
+        box-shadow: 0 16px 48px rgba(0,0,0,0.38), 0 1px 0 rgba(255,255,255,0.08) inset;
+        color: rgba(255,255,255,0.92);
+        cursor: pointer;
+        transition: transform 0.15s ease, background 0.15s ease;
+      }
+      .toast:hover { transform: scale(1.025); background: rgba(18,20,24,0.9); }
+      img {
+        display: block;
+        width: 100%;
+        height: 120px;
+        object-fit: contain;
+        border-radius: 9px;
+        background: rgba(255,255,255,0.06);
+      }
+      .label {
+        margin-top: 7px;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        color: rgba(255,255,255,0.86);
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.01em;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="toast" id="toast" role="button" tabindex="0" aria-label="Open capture preview">
+      <img src="${escapeHtml(dataUrl)}" alt="Capture preview">
+      <div class="label">Click to edit ${escapeHtml(captureMode)} capture</div>
+    </div>
+    <script>
+      const { ipcRenderer } = require('electron');
+      function playCaptureChime() {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) return;
+        const ctx = new AudioContextClass();
+        const now = ctx.currentTime;
+        [659.25, 783.99, 1046.5].forEach((frequency, index) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(frequency, now);
+          gain.gain.setValueAtTime(0.0001, now);
+          const start = now + index * 0.08;
+          const end = start + 0.23;
+          gain.gain.exponentialRampToValueAtTime(0.08, start + 0.03);
+          gain.gain.exponentialRampToValueAtTime(0.0001, end);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(start);
+          osc.stop(end);
+        });
+        setTimeout(() => ctx.close().catch(() => {}), 700);
+      }
+      const toast = document.getElementById('toast');
+      const openPreview = () => ipcRenderer.send('preview-toast-clicked');
+      toast.addEventListener('click', openPreview);
+      toast.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          openPreview();
+        }
+      });
+      window.addEventListener('DOMContentLoaded', playCaptureChime);
+    </script>
+  </body>
+</html>`;
+
+  toastWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+  toastWindow.once('ready-to-show', () => {
+    if (toastWindow.isDestroyed()) return;
+    if (process.platform === 'darwin') toastWindow.showInactive();
+    else toastWindow.show();
+  });
+  toastWindow.on('closed', () => {
+    if (previewToastWindow === toastWindow) previewToastWindow = null;
+  });
+
+  setTimeout(() => {
+    if (!toastWindow.isDestroyed()) {
+      toastWindow.close();
+    }
+  }, 4000);
+}
+
 function notifyRendererCaptureModeStarted() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   mainWindow.webContents.send('capture-mode-started');
@@ -310,28 +494,30 @@ function openPreferencesWindow() {
 }
 
 async function hideMacDesktopIconsForRecording(options = {}) {
-    const shouldHide = process.platform === 'darwin' && options?.hideDesktopIcons !== false;
-    if (!shouldHide || desktopIconsHidden) return;
-    
+  const shouldHide = process.platform === 'darwin' && options?.hideDesktopIcons !== false;
+  if (!shouldHide) return;
+
+  if (!desktopIconsHidden) {
     desktopIconsVisibleBeforeRecording = await getMacDesktopIconsVisible();
-    
-    await setMacDesktopIconsVisible(false);
-    desktopIconsHidden = true;
   }
-  
-  async function restoreMacDesktopIconsAfterRecording() {
-    if (process.platform !== 'darwin' || !desktopIconsHidden) return;
-    try {
-      if (desktopIconsVisibleBeforeRecording) {
-        await setMacDesktopIconsVisible(true);
-      }
-    } catch (restoreError) {
-      console.error('[pico][recording] failed to restore desktop icons:', restoreError.message);
-    } finally {
-      desktopIconsHidden = false;
-      desktopIconsVisibleBeforeRecording = true;
+
+  await setMacDesktopIconsVisible(false);
+  desktopIconsHidden = true;
+}
+
+async function restoreMacDesktopIconsAfterRecording() {
+  if (process.platform !== 'darwin' || !desktopIconsHidden) return;
+  try {
+    if (desktopIconsVisibleBeforeRecording) {
+      await setMacDesktopIconsVisible(true);
     }
+  } catch (restoreError) {
+    console.error('[pico][recording] failed to restore desktop icons:', restoreError.message);
+  } finally {
+    desktopIconsHidden = false;
+    desktopIconsVisibleBeforeRecording = true;
   }
+}
 
 function debugWindowState(tag) {
   const win = mainWindow;
@@ -439,7 +625,7 @@ async function captureNativeMacWindow() {
     copyDataUrlToClipboard(dataUrl);
     if (mainWindow) {
       applyToolbarWindowMode({ show: true });
-      mainWindow.webContents.send('show-mini-preview', {
+      triggerPreviewToast({
         dataUrl,
         captureMode: 'window',
       });
@@ -1406,6 +1592,25 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
 
 // ── IPC Handlers ────────────────────────────────────────────────────────────
 
+ipcMain.on('preview-toast-clicked', () => {
+  const payload = pendingPreviewToastPayload;
+  pendingPreviewToastPayload = null;
+
+  if (previewToastWindow && !previewToastWindow.isDestroyed()) {
+    previewToastWindow.close();
+  }
+
+  if (!payload || !mainWindow || mainWindow.isDestroyed()) return;
+
+  applyEditorWindowMode({ show: true });
+
+  if (isCaptureDataToastPayload(payload)) {
+    mainWindow.webContents.send('load-capture-data', payload);
+  } else {
+    mainWindow.webContents.send('load-capture', payload);
+  }
+});
+
 ipcMain.handle('start-capture', async (event, options = {}) => {
     console.log('[pico][capture] start-capture invoked');
     notifyRendererCaptureModeStarted();
@@ -1496,7 +1701,7 @@ ipcMain.handle('start-capture-fullscreen', async (event, options = {}) => {
     if (mainWindow) {
       notifyRendererCaptureFinished();
       applyToolbarWindowMode({ show: true });
-      mainWindow.webContents.send('show-mini-preview-data', captureData);
+      triggerPreviewToast(captureData);
     }
     return { success: true };
   } catch (err) {
@@ -1535,7 +1740,7 @@ ipcMain.on('window-overlay-select', async (event, windowName) => {
       if (mainWindow) {
         notifyRendererCaptureFinished();
         applyToolbarWindowMode({ show: true });
-        mainWindow.webContents.send('show-mini-preview', { dataUrl, captureMode: 'window' });
+        triggerPreviewToast({ dataUrl, captureMode: 'window' });
       }
       return;
     }
@@ -1556,7 +1761,7 @@ ipcMain.on('capture-complete', (event, imageDataUrl) => {
   if (mainWindow) {
     notifyRendererCaptureFinished();
     applyToolbarWindowMode({ show: true });
-    mainWindow.webContents.send('show-mini-preview', { dataUrl: imageDataUrl, captureMode: 'region' });
+    triggerPreviewToast({ dataUrl: imageDataUrl, captureMode: 'region' });
   }
 });
 
@@ -1622,7 +1827,7 @@ ipcMain.on('window-source-select', async (event, sourceId) => {
     copyDataUrlToClipboard(dataUrl);
     if (mainWindow) {
       applyToolbarWindowMode({ show: true });
-      mainWindow.webContents.send('show-mini-preview', { dataUrl, captureMode: 'window' });
+      triggerPreviewToast({ dataUrl, captureMode: 'window' });
     }
   } catch (err) {
     if (windowPickerWindow && !windowPickerWindow.isDestroyed()) windowPickerWindow.close();

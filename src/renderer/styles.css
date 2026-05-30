@@ -1487,38 +1487,6 @@ body.has-content .empty-state:not(.hidden) {
   }
 }
 
-.capture-preview {
-  position: absolute;
-  top: 76px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 90;
-  display: none;
-  width: 220px;
-  padding: 8px;
-  border-radius: 12px;
-  border: 1px solid rgba(255,255,255,0.22);
-  background: rgba(8,10,14,0.72);
-  backdrop-filter: blur(10px);
-  color: rgba(255,255,255,0.9);
-  transition: transform .15s ease, background .15s ease;
-  cursor: pointer;
-}
-.capture-preview.visible { display: block; }
-.capture-preview:hover {
-  transform: translateX(-50%) scale(1.02);
-  background: rgba(18,20,24,.85);
-}
-#capture-preview-image {
-  width: 100%;
-  border-radius: 8px;
-  display: block;
-}
-#capture-preview-mode {
-  margin-top: 6px;
-  font-size: 11px;
-}
-
 /* Grip zone */
 .toolbar-dismiss-hint {
   display: none;
