@@ -310,24 +310,28 @@ function openPreferencesWindow() {
 }
 
 async function hideMacDesktopIconsForRecording(options = {}) {
-  if (process.platform !== 'darwin' || desktopIconsHidden || options?.hideDesktopIcons === false) return;
-  desktopIconsVisibleBeforeRecording = await getMacDesktopIconsVisible();
-  if (!desktopIconsVisibleBeforeRecording) return;
-  await setMacDesktopIconsVisible(false);
-  desktopIconsHidden = true;
-}
-
-async function restoreMacDesktopIconsAfterRecording() {
-  if (process.platform !== 'darwin' || !desktopIconsHidden) return;
-  try {
-    await setMacDesktopIconsVisible(desktopIconsVisibleBeforeRecording);
-  } catch (restoreError) {
-    console.error('[pico][recording] failed to restore desktop icons:', restoreError.message);
-  } finally {
-    desktopIconsHidden = false;
-    desktopIconsVisibleBeforeRecording = true;
+    const shouldHide = process.platform === 'darwin' && options?.hideDesktopIcons !== false;
+    if (!shouldHide || desktopIconsHidden) return;
+    
+    desktopIconsVisibleBeforeRecording = await getMacDesktopIconsVisible();
+    
+    await setMacDesktopIconsVisible(false);
+    desktopIconsHidden = true;
   }
-}
+  
+  async function restoreMacDesktopIconsAfterRecording() {
+    if (process.platform !== 'darwin' || !desktopIconsHidden) return;
+    try {
+      if (desktopIconsVisibleBeforeRecording) {
+        await setMacDesktopIconsVisible(true);
+      }
+    } catch (restoreError) {
+      console.error('[pico][recording] failed to restore desktop icons:', restoreError.message);
+    } finally {
+      desktopIconsHidden = false;
+      desktopIconsVisibleBeforeRecording = true;
+    }
+  }
 
 function debugWindowState(tag) {
   const win = mainWindow;
