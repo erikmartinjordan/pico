@@ -67,7 +67,6 @@ const $$ = (sel) => document.querySelectorAll(sel);
 
 let resetToolbarDismissState = () => {};
 let isCaptureMode = false;
-let pendingMiniPreview = null;
 let recordingPreviewTimelineFrame = null;
 const recordingPreviewSpeeds = [1, 1.5, 2, 0.5];
 
@@ -167,6 +166,7 @@ function init() {
   selectStrokeWidth(state.strokeWidth);
   toggleTextStyleControls();
   updateStatus();
+  document.activeElement?.blur();
 
   window.pico.onCaptureModeStarted(() => {
     isCaptureMode = true;
@@ -203,26 +203,6 @@ function bindToolbar() {
   on(elements.btnCaptureRegion, 'click', () => { setCaptureModeButton('region'); startCapture(); });
   on(elements.btnCaptureWindow, 'click', () => { setCaptureModeButton('window'); startCaptureWindow(); });
   on(elements.btnCaptureFullscreen, 'click', () => { setCaptureModeButton('fullscreen'); startCaptureFullscreen(); });
-  on(document.getElementById('capture-preview'), 'click', () => {
-    if (!pendingMiniPreview) return;
-    window.clearTimeout(showCapturePreview.timeoutId);
-    const capturePreview = document.getElementById('capture-preview');
-    capturePreview?.classList.remove('visible');
-    capturePreview?.setAttribute('aria-hidden', 'true');
-    const preview = pendingMiniPreview;
-    pendingMiniPreview = null;
-    setAppWindowMode('editor', { show: true });
-    window.setTimeout(() => {
-      if (preview.type === 'multi') {
-        loadCaptureData(preview.payload, { showPreview: false });
-      } else {
-        loadImage(preview.payload.dataUrl, {
-          showPreview: false,
-          captureMode: preview.payload.captureMode || 'region',
-        });
-      }
-    }, 50);
-  });
   on(elements.btnRecordScreen, 'click', onRecordButtonClick);
   on(elements.recordingFormatSetting, 'change', () => {
     state.recordingSettings.format = elements.recordingFormatSetting.value === 'gif' ? 'gif' : 'mp4';
@@ -429,17 +409,6 @@ function bindIPC() {
     });
   });
   window.pico.onLoadCaptureData((captureData) => loadCaptureData(captureData));
-  window.pico.onShowMiniPreview?.((payload) => {
-    pendingMiniPreview = { type: 'single', payload };
-    showCapturePreview(payload.dataUrl, payload.captureMode || 'region');
-  });
-  window.pico.onShowMiniPreviewData?.((captureData) => {
-    pendingMiniPreview = { type: 'multi', payload: captureData };
-    const dataUrl = captureData?.type === 'single'
-      ? captureData.dataUrl
-      : captureData?.screens?.[0]?.dataUrl;
-    if (dataUrl) showCapturePreview(dataUrl, 'fullscreen');
-  });
   window.pico.onToolbarOpenRequested?.(() => {
     resetFloatingToolbar({ fromMenu: true });
   });
@@ -1176,8 +1145,6 @@ function clearCanvas() {
   if (!state.image && !state.recordingPreview) return;
   if (state.cropActive) cancelCrop();
   discardRecordingPreview({ silent: true });
-  const capturePreview = document.getElementById('capture-preview');
-  if (capturePreview) capturePreview.classList.remove('visible');
   state.image = null;
   state.imageWidth = 0;
   state.imageHeight = 0;
@@ -1992,49 +1959,6 @@ function updateToolbarState() {
   setRecordingIndicator(state.isRecording);
 }
 
-
-function playCaptureChime() {
-  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContextClass) return;
-  const ctx = new AudioContextClass();
-  const now = ctx.currentTime;
-  const notes = [659.25, 783.99, 1046.5];
-  notes.forEach((frequency, index) => {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(frequency, now);
-    gain.gain.setValueAtTime(0.0001, now);
-    const start = now + index * 0.08;
-    const end = start + 0.23;
-    gain.gain.exponentialRampToValueAtTime(0.08, start + 0.03);
-    gain.gain.exponentialRampToValueAtTime(0.0001, end);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start(start);
-    osc.stop(end);
-  });
-  setTimeout(() => ctx.close().catch(() => {}), 700);
-}
-
-function showCapturePreview(dataUrl, captureMode = 'region') {
-  const preview = document.getElementById('capture-preview');
-  const image = document.getElementById('capture-preview-image');
-  const mode = document.getElementById('capture-preview-mode');
-  if (!preview || !image || !mode) return;
-  image.src = dataUrl;
-  mode.textContent = `Click to edit ${captureMode} capture`;
-  preview.classList.add('visible');
-  preview.setAttribute('aria-hidden', 'false');
-  playCaptureChime();
-  resetFloatingToolbar();
-  window.clearTimeout(showCapturePreview.timeoutId);
-  showCapturePreview.timeoutId = window.setTimeout(() => {
-    preview.classList.remove('visible');
-    preview.setAttribute('aria-hidden', 'true');
-    pendingMiniPreview = null;
-  }, 4000);
-}
 
 function showToast(message, type = 'info') {
   const isToolbarOnlyState = !state.image && !document.body.classList.contains('has-content');
