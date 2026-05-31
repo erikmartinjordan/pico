@@ -1543,19 +1543,33 @@ body.toolbar-transition .toast-container {
   }
 }
 
-/* Adaptive icon contrast for light/dark desktop backgrounds */
 @media (prefers-color-scheme: dark) {
-  .toolbar {
-    --toolbar-icon-color: rgba(241, 245, 255, 0.94);
-    --toolbar-icon-muted: rgba(226, 233, 250, 0.88);
-    --toolbar-icon-hover: rgba(255, 255, 255, 0.99);
-    --toolbar-icon-active: rgba(255, 255, 255, 0.99);
+    .toolbar {
+      --toolbar-icon-color: rgba(241, 245, 255, 0.94);
+      --toolbar-icon-muted: rgba(226, 233, 250, 0.88);
+      --toolbar-icon-hover: rgba(255, 255, 255, 0.99);
+      --toolbar-icon-active: rgba(255, 255, 255, 0.99);
+    }
+  
+    .toolbar-btn:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.22);
+    }
+  
+    .liquidGlass-wrapper,
+    body:not(.has-image) .toolbar {
+      background: rgba(30, 30, 32, 0.85) !important;
+      border-color: rgba(255, 255, 255, 0.15) !important;
+    }
+  
+    body:not(.has-image) .toolbar .toolbar-btn {
+      color: var(--toolbar-icon-muted) !important;
+    }
+  
+    body:not(.has-image) .toolbar .toolbar-btn:hover:not(:disabled) {
+      color: var(--toolbar-icon-hover) !important;
+      background: rgba(255, 255, 255, 0.15) !important;
+    }
   }
-
-  .toolbar-btn:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.22);
-  }
-}
 
 @media (prefers-color-scheme: light) {
   .toolbar {
