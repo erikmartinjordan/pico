@@ -547,6 +547,88 @@ body.has-content .toolbar-group.capture-modes + .toolbar-separator {
   background: rgba(255, 255, 255, 0.72);
 }
 
+@media (prefers-color-scheme: dark) {
+  .preferences-window .preferences-panel {
+    color: #f0ede8;
+  }
+
+  .preferences-window .preferences-panel label {
+    color: #e8e4df;
+  }
+
+  .preferences-window .preferences-panel select {
+    border-color: rgba(255,255,255,0.16);
+    background: rgba(40,42,48,0.82);
+    color: #f0ede8;
+  }
+
+  .preferences-window .preferences-panel input[type="checkbox"] {
+    background: rgba(120,120,128,0.34);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.10);
+  }
+
+  .preferences-window .preferences-panel input[type="checkbox"]:checked {
+    background: #f97316;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.12), 0 0 12px rgba(249,115,22,0.28);
+  }
+
+  .preferences-window .preferences-panel input[type="checkbox"]::before {
+    background: #fff;
+  }
+
+  .preferences-window .preferences-panel input[type="checkbox"]:focus-visible {
+    outline-color: rgba(249,115,22,0.55);
+  }
+
+  .preferences-field label {
+    color: #e8e4df;
+  }
+
+  .preferences-field p {
+    color: rgba(220,215,210,0.62);
+  }
+
+  .path-picker input {
+    border-color: rgba(255,255,255,0.14);
+    background: rgba(40,42,48,0.70);
+    color: #f0ede8;
+  }
+
+  .path-picker button {
+    border-color: rgba(255,255,255,0.14);
+    background: rgba(255,255,255,0.10);
+    color: #f0ede8;
+  }
+
+  .path-picker button.secondary {
+    color: rgba(220,215,210,0.60);
+  }
+
+  .path-picker button:hover {
+    background: rgba(255,255,255,0.18);
+  }
+
+  .preferences-actions button {
+    border-color: rgba(255,255,255,0.14);
+    background: rgba(255,255,255,0.10);
+    color: #f0ede8;
+  }
+
+  .preferences-actions button:hover {
+    background: rgba(255,255,255,0.18);
+  }
+
+  .preferences-dialog .preferences-actions button {
+    background: rgba(255,255,255,0.10);
+    color: #f0ede8;
+    border-color: rgba(255,255,255,0.14);
+  }
+
+  .preferences-dialog .preferences-actions button:hover {
+    background: rgba(255,255,255,0.18);
+  }
+}
+
 .colors {
   gap: 5px;
   padding: 0 2px;
