@@ -123,7 +123,6 @@ const elements = {
   statusZoom: $('#status-zoom'),
   textWrapper: $('#text-input-wrapper'),
   textInput: $('#inline-text-input'),
-  toastContainer: $('#toast-container'),
   tooltip: $('#app-tooltip'),
   textFontFamily: $('#text-font-family'),
   textFontSize: $('#text-font-size'),
@@ -1964,13 +1963,7 @@ function updateToolbarState() {
 
 
 function showToast(message, type = 'info') {
-  const isToolbarOnlyState = !state.image && !document.body.classList.contains('has-content');
-  if (isToolbarOnlyState) return;
-  const toast = document.createElement('div');
-  toast.className = `toast toast-${type}`;
-  toast.textContent = message;
-  elements.toastContainer.appendChild(toast);
-  setTimeout(() => toast.remove(), 3000);
+  window.pico.showToast(message, type);
 }
 
 

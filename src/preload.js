@@ -737,6 +737,7 @@ function stopRecording(options = {}) {
 }
 
 contextBridge.exposeInMainWorld('pico', {
+  showToast: (message, type) => ipcRenderer.send('show-toast', { message, type }),
   // Screen capture
   startCapture: (options = {}) => ipcRenderer.invoke('start-capture', options),
   startCaptureWindow: (options = {}) => ipcRenderer.invoke('start-capture-window', options),
