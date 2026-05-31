@@ -730,6 +730,9 @@ function saveRecordingSettings() {
     ...state.recordingSettings,
     hideDesktopIcons: state.captureSettings.hideDesktopIcons,
   }));
+  try {
+    window.pico.saveSettings({ hideDesktopIcons: state.captureSettings.hideDesktopIcons });
+  } catch (_) {}
 }
 
 

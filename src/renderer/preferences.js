@@ -38,7 +38,7 @@ async function loadSettings() {
 async function saveSettings() {
   localStorage.setItem('pico-recording-settings', JSON.stringify(settings));
   try {
-    await window.pico.saveSettings({ defaultSavePath: settings.defaultSavePath });
+    await window.pico.saveSettings({ defaultSavePath: settings.defaultSavePath, hideDesktopIcons: settings.hideDesktopIcons });
   } catch (_) {}
   window.pico.notifySettingsChanged?.();
 }

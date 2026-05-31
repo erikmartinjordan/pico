@@ -4,7 +4,7 @@
  */
 
 const { app, BrowserWindow, ipcMain, desktopCapturer, dialog, screen, globalShortcut, nativeImage, clipboard, Menu, Tray, shell, systemPreferences, session } = require('electron');
-const { execSync, exec, execFile } = require('child_process');
+const { execSync, execFile } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const { tempRecordingPath, convertWebmToMp4, convertMp4ToGif } = require('./pro/recording');
@@ -37,6 +37,7 @@ const EDITOR_MIN_SIZE = { width: 900, height: 600 };
 const SETTINGS_FILE = 'settings.json';
 const DEFAULT_SETTINGS = {
   defaultSavePath: '',
+  hideDesktopIcons: true,
 };
 
 function settingsPath() {
@@ -46,6 +47,7 @@ function settingsPath() {
 function normalizeSettings(candidate = {}) {
   return {
     defaultSavePath: typeof candidate.defaultSavePath === 'string' ? candidate.defaultSavePath : DEFAULT_SETTINGS.defaultSavePath,
+    hideDesktopIcons: typeof candidate.hideDesktopIcons === 'boolean' ? candidate.hideDesktopIcons : DEFAULT_SETTINGS.hideDesktopIcons,
   };
 }
 
@@ -482,9 +484,7 @@ async function hideMacDesktopIconsForRecording(options = {}) {
 async function restoreMacDesktopIconsAfterRecording() {
   if (process.platform !== 'darwin' || !desktopIconsHidden) return;
   try {
-    if (desktopIconsVisibleBeforeRecording) {
-      await setMacDesktopIconsVisible(true);
-    }
+    await setMacDesktopIconsVisible(desktopIconsVisibleBeforeRecording);
   } catch (restoreError) {
     console.error('[pico][recording] failed to restore desktop icons:', restoreError.message);
   } finally {
@@ -719,43 +719,65 @@ async function openWindowPickerFallback() {
 
 
 
+let finderRestartInProgress = null;
+
+function restartFinder(visible) {
+  const flag = visible ? 'true' : 'false';
+  execSync(`defaults write com.apple.finder CreateDesktop -bool ${flag}`, { encoding: 'utf8', timeout: 5000 });
+  try {
+    execSync('killall Finder', { encoding: 'utf8', timeout: 5000 });
+  } catch (_) {
+    try {
+      execSync('open /System/Library/CoreServices/Finder.app', { encoding: 'utf8', timeout: 5000 });
+    } catch (_) {}
+  }
+}
+
+async function setMacDesktopIconsVisible(visible) {
+  if (process.platform !== 'darwin') return;
+  if (finderRestartInProgress) await finderRestartInProgress;
+  finderRestartInProgress = (async () => {
+    restartFinder(visible);
+  })();
+  try {
+    await finderRestartInProgress;
+  } finally {
+    finderRestartInProgress = null;
+  }
+}
+
 async function getMacDesktopIconsVisible() {
   if (process.platform !== 'darwin') return true;
   try {
-    const value = execSync('defaults read com.apple.finder CreateDesktop', { encoding: 'utf8' }).trim().toLowerCase();
+    const value = execSync('defaults read com.apple.finder CreateDesktop', { encoding: 'utf8', timeout: 5000 }).trim().toLowerCase();
     return value !== '0' && value !== 'false' && value !== 'no';
   } catch (_) {
     return true;
   }
 }
 
-async function setMacDesktopIconsVisible(visible) {
-  if (process.platform !== 'darwin') return;
-  const flag = visible ? 'true' : 'false';
-  await new Promise((resolve, reject) => {
-    exec(`defaults write com.apple.finder CreateDesktop -bool ${flag} && killall Finder`, (error) => {
-      if (error) { reject(error); return; }
-      setTimeout(resolve, 240);
-    });
-  });
-}
-
 async function withHiddenDesktopIcons(options = {}, action) {
   const shouldHide = process.platform === 'darwin' && options?.hideDesktopIcons !== false;
   if (!shouldHide) return action();
+  if (desktopIconsHidden) return action();
   const wasVisible = await getMacDesktopIconsVisible();
   if (!wasVisible) return action();
-  let hidden = false;
   try {
     await setMacDesktopIconsVisible(false);
-    hidden = true;
+  } catch (hideError) {
+    console.error('[pico][capture] failed to hide desktop icons:', hideError.message);
+    return action();
+  }
+  desktopIconsHidden = true;
+  try {
     return await action();
   } finally {
-    if (hidden) {
-      try { await setMacDesktopIconsVisible(wasVisible); } catch (restoreError) {
-        console.error('[pico][capture] failed to restore desktop icons:', restoreError.message);
-      }
+    try {
+      await setMacDesktopIconsVisible(wasVisible);
+    } catch (restoreError) {
+      console.error('[pico][capture] failed to restore desktop icons:', restoreError.message);
     }
+    desktopIconsHidden = false;
   }
 }
 
@@ -1567,6 +1589,26 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
     }
   }
 
+async function captureRegion(options = {}) {
+  notifyRendererCaptureModeStarted();
+  try {
+    if (!await ensureMacScreenRecordingPermission()) {
+      notifyRendererCaptureFinished();
+      if (mainWindow) showMainWindowForCurrentMode();
+      return { success: false, error: 'Screen Recording permission is required.' };
+    }
+    const captureData = await withHiddenDesktopIcons(options, async () => captureAllScreens());
+    console.log('[pico][capture] capture data ready; creating overlays');
+    await createCaptureOverlays(captureData, 'region', []);
+    return { success: true };
+  } catch (err) {
+    notifyRendererCaptureFinished();
+    console.error('[pico][capture] capture failed:', err.message);
+    if (mainWindow) showMainWindowForCurrentMode();
+    return { success: false, error: err.message };
+  }
+}
+
 // ── IPC Handlers ────────────────────────────────────────────────────────────
 
 ipcMain.on('show-toast', (_, { message, type }) => {
@@ -1602,7 +1644,6 @@ ipcMain.on('preview-toast-clicked', () => {
 
 ipcMain.handle('start-capture', async (event, options = {}) => {
     console.log('[pico][capture] start-capture invoked');
-    notifyRendererCaptureModeStarted();
     const showToolbarBeforeCapture = options?.showToolbar !== false;
     if (showToolbarBeforeCapture && mainWindow && !mainWindow.isDestroyed()) {
       if (process.platform === 'darwin') mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
@@ -1611,24 +1652,7 @@ ipcMain.handle('start-capture', async (event, options = {}) => {
       mainWindow.moveTop();
     }
     if (showToolbarBeforeCapture) await new Promise(r => setTimeout(r, 120));
-  
-    try {
-      if (!await ensureMacScreenRecordingPermission()) {
-        notifyRendererCaptureFinished();
-        if (mainWindow) showMainWindowForCurrentMode();
-        return { success: false, error: 'Screen Recording permission is required.' };
-      }
-      const captureData = await withHiddenDesktopIcons(options, async () => captureAllScreens());
-      console.log('[pico][capture] capture data ready; creating overlays');
-      await createCaptureOverlays(captureData, 'region', []);
-  
-      return { success: true };
-    } catch (err) {
-      notifyRendererCaptureFinished();
-      console.error('[pico][capture] start-capture failed:', err.message);
-      if (mainWindow) showMainWindowForCurrentMode();
-      return { success: false, error: err.message };
-    }
+    return captureRegion(options);
   });
 
 ipcMain.handle('start-capture-window', async (event, options = {}) => {
@@ -2214,23 +2238,20 @@ app.whenReady().then(() => {
     const wasMissingWindow = !mainWindow || mainWindow.isDestroyed();
     if (wasMissingWindow) createMainWindow();
 
-    const sendTrigger = () => {
-      if (!mainWindow || mainWindow.isDestroyed()) return;
-      mainWindow.webContents.send('trigger-capture-menu', {
-        hideDesktopIcons: false,
-        showToolbar: false,
-      });
-      console.log('[pico][shortcut] sent trigger-capture-menu');
+    const startCapture = () => {
+      const settings = readSettings();
+      captureRegion({ hideDesktopIcons: settings.hideDesktopIcons, showToolbar: false });
     };
+
     if (wasMissingWindow) {
-      runWhenWindowReady(sendTrigger);
+      runWhenWindowReady(startCapture);
       return;
     }
     if (mainWindow?.webContents?.isLoading()) {
-      mainWindow.webContents.once('did-finish-load', sendTrigger);
+      mainWindow.webContents.once('did-finish-load', startCapture);
       return;
     }
-    sendTrigger();
+    startCapture();
   };
   // On macOS users may press either Cmd+Shift+S or Ctrl+Shift+S.
   // Register both explicitly to improve reliability while minimized/hidden.
