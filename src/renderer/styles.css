@@ -61,51 +61,21 @@ body.has-content .canvas-container::before {
   opacity: 0;
 }
 
-.window-drag-strip {
+.editor-drag-region {
   display: none;
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  height: 78px;
+  height: 38px;
   z-index: 12;
   -webkit-app-region: drag;
 }
 
-body.has-image .window-drag-strip,
-body.has-content .window-drag-strip {
+body.platform-darwin.has-image .editor-drag-region,
+body.platform-darwin.has-content .editor-drag-region {
   display: block;
 }
-
-.macos-traffic {
-  display: none;
-  align-items: center;
-  gap: 6px;
-  position: fixed;
-  top: 22px;
-  left: 18px;
-  z-index: 40;
-  -webkit-app-region: no-drag;
-}
-
-body.platform-darwin.has-image .macos-traffic,
-body.platform-darwin.has-content .macos-traffic {
-  display: inline-flex;
-}
-
-.traffic-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  box-shadow: 0 0 0 1px rgba(0,0,0,0.2) inset;
-  border: 0;
-  padding: 0;
-  cursor: pointer;
-}
-
-.traffic-dot.close { background: #ff5f57; }
-.traffic-dot.minimize { background: #febc2e; }
-.traffic-dot.zoom { background: #28c840; }
 
 /* ── Floating Pill Toolbar ── */
 .toolbar {

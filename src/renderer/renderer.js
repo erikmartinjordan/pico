@@ -92,9 +92,6 @@ const elements = {
   btnCaptureFullscreen: $('#btn-capture-fullscreen'),
   emptyCapture: $('#empty-capture'),
   emptyOpen: $('#empty-open'),
-  macosBtnClose: $('#macos-btn-close'),
-  macosBtnMinimize: $('#macos-btn-minimize'),
-  macosBtnZoom: $('#macos-btn-zoom'),
   toolBtns: $$('.toolbar-group.tools .tool-btn'),
   colorSwatches: $$('.color-swatch'),
   strokePicker: $('#stroke-picker'),
@@ -232,10 +229,7 @@ function bindToolbar() {
 
   elements.emptyCapture.addEventListener('click', startCapture);
   elements.emptyOpen.addEventListener('click', openFile);
-  on(elements.macosBtnClose, 'click', () => window.pico.closeWindow());
-  on(elements.macosBtnMinimize, 'click', () => window.pico.minimizeWindow());
-  on(elements.macosBtnZoom, 'click', () => window.pico.toggleMaximizeWindow());
-  
+
   elements.toolBtns.forEach(btn => {
     btn.addEventListener('click', () => selectTool(btn.dataset.tool));
   });

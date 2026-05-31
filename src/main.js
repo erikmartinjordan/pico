@@ -209,9 +209,11 @@ function rememberToolbarBounds() {
 }
 
 function applyToolbarWindowMode(options = {}) {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
   if (mainWindowMode === 'editor') rememberEditorBounds();
   mainWindowMode = 'toolbar';
+  if (process.platform === 'darwin') {
+    try { mainWindow.setWindowButtonVisibility(false); } catch (_) {}
+  }
 
   if (mainWindow.isFullScreen()) mainWindow.setFullScreen(false);
   if (mainWindow.isMaximized()) mainWindow.unmaximize();
@@ -240,9 +242,11 @@ function applyToolbarWindowMode(options = {}) {
 }
 
 function applyEditorWindowMode(options = {}) {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
   const wasEditor = mainWindowMode === 'editor';
   mainWindowMode = 'editor';
+  if (process.platform === 'darwin') {
+    try { mainWindow.setWindowButtonVisibility(true); } catch (_) {}
+  }
 
   mainWindow.setResizable(true);
   mainWindow.setMaximizable(true);
@@ -1313,7 +1317,7 @@ function createMainWindow() {
     frame: false,
     backgroundColor: '#00000000',
     autoHideMenuBar: true,
-    titleBarStyle: 'default',
+    titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'default',
     alwaysOnTop: true,
     skipTaskbar: process.platform === 'darwin',
     hasShadow: false,
@@ -1337,6 +1341,9 @@ function createMainWindow() {
   // handled there instead of by shielding the normal UI from screen capture.
   mainWindow.setContentProtection(false);
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  if (process.platform === 'darwin') {
+    try { mainWindow.setWindowButtonVisibility(false); } catch (_) {}
+  }
   mainWindow.once('ready-to-show', () => showMainWindowForCurrentMode());
   mainWindow.webContents.on('did-finish-load', () => console.log('[pico][main] did-finish-load'));
   mainWindow.webContents.on('render-process-gone', (_, details) => console.error('[pico][main] render-process-gone', details));
