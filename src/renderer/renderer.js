@@ -1043,7 +1043,7 @@ function updateRecordingPreviewToolbar() {
   if (elements.recordingPreviewResetTrim) {
     const trimActive = Boolean(state.recordingPreview?.trimStart) || Number.isFinite(state.recordingPreview?.trimEnd);
     elements.recordingPreviewResetTrim.classList.toggle('active', trimActive);
-    elements.recordingPreviewResetTrim.disabled = !trimActive;
+    elements.recordingPreviewResetTrim.disabled = false;
   }
   if (elements.recordingPreviewMute) {
     elements.recordingPreviewMute.classList.toggle('active', video.muted);

@@ -1304,6 +1304,8 @@ body.has-content .empty-state:not(.hidden) {
     position: relative;
     background: transparent;
     display: flex;
+    flex-direction: column;
+    align-items: stretch;
     justify-content: center;
   }
   
@@ -1313,25 +1315,20 @@ body.has-content .empty-state:not(.hidden) {
     height: auto;
     max-width: 100%;
     max-height: min(65vh, 600px);
+    align-self: center;
     object-fit: contain;
     background: transparent;
   }
 
 .recording-preview__video-controls {
-  position: absolute;
-  left: 14px;
-  right: 14px;
-  bottom: 14px;
+  position: static;
   display: grid;
   grid-template-columns: 34px 1fr auto;
   align-items: center;
   gap: 10px;
-  padding: 8px 10px;
-  border: 1px solid rgba(255,255,255,0.14);
-  border-radius: 999px;
-  background: linear-gradient(180deg, rgba(18,18,22,0.78), rgba(8,8,10,0.86));
-  box-shadow: 0 12px 30px rgba(0,0,0,0.32), 0 1px 0 rgba(255,255,255,0.08) inset;
-  backdrop-filter: blur(14px);
+  padding: 10px 14px;
+  border-top: 1px solid rgba(255,255,255,0.10);
+  background: rgba(12,12,15,0.98);
 }
 
 .recording-preview__play {
@@ -1600,7 +1597,7 @@ body.has-content .canvas-container.recording-preview-active {
   min-width: 44px;
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 
 body .canvas-container.recording-preview-active .toolbar .toolbar-group:not(.video-tools),
