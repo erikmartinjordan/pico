@@ -1293,6 +1293,87 @@ function hideRecordingIndicator() {
   }
 }
 
+function showAboutDialog() {
+  const pkg = require('../package.json');
+  const iconPath = path.join(__dirname, 'assets', 'icons', 'icon.png');
+  const iconDataUrl = (() => {
+    try {
+      const img = nativeImage.createFromPath(iconPath);
+      if (img.isEmpty()) return '';
+      return img.toDataURL();
+    } catch (_) {
+      return '';
+    }
+  })();
+
+  const aboutWin = new BrowserWindow({
+    width: 280,
+    height: 310,
+    resizable: false,
+    maximizable: false,
+    minimizable: false,
+    title: 'About Pico',
+    backgroundColor: '#ffffff',
+    show: false,
+    parent: mainWindow,
+    center: true,
+  });
+
+  aboutWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body {
+        background: #fff;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        user-select: none;
+        -webkit-app-region: drag;
+      }
+      canvas { display: block; margin-bottom: 20px; }
+      .version {
+        font-size: 14px;
+        color: #888;
+        font-weight: 500;
+        letter-spacing: 0.3px;
+        -webkit-app-region: no-drag;
+      }
+      .desc {
+        font-size: 11px;
+        color: #aaa;
+        margin-top: 6px;
+        text-align: center;
+        line-height: 1.4;
+        padding: 0 20px;
+        -webkit-app-region: no-drag;
+      }
+    </style>
+    </head>
+    <body>
+      <img id="icon" width="128" height="128" style="display:block;margin-bottom:20px">
+      <div class="version">v${pkg.version}</div>
+      <div class="desc">${pkg.description}</div>
+      <script>
+        document.getElementById('icon').src = '${iconDataUrl}';
+      </script>
+    </body>
+    </html>
+  `)}`);
+
+  aboutWin.once('ready-to-show', () => {
+    aboutWin.show();
+    aboutWin.focus();
+  });
+
+  aboutWin.on('blur', () => aboutWin.close());
+}
+
 function createMainWindow() {
   mainWindowMode = 'toolbar';
   const openPicoWindow = () => {
@@ -2216,12 +2297,14 @@ function setupTray() {
       },
     },
     { type: 'separator' },
-    { label: 'Capture Region', click: () => mainWindow?.webContents.send('trigger-capture') },
+    { label: 'Capture Region\t⌘⇧S', click: () => mainWindow?.webContents.send('trigger-capture') },
     { label: 'Capture Window', click: () => mainWindow?.webContents.send('trigger-capture-window') },
     { label: 'Capture Fullscreen', click: () => mainWindow?.webContents.send('trigger-capture-fullscreen') },
     { label: 'Record Screen', click: () => mainWindow?.webContents.send('trigger-record-screen') },
     { type: 'separator' },
     { label: 'Preferences', click: () => openPreferencesWindow() },
+    { type: 'separator' },
+    { label: 'About Pico', click: showAboutDialog },
     { type: 'separator' },
     { label: 'Quit', role: 'quit' },
   ]);
