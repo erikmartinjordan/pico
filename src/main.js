@@ -769,6 +769,10 @@ async function withHiddenDesktopIcons(options = {}, action) {
     return action();
   }
   desktopIconsHidden = true;
+
+  // Give macOS time to repaint the desktop after killing Finder
+  await new Promise(resolve => setTimeout(resolve, 350));
+
   try {
     return await action();
   } finally {
@@ -1652,6 +1656,11 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
     });
   
     await Promise.all(readyPromises);
+
+    // Steal focus so macOS applies the CSS crosshair cursor
+    if (process.platform === 'darwin') {
+      app.focus({ steal: true });
+    }
 
     // Once overlays are visible, lift the toolbar pill above them without stealing focus.
     if (mainWindow && !mainWindow.isDestroyed()) {
