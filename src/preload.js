@@ -776,6 +776,7 @@ contextBridge.exposeInMainWorld('pico', {
   stopRecording,
   saveRecording: (payload) => ipcRenderer.invoke('pro-save-recording', payload),
   onSaveRecordingStarted: (callback) => ipcRenderer.on('pro-save-recording-started', () => callback()),
+  trimRecording: (payload) => ipcRenderer.invoke('pro-trim-recording', payload),
 
   // File operations
   openFile: () => ipcRenderer.invoke('open-file'),

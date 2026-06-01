@@ -2162,6 +2162,26 @@ ipcMain.handle('pro-save-recording', async (event, payload) => {
 });
 
 
+ipcMain.handle('pro-trim-recording', async (event, payload) => {
+  const data = payload?.data;
+  if (!data) throw new Error('Trim payload is empty');
+  const trimStart = Number.isFinite(payload?.trimStart) && payload.trimStart > 0 ? payload.trimStart : 0;
+  const trimEnd = Number.isFinite(payload?.trimEnd) && payload.trimEnd > trimStart ? payload.trimEnd : 0;
+  if (!trimStart && !trimEnd) return { data, mimeType: payload.mimeType || 'video/webm', format: payload.format || 'mp4' };
+  const webmPath = tempRecordingPath('webm');
+  const mp4Path = tempRecordingPath('mp4');
+  const bytes = Buffer.isBuffer(data) ? data : Buffer.from(data);
+  fs.writeFileSync(webmPath, bytes);
+  try {
+    await convertWebmToMp4(webmPath, mp4Path, { trimStart, trimEnd, muted: false });
+    const result = fs.readFileSync(mp4Path);
+    return { data: result, mimeType: 'video/mp4', format: 'mp4' };
+  } finally {
+    fs.rmSync(webmPath, { force: true });
+    fs.rmSync(mp4Path, { force: true });
+  }
+});
+
 ipcMain.on('pro-recording-stop-clicked', () => {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('pro-recording-stop-requested');
 });

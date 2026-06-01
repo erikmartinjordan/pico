@@ -1322,78 +1322,139 @@ body.has-content .empty-state:not(.hidden) {
 
 .recording-preview__video-controls {
   position: static;
-  display: grid;
-  grid-template-columns: 34px 1fr auto;
+  display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 14px;
-  border-top: 1px solid rgba(255,255,255,0.10);
-  background: rgba(12,12,15,0.98);
+  padding: 8px 14px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  background: rgba(10,10,12,0.96);
 }
 
-.recording-preview__play {
-  width: 34px;
-  height: 28px;
+.recording-preview__btn {
+  width: 30px;
+  height: 30px;
   border: none;
-  border-radius: 999px;
-  background: rgba(255,255,255,0.14);
-  color: #fff;
+  border-radius: 50%;
+  background: transparent;
+  color: rgba(255,255,255,0.9);
   cursor: pointer;
-  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease;
 }
 
-.recording-preview__play:hover {
-  background: rgba(249, 115, 22, 0.28);
+.recording-preview__btn:hover {
+  background: rgba(255,255,255,0.12);
+}
+
+.recording-preview__btn:active {
+  transform: scale(0.92);
+}
+
+.recording-preview__btn.active {
+  color: #fb923c;
+}
+
+.recording-preview__jump svg {
+  opacity: 0.7;
+}
+
+.recording-preview__jump:hover svg {
+  opacity: 1;
+}
+
+.recording-preview__loop {
+  position: relative;
+}
+
+.recording-preview__loop::after {
+  content: '';
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: transparent;
+  transition: background 0.2s ease;
+}
+
+.recording-preview__loop[data-loop="true"]::after {
+  background: #fb923c;
+  box-shadow: 0 0 4px rgba(251, 146, 60, 0.5);
+}
+
+.recording-preview__loop[data-loop="false"] svg {
+  opacity: 0.4;
+}
+
+.recording-preview__timeline-wrap {
+  flex: 1;
+  min-width: 0;
+  padding: 0 2px;
 }
 
 #recording-preview-timeline {
   --progress: 0%;
   width: 100%;
-  height: 6px;
+  height: 4px;
   appearance: none;
   -webkit-appearance: none;
   border-radius: 999px;
-  background: linear-gradient(90deg, #f97316 var(--progress), rgba(255,255,255,0.24) var(--progress));
+  background: linear-gradient(90deg, #fb923c var(--progress), rgba(255,255,255,0.18) var(--progress));
   cursor: pointer;
+  outline: none;
 }
 
 #recording-preview-timeline::-webkit-slider-runnable-track {
-  height: 6px;
+  height: 4px;
   border-radius: 999px;
   background: transparent;
 }
 
 #recording-preview-timeline::-webkit-slider-thumb {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   margin-top: -4px;
   appearance: none;
   -webkit-appearance: none;
-  border: 2px solid #fb923c;
+  border: none;
   border-radius: 50%;
-  background: #f97316;
-  box-shadow: 0 1px 8px rgba(249, 115, 22, 0.36);
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  transition: transform 0.1s ease;
+}
+
+#recording-preview-timeline:active::-webkit-slider-thumb {
+  transform: scale(1.25);
 }
 
 #recording-preview-timeline::-moz-range-track {
-  height: 6px;
+  height: 4px;
   border-radius: 999px;
   background: transparent;
 }
 
 #recording-preview-timeline::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  border: 2px solid #fb923c;
+  width: 12px;
+  height: 12px;
+  border: none;
   border-radius: 50%;
-  background: #f97316;
-  box-shadow: 0 1px 8px rgba(249, 115, 22, 0.36);
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
 }
 
 .recording-preview__duration {
   font-size: 11px;
-  color: rgba(255,255,255,0.66);
+  font-variant-numeric: tabular-nums;
+  color: rgba(255,255,255,0.55);
   white-space: nowrap;
+  min-width: 70px;
+  text-align: center;
+  letter-spacing: 0.02em;
 }
 
 .recording-preview__actions {
@@ -1593,11 +1654,42 @@ body.has-content .canvas-container.recording-preview-active {
   display: none;
 }
 
-.video-tool-text {
-  min-width: 44px;
-  font-size: 12px;
-  font-weight: 700;
+.video-tool-speed-label {
+  position: absolute;
+  bottom: 2px;
+  font-size: 7px;
+  font-weight: 800;
   letter-spacing: 0;
+  color: inherit;
+  line-height: 1;
+  pointer-events: none;
+}
+
+#btn-recording-speed {
+  position: relative;
+}
+
+#btn-recording-speed svg {
+  width: 16px;
+  height: 16px;
+  opacity: 0.7;
+}
+
+#btn-recording-speed.active svg {
+  opacity: 1;
+  color: #fb923c;
+}
+
+#btn-recording-loop.active {
+  color: #fb923c;
+}
+
+#btn-recording-loop.active svg {
+  stroke: #fb923c;
+}
+
+#btn-recording-mute.active {
+  color: #fb923c;
 }
 
 body .canvas-container.recording-preview-active .toolbar .toolbar-group:not(.video-tools),

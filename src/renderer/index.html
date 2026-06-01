@@ -29,8 +29,10 @@
       </div>
       <div class="toolbar-group video-tools" aria-label="Video editing tools">
         <button class="toolbar-btn" id="btn-recording-play" data-tooltip="Play / pause video" aria-label="Play video"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path class="video-tool-play-icon" d="M8 5v14l11-7z" fill="currentColor" stroke="none"/></svg></button>
-        <button class="toolbar-btn video-tool-text" id="btn-recording-speed" data-tooltip="Cycle playback speed" aria-label="Playback speed">1×</button>
-        <button class="toolbar-btn" id="btn-recording-reset-trim" data-tooltip="Reset cut" aria-label="Reset cut"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="7" r="2.5"/><circle cx="6" cy="17" r="2.5"/><path d="M8.2 8.2L20 20"/><path d="M8.2 15.8L20 4"/></svg></button>
+        <button class="toolbar-btn" id="btn-recording-speed" data-tooltip="Cycle playback speed" aria-label="Playback speed"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg><span class="video-tool-speed-label">1×</span></button>
+        <button class="toolbar-btn" id="btn-recording-mute" data-tooltip="Mute / unmute" aria-label="Mute preview audio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M20 9l-6 6"/><path d="M14 9l6 6"/></svg></button>
+        <button class="toolbar-btn" id="btn-recording-loop" data-tooltip="Loop playback" aria-label="Toggle loop playback"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12C8 7 3 7 3 12S8 17 12 12S21 7 21 12S16 17 12 12" stroke="currentColor" stroke-width="1.5" fill="none"/></svg></button>
+        <button class="toolbar-btn" id="btn-recording-reset-trim" data-tooltip="Cut video to selection" aria-label="Cut video to selection"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="7" r="2.5"/><circle cx="6" cy="17" r="2.5"/><path d="M8.2 8.2L20 20"/><path d="M8.2 15.8L20 4"/></svg></button>
       </div>
       <div class="toolbar-separator video-tools-separator"></div>
       <div class="toolbar-group tools">
@@ -119,9 +121,23 @@
         <div class="recording-preview__media">
           <video id="recording-preview-video" playsinline muted></video>
           <div class="recording-preview__video-controls" aria-label="Recording playback controls">
-            <button type="button" class="recording-preview__play" id="recording-preview-play" aria-label="Play recording">▶</button>
-            <input type="range" id="recording-preview-timeline" min="0" max="1000" value="0" step="0.1" aria-label="Recording timeline">
+            <button type="button" class="recording-preview__btn" id="recording-preview-play" aria-label="Play recording">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="14" height="14"><path class="rpp-play-icon" d="M8 5v14l11-7z" fill="currentColor" stroke="none"/></svg>
+            </button>
+            <button type="button" class="recording-preview__btn recording-preview__jump" id="recording-preview-jump-back" aria-label="Jump back 1 second">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><path d="M1 12l5-5v10z"/><path d="M6 12h8a5 5 0 010 10H9"/></svg>
+            </button>
+            <button type="button" class="recording-preview__btn recording-preview__jump" id="recording-preview-jump-forward" aria-label="Jump forward 1 second">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="12" height="12"><path d="M23 12l-5-5v10z"/><path d="M18 12h-8a5 5 0 000 10h6"/></svg>
+            </button>
+            <div class="recording-preview__timeline-wrap">
+              <input type="range" id="recording-preview-timeline" min="0" max="1000" value="0" step="0.1" aria-label="Recording timeline">
+            </div>
             <span class="recording-preview__duration" id="recording-preview-duration">0:00</span>
+            <button type="button" class="recording-preview__btn recording-preview__loop" id="recording-preview-loop" aria-label="Toggle loop playback" data-loop="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="14" height="14" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12C8 7 3 7 3 12S8 17 12 12S21 7 21 12S16 17 12 12" stroke="currentColor" stroke-width="1.5" fill="none"/>
+            </svg>
+            </button>
           </div>
         </div>
         <div class="recording-preview__actions">

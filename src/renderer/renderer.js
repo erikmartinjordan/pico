@@ -53,6 +53,7 @@ const state = {
   recordingFormat: 'mp4',
   recordingMode: 'region',
   isSavingRecording: false,
+  recordingLoop: true,
   recordingPreview: null,
   recordingSettings: { format: 'mp4', autoZoom: true },
   captureSettings: { hideDesktopIcons: true },
@@ -116,6 +117,10 @@ const elements = {
   recordingPreviewTrimEnd: $('#btn-recording-trim-end'),
   recordingPreviewResetTrim: $('#btn-recording-reset-trim'),
   recordingPreviewMute: $('#btn-recording-mute'),
+  recordingPreviewLoop: $('#btn-recording-loop'),
+  recordingPreviewLoopBottom: $('#recording-preview-loop'),
+  recordingPreviewJumpBackBottom: $('#recording-preview-jump-back'),
+  recordingPreviewJumpForwardBottom: $('#recording-preview-jump-forward'),
   recordingPreviewDiscard: $('#recording-preview-discard'),
   recordingPreviewClose: $('#recording-preview-close'),
   statusTool: $('#status-tool'),
@@ -253,8 +258,12 @@ function bindToolbar() {
   on(elements.recordingPreviewSpeed, 'click', cycleRecordingPreviewSpeed);
   on(elements.recordingPreviewTrimStart, 'click', setRecordingPreviewTrimStart);
   on(elements.recordingPreviewTrimEnd, 'click', setRecordingPreviewTrimEnd);
-  on(elements.recordingPreviewResetTrim, 'click', resetRecordingPreviewTrim);
+  on(elements.recordingPreviewResetTrim, 'click', applyRecordingPreviewTrim);
   on(elements.recordingPreviewMute, 'click', toggleRecordingPreviewMute);
+  on(elements.recordingPreviewLoop, 'click', toggleRecordingPreviewLoop);
+  on(elements.recordingPreviewLoopBottom, 'click', toggleRecordingPreviewLoop);
+  on(elements.recordingPreviewJumpBackBottom, 'click', () => jumpRecordingPreview(-1));
+  on(elements.recordingPreviewJumpForwardBottom, 'click', () => jumpRecordingPreview(1));
   on(elements.recordingPreviewVideo, 'loadedmetadata', updateRecordingPreviewControls);
   on(elements.recordingPreviewVideo, 'timeupdate', updateRecordingPreviewControls);
   on(elements.recordingPreviewVideo, 'play', startRecordingPreviewTimeline);
@@ -796,6 +805,7 @@ function showRecordingPreview(result = {}) {
   elements.recordingPreviewVideo.srcObject = null;
   elements.recordingPreviewVideo.src = url;
   elements.recordingPreviewVideo.load();
+  updateRecordingPreviewConstraint();
   const playPromise = elements.recordingPreviewVideo.play();
   if (playPromise?.catch) playPromise.catch(() => {});
   updateRecordingPreviewFormatUi();
@@ -834,6 +844,13 @@ function discardRecordingPreview(options = {}) {
     elements.recordingPreviewVideo.load();
   }
   stopRecordingPreviewTimeline();
+  if (elements.recordingPreviewVideo?._hasConstraintListener) {
+    elements.recordingPreviewVideo.removeEventListener('timeupdate', elements.recordingPreviewVideo._constraintHandler);
+    elements.recordingPreviewVideo.removeEventListener('ended', elements.recordingPreviewVideo._endedHandler);
+    delete elements.recordingPreviewVideo._hasConstraintListener;
+    delete elements.recordingPreviewVideo._constraintHandler;
+    delete elements.recordingPreviewVideo._endedHandler;
+  }
   elements.recordingPreview?.classList.remove('is-live');
   elements.recordingPreview?.classList.add('hidden');
   elements.recordingPreview?.setAttribute('aria-hidden', 'true');
@@ -959,6 +976,54 @@ function toggleRecordingPreviewMute() {
   updateRecordingPreviewToolbar();
 }
 
+function toggleRecordingPreviewLoop() {
+  state.recordingLoop = !state.recordingLoop;
+  updateRecordingPreviewConstraint();
+  updateRecordingPreviewToolbar();
+}
+
+function updateRecordingPreviewConstraint() {
+  const video = elements.recordingPreviewVideo;
+  if (!video) return;
+
+  if (state.recordingPreview && Number.isFinite(state.recordingPreview.trimEnd)) {
+    video.loop = false;
+  } else {
+    video.loop = !!state.recordingLoop;
+  }
+
+  if (!video._hasConstraintListener) {
+    video._constraintHandler = () => {
+      if (!state.recordingPreview) return;
+      const start = state.recordingPreview.trimStart || 0;
+      const duration = Number.isFinite(video.duration) ? video.duration : 0;
+      const end = Number.isFinite(state.recordingPreview.trimEnd) ? state.recordingPreview.trimEnd : duration;
+      if (duration === 0 || end <= start) return;
+      if (!video.paused && video.currentTime >= end) {
+        video.currentTime = start;
+        if (!state.recordingLoop) {
+          video.pause();
+        } else if (video.paused) {
+          video.play().catch(() => {});
+        }
+      } else if (video.currentTime < start) {
+        video.currentTime = start;
+      }
+    };
+    video._endedHandler = () => {
+      if (!state.recordingPreview) return;
+      const start = state.recordingPreview.trimStart || 0;
+      if (state.recordingLoop) {
+        video.currentTime = start;
+        video.play().catch(() => {});
+      }
+    };
+    video.addEventListener('timeupdate', video._constraintHandler);
+    video.addEventListener('ended', video._endedHandler);
+    video._hasConstraintListener = true;
+  }
+}
+
 function setRecordingPreviewTrimStart() {
   const video = elements.recordingPreviewVideo;
   if (!video || !state.recordingPreview) return;
@@ -966,6 +1031,7 @@ function setRecordingPreviewTrimStart() {
   const trimEnd = Number.isFinite(state.recordingPreview.trimEnd) ? state.recordingPreview.trimEnd : video.duration;
   state.recordingPreview.trimStart = Math.max(0, Math.min(currentTime, Math.max(0, trimEnd - 0.1)));
   updateRecordingPreviewToolbar();
+  updateRecordingPreviewConstraint();
 }
 
 function setRecordingPreviewTrimEnd() {
@@ -975,6 +1041,7 @@ function setRecordingPreviewTrimEnd() {
   const trimStart = state.recordingPreview.trimStart || 0;
   state.recordingPreview.trimEnd = Math.min(video.duration, Math.max(currentTime, trimStart + 0.1));
   updateRecordingPreviewToolbar();
+  updateRecordingPreviewConstraint();
 }
 
 function resetRecordingPreviewTrim() {
@@ -984,33 +1051,113 @@ function resetRecordingPreviewTrim() {
   updateRecordingPreviewToolbar();
 }
 
+async function applyRecordingPreviewTrim() {
+  if (!state.recordingPreview || state.isSavingRecording) return;
+  const trimStart = state.recordingPreview.trimStart || 0;
+  const trimEnd = state.recordingPreview.trimEnd;
+  if (!trimStart && !Number.isFinite(trimEnd)) {
+    resetRecordingPreviewTrim();
+    return;
+  }
+  state.isSavingRecording = true;
+  setRecordingSaveProgress(true, { preserveSaving: true });
+  try {
+    const trimmed = await window.pico.trimRecording({
+      data: state.recordingPreview.data,
+      trimStart,
+      trimEnd,
+      format: state.recordingPreview.format,
+      mimeType: state.recordingPreview.mimeType,
+    });
+    if (!trimmed?.data) return;
+    if (state.recordingPreview?.url) URL.revokeObjectURL(state.recordingPreview.url);
+    const blob = new Blob([trimmed.data], { type: trimmed.mimeType || 'video/mp4' });
+    const url = URL.createObjectURL(blob);
+    state.recordingPreview = {
+      ...state.recordingPreview,
+      data: trimmed.data,
+      url,
+      format: trimmed.format || 'mp4',
+      mimeType: trimmed.mimeType || 'video/mp4',
+      trimStart: 0,
+      trimEnd: null,
+    };
+    const video = elements.recordingPreviewVideo;
+    video.pause();
+    video.src = url;
+    video.load();
+    updateRecordingPreviewConstraint();
+    const playPromise = video.play();
+    if (playPromise?.catch) playPromise.catch(() => {});
+    updateRecordingPreviewFormatUi();
+    updateRecordingPreviewToolbar();
+    updateRecordingPreviewControls();
+    showToast('Video trimmed to selection', 'success');
+    clearTimeline();
+    const container = document.getElementById('timeline-frames');
+    if (container && state.recordingPreview?.url) {
+      timelineGenerationAbort = false;
+      generateOptimizedFilmstrip(state.recordingPreview.url, container).catch(() => {});
+    }
+    updateTimeline();
+  } catch (err) {
+    showToast(`Failed to cut video: ${err.message}`, 'error');
+  } finally {
+    setRecordingSaveProgress(false);
+    state.isSavingRecording = false;
+  }
+}
+
 function scrubRecordingPreview() {
   const video = elements.recordingPreviewVideo;
   const timeline = elements.recordingPreviewTimeline;
   if (!video || !timeline || !Number.isFinite(video.duration) || video.duration <= 0) return;
-  video.currentTime = (Number(timeline.value) / Number(timeline.max || 1000)) * video.duration;
+
+  const ratio = Number(timeline.value) / Number(timeline.max || 1000);
+
+  video.currentTime = ratio * video.duration;
+
   updateRecordingPreviewControls();
 }
 
 function updateRecordingPreviewControls() {
   const video = elements.recordingPreviewVideo;
   if (!video) return;
+
   const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0;
-  const currentTime = Number.isFinite(video.currentTime) ? video.currentTime : 0;
-  const progress = duration > 0 ? currentTime / duration : 0;
+
+  const progress = duration > 0 ? (video.currentTime / duration) : 0;
+
   if (elements.recordingPreviewTimeline) {
     const max = Number(elements.recordingPreviewTimeline.max || 1000);
-    elements.recordingPreviewTimeline.value = duration > 0 ? String(progress * max) : '0';
-    elements.recordingPreviewTimeline.style.setProperty('--progress', `${Math.max(0, Math.min(progress, 1)) * 100}%`);
+    elements.recordingPreviewTimeline.value = String(progress * max);
+    elements.recordingPreviewTimeline.style.setProperty('--progress', `${progress * 100}%`);
   }
+
   if (elements.recordingPreviewDuration) {
-    elements.recordingPreviewDuration.textContent = `${formatRecordingTime(currentTime)} / ${formatRecordingTime(duration)}`;
+    const trimStart = state.recordingPreview?.trimStart || 0;
+    const trimEnd = state.recordingPreview?.trimEnd;
+    const hasSelection = Number.isFinite(trimEnd) && trimEnd > trimStart;
+    const effectiveDuration = hasSelection ? (trimEnd - trimStart) : duration;
+
+    const displayTime = hasSelection
+      ? Math.max(0, video.currentTime - trimStart)
+      : video.currentTime;
+
+    elements.recordingPreviewDuration.textContent = `${formatRecordingTime(displayTime)} / ${formatRecordingTime(hasSelection ? effectiveDuration : duration)}`;
   }
+
   if (elements.recordingPreviewPlay) {
     const isPlaying = !video.paused && !video.ended;
-    elements.recordingPreviewPlay.textContent = isPlaying ? '❚❚' : '▶';
+    const svg = elements.recordingPreviewPlay.querySelector('svg');
+    if (svg) {
+      svg.innerHTML = isPlaying
+        ? '<path d="M8 5v14" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M16 5v14" stroke="currentColor" stroke-width="1.5" fill="none"/>'
+        : '<path class="rpp-play-icon" d="M8 5v14l11-7z" fill="currentColor" stroke="none"/>';
+    }
     elements.recordingPreviewPlay.setAttribute('aria-label', isPlaying ? 'Pause recording' : 'Play recording');
   }
+
   updateRecordingPreviewToolbar();
 }
 
@@ -1031,7 +1178,8 @@ function updateRecordingPreviewToolbar() {
   }
   if (elements.recordingPreviewSpeed) {
     const speedLabel = `${Number.isInteger(video.playbackRate) ? video.playbackRate : video.playbackRate.toFixed(1)}×`;
-    if (elements.recordingPreviewSpeed.textContent !== speedLabel) elements.recordingPreviewSpeed.textContent = speedLabel;
+    const labelEl = elements.recordingPreviewSpeed.querySelector('.video-tool-speed-label');
+    if (labelEl && labelEl.textContent !== speedLabel) labelEl.textContent = speedLabel;
     elements.recordingPreviewSpeed.classList.toggle('active', video.playbackRate !== 1);
   }
   if (elements.recordingPreviewTrimStart) {
@@ -1048,6 +1196,14 @@ function updateRecordingPreviewToolbar() {
   if (elements.recordingPreviewMute) {
     elements.recordingPreviewMute.classList.toggle('active', video.muted);
     elements.recordingPreviewMute.setAttribute('aria-label', video.muted ? 'Unmute preview audio' : 'Mute preview audio');
+  }
+  if (elements.recordingPreviewLoop) {
+    elements.recordingPreviewLoop.classList.toggle('active', state.recordingLoop);
+    elements.recordingPreviewLoop.setAttribute('data-tooltip', state.recordingLoop ? 'Loop on' : 'Loop off');
+  }
+  if (elements.recordingPreviewLoopBottom) {
+    elements.recordingPreviewLoopBottom.classList.toggle('active', state.recordingLoop);
+    elements.recordingPreviewLoopBottom.dataset.loop = String(state.recordingLoop);
   }
 }
 
@@ -1330,6 +1486,7 @@ function initTimelineInteraction() {
   const updateUi = () => {
     updateTimeline();
     updateRecordingPreviewToolbar();
+    updateRecordingPreviewControls();
   };
   const updateTrim = (event) => {
     const total = duration();
@@ -1388,6 +1545,7 @@ function initTimelineInteraction() {
     const time = timeFromEvent(event);
     seekPreview(time);
     updateRecordingPreviewControls();
+    updateRecordingPreviewConstraint();
   });
 }
 
