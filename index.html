@@ -113,11 +113,11 @@
 <!-- Hero -->
 <section id="hero">
   <img src="256x256.png" alt="Orange Fuji icon" />
-  <h1>Orange Fuji<span class="version">v1.1.0</span></h1>
+  <h1>Orange Fuji<span class="version" id="latest-version">v1.1.0</span></h1>
   <p class="tagline">Fast captures. Clean marks. Zero friction.</p>
   <div class="pill">macOS · Windows · Linux</div>
   <div class="actions">
-    <a class="btn btn-primary" href="https://github.com/erikmartinjordan/orange-fuji/releases/latest/download/orange-fuji-universal.dmg">
+    <a class="btn btn-primary" id="download-macos" href="https://github.com/erikmartinjordan/orange-fuji/releases/latest">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Download for macOS
     </a>
@@ -250,6 +250,27 @@
     </div>
   </div>
 </footer>
+
+<script>
+  const releaseApiUrl = 'https://api.github.com/repos/erikmartinjordan/orange-fuji/releases/latest';
+  const releasePageUrl = 'https://github.com/erikmartinjordan/orange-fuji/releases/latest';
+
+  function findMacDownloadUrl(assets = []) {
+    const dmg = assets.find((asset) => /orange-fuji.*\.dmg$/i.test(asset.name));
+    return dmg?.browser_download_url || releasePageUrl;
+  }
+
+  fetch(releaseApiUrl)
+    .then((response) => (response.ok ? response.json() : null))
+    .then((release) => {
+      if (!release) return;
+      const version = document.getElementById('latest-version');
+      const macDownload = document.getElementById('download-macos');
+      if (version && release.tag_name) version.textContent = release.tag_name;
+      if (macDownload) macDownload.href = findMacDownloadUrl(release.assets || []);
+    })
+    .catch(() => {});
+</script>
 
 </body>
 </html>
