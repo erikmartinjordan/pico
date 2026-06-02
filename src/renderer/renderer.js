@@ -2451,9 +2451,7 @@ function updateToolbarState() {
 }
 
 
-function showToast(message, type = 'info') {
-  window.pico.showToast(message, type);
-}
+function showToast() {}
 
 
 // ══════════════════════════════════════════════════════════════════════════════

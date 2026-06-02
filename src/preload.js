@@ -738,7 +738,7 @@ function stopRecording(options = {}) {
 
 // Keep the preload API name stable so existing renderer code and tests keep working.
 contextBridge.exposeInMainWorld('pico', {
-  showToast: (message, type) => ipcRenderer.send('show-toast', { message, type }),
+
   // Screen capture
   startCapture: (options = {}) => ipcRenderer.invoke('start-capture', options),
   startCaptureWindow: (options = {}) => ipcRenderer.invoke('start-capture-window', options),

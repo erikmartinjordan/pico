@@ -227,6 +227,7 @@ function applyToolbarWindowMode(options = {}) {
   mainWindowMode = 'toolbar';
   if (process.platform === 'darwin') {
     try { mainWindow.setWindowButtonVisibility(false); } catch (_) {}
+    try { mainWindow.setVibrancy(null); } catch (_) {}
   }
 
   if (mainWindow.isFullScreen()) mainWindow.setFullScreen(false);
@@ -260,6 +261,7 @@ function applyEditorWindowMode(options = {}) {
   mainWindowMode = 'editor';
   if (process.platform === 'darwin') {
     try { mainWindow.setWindowButtonVisibility(true); } catch (_) {}
+    try { mainWindow.setVibrancy('under-window'); } catch (_) {}
   }
 
   mainWindow.setResizable(true);
@@ -379,69 +381,7 @@ function triggerPreviewToast(payload) {
   }, 4000);
 }
 
-let nativeToastWindows = [];
 
-function showNativeToast(message, type = 'info') {
-  const toastSize = { width: 280, height: 48 };
-  const margin = 18;
-  const { workArea } = getPreviewToastDisplay();
-  const offset = nativeToastWindows.filter(w => !w.isDestroyed()).length;
-  const yPos = Math.round(workArea.y + workArea.height - toastSize.height - margin - offset * (toastSize.height + 6));
-
-  const toastWindow = new BrowserWindow({
-    width: toastSize.width,
-    height: toastSize.height,
-    x: Math.round(workArea.x + workArea.width - toastSize.width - margin),
-    y: yPos,
-    frame: false,
-    transparent: true,
-    resizable: false,
-    movable: false,
-    minimizable: false,
-    maximizable: false,
-    fullscreenable: false,
-    skipTaskbar: true,
-    alwaysOnTop: true,
-    hasShadow: false,
-    backgroundColor: '#00000000',
-    show: false,
-    webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
-      sandbox: false,
-    },
-  });
-
-  toastWindow.setAlwaysOnTop(true, process.platform === 'darwin' ? 'floating' : 'normal');
-  if (process.platform === 'darwin') {
-    try { toastWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch (_) {}
-  }
-
-  toastWindow.loadFile(path.join(__dirname, 'renderer', 'native-toast.html'), {
-    query: { message, type },
-  });
-
-  toastWindow.once('ready-to-show', () => {
-    if (toastWindow.isDestroyed()) return;
-    if (process.platform === 'darwin') toastWindow.showInactive();
-    else toastWindow.show();
-  });
-
-  nativeToastWindows.push(toastWindow);
-
-  const closeToast = () => {
-    const idx = nativeToastWindows.indexOf(toastWindow);
-    if (idx !== -1) nativeToastWindows.splice(idx, 1);
-    if (!toastWindow.isDestroyed()) toastWindow.close();
-  };
-
-  toastWindow.on('closed', () => {
-    const idx = nativeToastWindows.indexOf(toastWindow);
-    if (idx !== -1) nativeToastWindows.splice(idx, 1);
-  });
-
-  setTimeout(closeToast, 3000);
-}
 
 function notifyRendererCaptureModeStarted() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
@@ -1683,9 +1623,6 @@ async function captureRegion(options = {}) {
 
 // ── IPC Handlers ────────────────────────────────────────────────────────────
 
-ipcMain.on('show-toast', (_, { message, type }) => {
-  showNativeToast(message, type || 'info');
-});
 
 ipcMain.handle('preview-toast-data', async () => {
   const payload = pendingPreviewToastPayload;

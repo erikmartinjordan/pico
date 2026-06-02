@@ -35,6 +35,15 @@ body.has-content {
     linear-gradient(180deg, #dfc8ac, #d7bea2 60%, #cfb18f 100%);
 }
 
+body.platform-darwin.has-image,
+body.platform-darwin.has-content {
+  background:
+    radial-gradient(circle at 50% 16%, rgba(255,255,255,.12), transparent 40%),
+    radial-gradient(circle at 15% 86%, rgba(190,150,108,.06), transparent 45%),
+    radial-gradient(circle at 85% 88%, rgba(173,129,90,.06), transparent 43%),
+    linear-gradient(180deg, rgba(223,200,172,.10), rgba(215,190,162,.12) 60%, rgba(207,177,143,.10) 100%);
+}
+
 /* ── Canvas Container ── */
 .canvas-container {
   flex: 1;
@@ -1730,6 +1739,11 @@ body.toolbar-transition .statusbar {
 }
 
 @media (prefers-color-scheme: dark) {
+    body.platform-darwin.has-image,
+    body.platform-darwin.has-content {
+      background: transparent;
+    }
+
     .toolbar {
       --toolbar-icon-color: rgba(241, 245, 255, 0.94);
       --toolbar-icon-muted: rgba(226, 233, 250, 0.88);
