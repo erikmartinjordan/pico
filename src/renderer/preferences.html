@@ -9,13 +9,24 @@
 </head>
 <body class="preferences-window">
   <form class="preferences-panel" id="preferences-form" aria-label="Preferences">
-    <label>Recording format
-      <select id="recording-format-setting"><option value="mp4">MP4</option><option value="gif">GIF</option></select>
-    </label>
-    <label><span>Autozoom on region recording</span><input type="checkbox" id="recording-autozoom-setting" checked></label>
-    <label><span>Hide desktop icons while capturing</span><input type="checkbox" id="hide-desktop-icons-setting" checked></label>
+    <div class="preferences-titlebar" aria-hidden="true"></div>
+    <header class="preferences-header">
+      <img src="../assets/icons/macos/256x256.png" alt="" width="48" height="48">
+      <div>
+        <h1>Orange Fuji</h1>
+        <p>Preferences</p>
+      </div>
+    </header>
 
-    <div class="preferences-field preferences-field--path">
+    <section class="preferences-group" aria-label="Recording">
+      <label>Recording format
+        <select id="recording-format-setting"><option value="mp4">MP4</option><option value="gif">GIF</option></select>
+      </label>
+      <label><span>Autozoom on region recording</span><input type="checkbox" id="recording-autozoom-setting" checked></label>
+      <label><span>Hide desktop icons while capturing</span><input type="checkbox" id="hide-desktop-icons-setting" checked></label>
+    </section>
+
+    <section class="preferences-group preferences-field preferences-field--path" aria-label="Saving">
       <div>
         <label for="default-save-path-setting">Default save path</label>
         <p>Choose the folder used first when saving screenshots and recordings.</p>
@@ -25,7 +36,7 @@
         <button type="button" id="choose-default-save-path-setting">Choose…</button>
         <button type="button" id="clear-default-save-path-setting" class="secondary">Clear</button>
       </div>
-    </div>
+    </section>
   </form>
 
   <script src="preferences.js"></script>

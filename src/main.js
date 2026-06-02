@@ -460,18 +460,21 @@ function openPreferencesWindow() {
   }
 
   preferencesWindow = new BrowserWindow({
-    width: 480,
-    height: 320,
+    width: 520,
+    height: 380,
     resizable: false,
     minimizable: false,
     maximizable: false,
+    closable: true,
+    movable: true,
     titleBarStyle: 'hiddenInset',
-    vibrancy: 'sidebar',
+    trafficLightPosition: { x: 14, y: 14 },
+    vibrancy: process.platform === 'darwin' ? 'under-window' : undefined,
     visualEffectState: 'active',
-    transparent: true,
-    backgroundColor: '#00000000',
+    transparent: process.platform === 'darwin',
+    backgroundColor: process.platform === 'darwin' ? '#00000000' : '#f5f1ec',
     autoHideMenuBar: true,
-    title: 'Preferences',
+    title: 'Orange Fuji Preferences',
     webPreferences: getAppWebPreferences(),
   });
 
@@ -1323,71 +1326,42 @@ function showAboutDialog() {
   })();
 
   const aboutWin = new BrowserWindow({
-    width: 280,
-    height: 310,
+    width: 360,
+    height: 340,
     resizable: false,
     maximizable: false,
     minimizable: false,
+    closable: true,
+    movable: true,
+    titleBarStyle: 'hiddenInset',
+    trafficLightPosition: { x: 14, y: 14 },
+    vibrancy: process.platform === 'darwin' ? 'under-window' : undefined,
+    visualEffectState: 'active',
+    transparent: process.platform === 'darwin',
+    backgroundColor: process.platform === 'darwin' ? '#00000000' : '#f5f1ec',
     title: 'About Orange Fuji',
-    backgroundColor: '#ffffff',
     show: false,
-    parent: mainWindow,
     center: true,
+    autoHideMenuBar: true,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+    },
   });
 
-  aboutWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-    <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; }
-      body {
-        background: #fff;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        height: 100vh;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        user-select: none;
-        -webkit-app-region: drag;
-      }
-      canvas { display: block; margin-bottom: 20px; }
-      .version {
-        font-size: 14px;
-        color: #888;
-        font-weight: 500;
-        letter-spacing: 0.3px;
-        -webkit-app-region: no-drag;
-      }
-      .desc {
-        font-size: 11px;
-        color: #aaa;
-        margin-top: 6px;
-        text-align: center;
-        line-height: 1.4;
-        padding: 0 20px;
-        -webkit-app-region: no-drag;
-      }
-    </style>
-    </head>
-    <body>
-      <img id="icon" width="128" height="128" style="display:block;margin-bottom:20px">
-      <div class="version">v${pkg.version}</div>
-      <div class="desc">${pkg.description}</div>
-      <script>
-        document.getElementById('icon').src = '${iconDataUrl}';
-      </script>
-    </body>
-    </html>
-  `)}`);
+  aboutWin.loadFile(path.join(__dirname, 'renderer', 'about.html'), {
+    query: { version: pkg.version, description: pkg.description },
+  });
 
   aboutWin.once('ready-to-show', () => {
     aboutWin.show();
     aboutWin.focus();
+    aboutWin.webContents.executeJavaScript(`
+      document.getElementById('icon').src = '${iconDataUrl}';
+    `);
   });
 
-  aboutWin.on('blur', () => aboutWin.close());
+  aboutWin.setMenuBarVisibility(false);
 }
 
 function createMainWindow() {
@@ -2025,6 +1999,11 @@ ipcMain.handle('read-clipboard-image', async () => {
   } catch (err) {
     return null;
   }
+});
+
+ipcMain.on('close-about', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win && !win.isDestroyed()) win.close();
 });
 
 ipcMain.handle('window-close', async () => {
