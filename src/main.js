@@ -1669,12 +1669,7 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
   
     await Promise.all(readyPromises);
 
-    // Steal focus so macOS applies the CSS crosshair cursor
-    if (process.platform === 'darwin') {
-      app.focus({ steal: true });
-    }
-
-    // Once overlays are visible, lift the toolbar pill above them without stealing focus.
+    // Once overlays are visible, lift the toolbar pill above them without stealing app focus.
     if (mainWindow && !mainWindow.isDestroyed()) {
       applyToolbarWindowMode();
 
@@ -1683,7 +1678,8 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
         try { mainWindow.setAlwaysOnTop(true, 'screen-saver'); } catch (_) { mainWindow.setAlwaysOnTop(true); }
       }
 
-      mainWindow.showInactive();
+      if (process.platform === 'darwin') mainWindow.showInactive();
+      else mainWindow.show();
 
       if (process.platform === 'darwin') {
         mainWindow.moveTop();
@@ -1800,12 +1796,9 @@ ipcMain.handle('start-capture-window', async (event, options = {}) => {
 ipcMain.handle('start-capture-fullscreen', async (event, options = {}) => {
   notifyRendererCaptureModeStarted();
   if (mainWindow && !mainWindow.isDestroyed()) {
-    if (process.platform === 'darwin') mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-    mainWindow.setAlwaysOnTop(true, process.platform === 'darwin' ? 'screen-saver' : 'normal');
-    mainWindow.show();
-    mainWindow.moveTop();
+    mainWindow.hide();
   }
-  await new Promise(r => setTimeout(r, 200));
+  await new Promise(r => setTimeout(r, process.platform === 'darwin' ? 260 : 160));
   try {
     if (!await ensureMacScreenRecordingPermission()) {
       notifyRendererCaptureFinished();

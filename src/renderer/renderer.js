@@ -183,6 +183,7 @@ function init() {
 
   window.pico.onCaptureFinished(() => {
     isCaptureMode = false;
+    setCaptureModeButton(null);
     resetFloatingToolbar();
   });
 }
@@ -206,9 +207,9 @@ function setCaptureModeButton(mode = null) {
 }
 
 function bindToolbar() {
-  on(elements.btnCaptureRegion, 'click', () => { setCaptureModeButton('region'); startCapture(); });
-  on(elements.btnCaptureWindow, 'click', () => { setCaptureModeButton('window'); startCaptureWindow(); });
-  on(elements.btnCaptureFullscreen, 'click', () => { setCaptureModeButton('fullscreen'); startCaptureFullscreen(); });
+  on(elements.btnCaptureRegion, 'click', () => { elements.btnCaptureRegion.blur(); setCaptureModeButton('region'); startCapture(); });
+  on(elements.btnCaptureWindow, 'click', () => { elements.btnCaptureWindow.blur(); setCaptureModeButton('window'); startCaptureWindow(); });
+  on(elements.btnCaptureFullscreen, 'click', () => { elements.btnCaptureFullscreen.blur(); setCaptureModeButton('fullscreen'); startCaptureFullscreen(); });
   on(elements.btnRecordScreen, 'click', onRecordButtonClick);
   on(elements.recordingFormatSetting, 'change', () => {
     state.recordingSettings.format = elements.recordingFormatSetting.value === 'gif' ? 'gif' : 'mp4';

@@ -168,6 +168,7 @@ body.platform-darwin.has-content .editor-drag-region {
   transition: background 0.16s ease, color 0.16s ease, transform 0.2s ease, box-shadow 0.16s ease;
   flex-shrink: 0;
   -webkit-app-region: no-drag;
+  outline: none;
 }
 
 .toolbar-btn svg { width: 18px; height: 18px; }
@@ -228,6 +229,12 @@ body:not(.has-image) .toolbar .toolbar-btn:hover:not(:disabled) {
 }
 
 .toolbar-btn:disabled { opacity: 0.3; cursor: default; }
+
+.toolbar-btn:focus,
+.toolbar-btn:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
 
 body:not(.has-image) .toolbar .toolbar-group:not(.capture-modes),
 body:not(.has-image) .toolbar .toolbar-separator {
