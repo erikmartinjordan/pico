@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.2.0](https://github.com/erikmartinjordan/orange-fuji/compare/v1.1.0...v1.2.0) (2026-06-02)
+
+
+### ✨ Features
+
+* Added filmstrip to video recording ([44c3423](https://github.com/erikmartinjordan/orange-fuji/commit/44c34234d7fb57907b46c16020f99ae8be916796))
+
+
+### 🐛 Fixes
+
+* Adjust video preview borders ([f7a6d8b](https://github.com/erikmartinjordan/orange-fuji/commit/f7a6d8b8f7fdf69e753cd4b9cd8178767c865150))
+* Crosshair cursor on region capture ([61bdf87](https://github.com/erikmartinjordan/orange-fuji/commit/61bdf873a373b13ae16f7d3351d7a26a06046497))
+* Dark mode theme ([4a33129](https://github.com/erikmartinjordan/orange-fuji/commit/4a33129eabca6a28e828a8a9bb03221861995fab))
+* decouple capture preview toast ([4b86106](https://github.com/erikmartinjordan/orange-fuji/commit/4b861068bde83690cec2eb80b01b929ba29f11de))
+* decouple capture preview toast and enforce macOS desktop icon hiding ([bdf3609](https://github.com/erikmartinjordan/orange-fuji/commit/bdf360977e4e0f249837cda3cf1dba4be0b65ee7))
+* Icon hides on video recording ([3bcbf57](https://github.com/erikmartinjordan/orange-fuji/commit/3bcbf57fa62e80334774daa2cb11830f3ae1195d))
+* Icons hidden when preferences are set to do it ([3f01a3e](https://github.com/erikmartinjordan/orange-fuji/commit/3f01a3efb08cca04edc60f7e7a17f43134257ce7))
+* Notifications as native toast ([0c017a4](https://github.com/erikmartinjordan/orange-fuji/commit/0c017a4c3ecbb6e783027baf72e5eeec1b3e8d52))
+* Now the main window is native, rather than faking it as MacOS native window ([ff2e5f0](https://github.com/erikmartinjordan/orange-fuji/commit/ff2e5f05af6980d95a6c58a7820cee52be2e609b))
+* Preferences window in dark mode ([8191784](https://github.com/erikmartinjordan/orange-fuji/commit/819178424ac9734b4f1a290f332bc4b531d2511b))
+* Rename landing page ([e1f9bb2](https://github.com/erikmartinjordan/orange-fuji/commit/e1f9bb2a015aebbfbabb08619995bc013a1cc04f))
+* rename Pico to Orange Fuji ([4a781a2](https://github.com/erikmartinjordan/orange-fuji/commit/4a781a22127a967bee3afcf4dbd2c76f377d54bf))
+* Simplify current controls on video screen recording ([1db7aeb](https://github.com/erikmartinjordan/orange-fuji/commit/1db7aeb074a7390a468df03d3292a3a4ec471a52))
+* Toast on the side without shadow ([a0ed4e7](https://github.com/erikmartinjordan/orange-fuji/commit/a0ed4e7628867558153d65a4061ec1fae4bf7563))
+* Video miniatures and improved general behavior on trimming ([f8e52a5](https://github.com/erikmartinjordan/orange-fuji/commit/f8e52a508b40cf97f175f34ede805e6ad4aed35c))
+
 ## [1.1.0](https://github.com/erikmartinjordan/pico/compare/v1.0.0...v1.1.0) (2026-05-29)
 
 
