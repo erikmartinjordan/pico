@@ -288,4 +288,4 @@ function createStreamWithCursorSetting(cursor) {
   assert.ok(/\.color-swatch\s*\{[\s\S]*?-webkit-app-region: no-drag;/.test(stylesSource), 'color swatches must be clickable inside the draggable toolbar');
 }
 
-console.log('pico proof regression tests passed');
+console.log('Orange Fuji proof regression tests passed');

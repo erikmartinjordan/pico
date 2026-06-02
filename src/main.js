@@ -1,5 +1,5 @@
 /**
- * pico - Main Process
+ * Orange Fuji - Main Process
  * Handles window creation, screen capture, and native dialogs
  */
 
@@ -35,10 +35,22 @@ const EDITOR_DEFAULT_SIZE = { width: 1200, height: 800 };
 const EDITOR_MIN_SIZE = { width: 900, height: 600 };
 
 const SETTINGS_FILE = 'settings.json';
+const PRODUCT_NAME = 'Orange Fuji';
+// Keep the original userData directory so existing settings survive the rename.
+const LEGACY_USER_DATA_NAME = 'pico';
 const DEFAULT_SETTINGS = {
   defaultSavePath: '',
   hideDesktopIcons: true,
 };
+
+function applyLegacyUserDataPath() {
+  try {
+    app.setName(PRODUCT_NAME);
+    app.setPath('userData', path.join(app.getPath('appData'), LEGACY_USER_DATA_NAME));
+  } catch (error) {
+    console.error('[orange-fuji] failed to set legacy user data path:', error.message);
+  }
+}
 
 function settingsPath() {
   return path.join(app.getPath('userData'), SETTINGS_FILE);
@@ -61,7 +73,7 @@ function readSettings() {
     }
     return settings;
   } catch (error) {
-    console.error('[pico] failed to read settings:', error.message);
+    console.error('[orange-fuji] failed to read settings:', error.message);
     return { ...DEFAULT_SETTINGS };
   }
 }
@@ -110,7 +122,7 @@ function setupRecordingDisplayMediaHandler() {
       const requestedSourceId = recordingDisplayMediaSourceId || lastRecordingSourceId;
       const source = await findDesktopCapturerSource(requestedSourceId);
       if (!source) {
-        console.error('[pico][recording] display media source unavailable:', requestedSourceId);
+        console.error('[orange-fuji][recording] display media source unavailable:', requestedSourceId);
         callback({});
         return;
       }
@@ -119,7 +131,7 @@ function setupRecordingDisplayMediaHandler() {
       if (request.audioRequested && process.platform === 'win32') streams.audio = 'loopback';
       callback(streams);
     } catch (error) {
-      console.error('[pico][recording] display media handler failed:', error.message);
+      console.error('[orange-fuji][recording] display media handler failed:', error.message);
       callback({});
     }
   }, { useSystemPicker: false });
@@ -486,7 +498,7 @@ async function restoreMacDesktopIconsAfterRecording() {
   try {
     await setMacDesktopIconsVisible(desktopIconsVisibleBeforeRecording);
   } catch (restoreError) {
-    console.error('[pico][recording] failed to restore desktop icons:', restoreError.message);
+    console.error('[orange-fuji][recording] failed to restore desktop icons:', restoreError.message);
   } finally {
     desktopIconsHidden = false;
     desktopIconsVisibleBeforeRecording = true;
@@ -495,7 +507,7 @@ async function restoreMacDesktopIconsAfterRecording() {
 
 function debugWindowState(tag) {
   const win = mainWindow;
-  console.log('[pico][window-state]', {
+  console.log('[orange-fuji][window-state]', {
     tag,
     appHidden: typeof app.isHidden === 'function' ? app.isHidden() : null,
     appFocused: typeof app.focus === 'function' ? Boolean(BrowserWindow.getFocusedWindow()) : null,
@@ -515,7 +527,7 @@ function getMacScreenRecordingStatus() {
   try {
     return systemPreferences.getMediaAccessStatus('screen');
   } catch (err) {
-    console.error('[pico] macOS screen recording permission check failed:', err.message);
+    console.error('[orange-fuji] macOS screen recording permission check failed:', err.message);
     return 'unknown';
   }
 }
@@ -533,8 +545,8 @@ async function explainMacScreenRecordingPermission() {
     defaultId: 0,
     cancelId: 1,
     title: 'Screen Recording permission required',
-    message: 'pico needs macOS Screen Recording permission to capture the screen.',
-    detail: 'Open System Settings → Privacy & Security → Screen & System Audio Recording, enable pico, then quit and reopen the app before trying again.',
+    message: 'Orange Fuji needs macOS Screen Recording permission to capture the screen.',
+    detail: 'Open System Settings → Privacy & Security → Screen & System Audio Recording, enable Orange Fuji, then quit and reopen the app before trying again.',
   });
   if (result.response === 0) await openMacScreenRecordingSettings();
 }
@@ -564,7 +576,7 @@ async function getDefaultRecordingSource() {
 
 
 function nativeMacWindowCapturePath() {
-  return path.join(app.getPath('temp'), `pico-window-${process.pid}-${Date.now()}.png`);
+  return path.join(app.getPath('temp'), `orange-fuji-window-${process.pid}-${Date.now()}.png`);
 }
 
 function runNativeMacWindowCapture(filePath) {
@@ -610,7 +622,7 @@ async function captureNativeMacWindow() {
     if (!fs.existsSync(filePath) || fs.statSync(filePath).size === 0) {
       return { success: true, canceled: true };
     }
-    console.error('[pico] native macOS window capture failed:', err.message, err.stderr || '');
+    console.error('[orange-fuji] native macOS window capture failed:', err.message, err.stderr || '');
     throw err;
   } finally {
     try { fs.unlinkSync(filePath); } catch (e) {}
@@ -636,10 +648,10 @@ function getHighQualityThumbnailSize(minWidth = 1920, minHeight = 1200) {
 }
 
 
-function isPicoWindowSource(source) {
+function isOrangeFujiWindowSource(source) {
   const id = String(source?.id || '');
   const name = String(source?.name || '').toLowerCase();
-  return id.startsWith('window:') && name.includes('pico');
+  return id.startsWith('window:') && (name.includes('orange fuji') || name.includes('orange-fuji') || name.includes('pico'));
 }
 
 function toPickerSource(source) {
@@ -661,7 +673,7 @@ async function getDesktopSourcesForPicker(types = ['window']) {
 
 async function getWindowSourcesForPicker() {
   const windowSources = (await getDesktopSourcesForPicker(['window']))
-    .filter((source) => source && source.name && !isPicoWindowSource(source));
+    .filter((source) => source && source.name && !isOrangeFujiWindowSource(source));
 
   let pickerSources = windowSources;
   let fallbackReason = '';
@@ -765,7 +777,7 @@ async function withHiddenDesktopIcons(options = {}, action) {
   try {
     await setMacDesktopIconsVisible(false);
   } catch (hideError) {
-    console.error('[pico][capture] failed to hide desktop icons:', hideError.message);
+    console.error('[orange-fuji][capture] failed to hide desktop icons:', hideError.message);
     return action();
   }
   desktopIconsHidden = true;
@@ -779,7 +791,7 @@ async function withHiddenDesktopIcons(options = {}, action) {
     try {
       await setMacDesktopIconsVisible(wasVisible);
     } catch (restoreError) {
-      console.error('[pico][capture] failed to restore desktop icons:', restoreError.message);
+      console.error('[orange-fuji][capture] failed to restore desktop icons:', restoreError.message);
     }
     desktopIconsHidden = false;
   }
@@ -876,11 +888,11 @@ try {
 }
 `;
 
-  const tmpFile = path.join(app.getPath('temp'), 'pico-enum-win.ps1');
+  const tmpFile = path.join(app.getPath('temp'), 'orange-fuji-enum-win.ps1');
   try {
     fs.writeFileSync(tmpFile, psScript, { encoding: 'utf8' });
   } catch (e) {
-    console.error('[pico] Cannot write temp PS script:', e.message);
+    console.error('[orange-fuji] Cannot write temp PS script:', e.message);
     return [];
   }
 
@@ -891,7 +903,7 @@ try {
     );
     const trimmed = output.trim();
     if (!trimmed || !trimmed.startsWith('[')) {
-      console.error('[pico] PS window enum: unexpected output:', trimmed.slice(0, 300));
+      console.error('[orange-fuji] PS window enum: unexpected output:', trimmed.slice(0, 300));
       return [];
     }
     const result = JSON.parse(trimmed);
@@ -902,11 +914,11 @@ try {
     // No frame inset - use bounds as-is. The highlight will be slightly larger
     // than the visible window, giving a comfortable margin around it.
     const corrected = result;
-    console.log(`[pico] UIAutomation window enum OK: ${corrected.length} windows found`);
+    console.log(`[orange-fuji] UIAutomation window enum OK: ${corrected.length} windows found`);
     return corrected;
   } catch (e) {
-    console.error('[pico] PS window enum failed:', e.message);
-    if (e.stderr) console.error('[pico] stderr:', e.stderr.toString().slice(0, 500));
+    console.error('[orange-fuji] PS window enum failed:', e.message);
+    if (e.stderr) console.error('[orange-fuji] stderr:', e.stderr.toString().slice(0, 500));
     return [];
   } finally {
     try { fs.unlinkSync(tmpFile); } catch (e) {}
@@ -998,7 +1010,7 @@ function sourceNameMatchesWindow(sourceName, win) {
 }
 
 function attachCapturerSourcesToWindowBounds(windowBounds, capturerSources) {
-  const sources = (capturerSources || []).filter((source) => source && source.id && source.name && !isPicoWindowSource(source));
+  const sources = (capturerSources || []).filter((source) => source && source.id && source.name && !isOrangeFujiWindowSource(source));
   if (sources.length === 0) return windowBounds;
 
   return windowBounds.map((win) => {
@@ -1276,7 +1288,7 @@ function showRecordingIndicator(options = {}) {
 
   recordingIndicatorWindows.push(controlsWindow);
 
-  // Keep pico visible when the renderer is showing the selected stream inline.
+  // Keep Orange Fuji visible when the renderer is showing the selected stream inline.
   if (!options.inlinePreview && mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.minimize();
   }
@@ -1291,7 +1303,7 @@ function hideRecordingIndicator() {
   lastRecordingRegion = null;
   restoreMacDesktopIconsAfterRecording();
 
-  // Restore pico main window when recording ends
+  // Restore Orange Fuji main window when recording ends
   if (mainWindow && !mainWindow.isDestroyed()) {
     showMainWindowForCurrentMode();
   }
@@ -1316,7 +1328,7 @@ function showAboutDialog() {
     resizable: false,
     maximizable: false,
     minimizable: false,
-    title: 'About Pico',
+    title: 'About Orange Fuji',
     backgroundColor: '#ffffff',
     show: false,
     parent: mainWindow,
@@ -1380,7 +1392,7 @@ function showAboutDialog() {
 
 function createMainWindow() {
   mainWindowMode = 'toolbar';
-  const openPicoWindow = () => {
+  const openOrangeFujiWindow = () => {
     if (!mainWindow || mainWindow.isDestroyed()) createMainWindow();
     if (mainWindow && !mainWindow.isDestroyed()) {
       const sendOpenRequest = () => mainWindow?.webContents.send('toolbar-open-requested');
@@ -1390,14 +1402,14 @@ function createMainWindow() {
     }
   };
   const triggerCaptureRegion = () => {
-    openPicoWindow();
+    openOrangeFujiWindow();
     mainWindow.webContents.send('trigger-capture');
   };
   const menu = Menu.buildFromTemplate([
     {
       label: 'File',
       submenu: [
-        { label: 'Open pico', click: openPicoWindow },
+        { label: 'Open Orange Fuji', click: openOrangeFujiWindow },
         { type: 'separator' },
         { label: 'Capture Region', click: triggerCaptureRegion },
         { label: 'Capture Window', click: () => mainWindow?.webContents.send('trigger-capture-window') },
@@ -1444,7 +1456,7 @@ function createMainWindow() {
 
 
   // Keep the pill visible to external proof recordings. The recording pipeline
-  // hides pico windows before capturing desktop frames, so capture recursion is
+  // hides Orange Fuji windows before capturing desktop frames, so capture recursion is
   // handled there instead of by shielding the normal UI from screen capture.
   mainWindow.setContentProtection(false);
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
@@ -1452,9 +1464,9 @@ function createMainWindow() {
     try { mainWindow.setWindowButtonVisibility(false); } catch (_) {}
   }
   mainWindow.once('ready-to-show', () => showMainWindowForCurrentMode());
-  mainWindow.webContents.on('did-finish-load', () => console.log('[pico][main] did-finish-load'));
-  mainWindow.webContents.on('render-process-gone', (_, details) => console.error('[pico][main] render-process-gone', details));
-  mainWindow.webContents.on('did-fail-load', (_, code, desc) => console.error('[pico][main] did-fail-load', code, desc));
+  mainWindow.webContents.on('did-finish-load', () => console.log('[orange-fuji][main] did-finish-load'));
+  mainWindow.webContents.on('render-process-gone', (_, details) => console.error('[orange-fuji][main] render-process-gone', details));
+  mainWindow.webContents.on('did-fail-load', (_, code, desc) => console.error('[orange-fuji][main] did-fail-load', code, desc));
   mainWindow.on('minimize', (event) => {
     if (process.platform === 'darwin') {
       event.preventDefault();
@@ -1688,12 +1700,12 @@ async function captureRegion(options = {}) {
       return { success: false, error: 'Screen Recording permission is required.' };
     }
     const captureData = await withHiddenDesktopIcons(options, async () => captureAllScreens());
-    console.log('[pico][capture] capture data ready; creating overlays');
+    console.log('[orange-fuji][capture] capture data ready; creating overlays');
     await createCaptureOverlays(captureData, 'region', []);
     return { success: true };
   } catch (err) {
     notifyRendererCaptureFinished();
-    console.error('[pico][capture] capture failed:', err.message);
+    console.error('[orange-fuji][capture] capture failed:', err.message);
     if (mainWindow) showMainWindowForCurrentMode();
     return { success: false, error: err.message };
   }
@@ -1733,7 +1745,7 @@ ipcMain.on('preview-toast-clicked', () => {
 });
 
 ipcMain.handle('start-capture', async (event, options = {}) => {
-    console.log('[pico][capture] start-capture invoked');
+    console.log('[orange-fuji][capture] start-capture invoked');
     const showToolbarBeforeCapture = options?.showToolbar !== false;
     if (showToolbarBeforeCapture && mainWindow && !mainWindow.isDestroyed()) {
       if (process.platform === 'darwin') mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
@@ -1767,7 +1779,7 @@ ipcMain.handle('start-capture-window', async (event, options = {}) => {
       thumbnailSize: getHighQualityThumbnailSize(),
       fetchWindowIcons: false,
     });
-    windowPickerSources = windowSources.filter(s => s && s.name && !isPicoWindowSource(s));
+    windowPickerSources = windowSources.filter(s => s && s.name && !isOrangeFujiWindowSource(s));
 
     const winBounds = attachCapturerSourcesToWindowBounds(getVisibleWindowBounds(), windowPickerSources)
       .filter((win) => win.sourceId || process.platform !== 'darwin');
@@ -1849,7 +1861,7 @@ ipcMain.on('window-overlay-select', async (event, windowName) => {
       return;
     }
   } catch (err) {
-    console.error('[pico] window-overlay-select error:', err.message);
+    console.error('[orange-fuji] window-overlay-select error:', err.message);
   }
 
   // Fallback: if no matching source found, just show main window
@@ -2065,7 +2077,7 @@ ipcMain.handle('pro-recording-indicator-hide', async () => {
   return { success: true };
 });
 
-async function hidePicoWindowsBeforeRecording() {
+async function hideOrangeFujiWindowsBeforeRecording() {
   const windowsToHide = [mainWindow, preferencesWindow, windowPickerWindow]
     .filter((win) => win && !win.isDestroyed());
 
@@ -2074,19 +2086,19 @@ async function hidePicoWindowsBeforeRecording() {
       win.setContentProtection(true);
       win.hide();
     } catch (error) {
-      console.error('[pico][recording] failed to hide pico window:', error.message);
+      console.error('[orange-fuji][recording] failed to hide Orange Fuji window:', error.message);
     }
   }
 
   // Let the OS compositor publish the hidden state before Chromium starts
   // reading desktop frames. Without this guard, the first captured frames can
-  // contain pico itself and create the recursive preview effect.
+  // contain Orange Fuji itself and create the recursive preview effect.
   await new Promise((resolve) => setTimeout(resolve, process.platform === 'darwin' ? 260 : 160));
 }
 
 ipcMain.handle('pro-recording-prepare', async (event, payload = {}) => {
   if (payload?.region) lastRecordingRegion = payload.region;
-  await hidePicoWindowsBeforeRecording();
+  await hideOrangeFujiWindowsBeforeRecording();
   return { success: true };
 });
 
@@ -2194,7 +2206,7 @@ ipcMain.handle('pro-save-recording', async (event, payload) => {
   const trimStart = Number.isFinite(payload?.trimStart) && payload.trimStart > 0 ? payload.trimStart : 0;
   const trimEnd = Number.isFinite(payload?.trimEnd) && payload.trimEnd > trimStart ? payload.trimEnd : 0;
   const muted = payload?.muted === true;
-  const filename = `pico-recording-${Date.now()}.${extension}`;
+  const filename = `orange-fuji-recording-${Date.now()}.${extension}`;
   const configuredSaveDirectory = configuredDefaultSaveDirectory();
   let outputPath = configuredSaveDirectory ? path.join(configuredSaveDirectory, filename) : '';
 
@@ -2290,11 +2302,11 @@ function setupTray() {
   }
   trayIcon.setTemplateImage(true);
   tray = new Tray(trayIcon);
-  tray.setToolTip('pico');
+  tray.setToolTip('Orange Fuji');
 
   const trayMenu = Menu.buildFromTemplate([
     {
-      label: 'Open pico',
+      label: 'Open Orange Fuji',
       click: () => {
         if (!mainWindow || mainWindow.isDestroyed()) createMainWindow();
         if (mainWindow && !mainWindow.isDestroyed()) {
@@ -2313,7 +2325,7 @@ function setupTray() {
     { type: 'separator' },
     { label: 'Preferences', click: () => openPreferencesWindow() },
     { type: 'separator' },
-    { label: 'About Pico', click: showAboutDialog },
+    { label: 'About Orange Fuji', click: showAboutDialog },
     { type: 'separator' },
     { label: 'Quit', role: 'quit' },
   ]);
@@ -2323,6 +2335,8 @@ function setupTray() {
     tray.popUpContextMenu();
   });
 }
+
+applyLegacyUserDataPath();
 
 app.whenReady().then(() => {
   setupRecordingDisplayMediaHandler();
@@ -2372,13 +2386,13 @@ app.whenReady().then(() => {
     : ['CommandOrControl+Shift+S'];
   globalShortcuts.forEach((accelerator) => {
     const ok = globalShortcut.register(accelerator, () => {
-      console.log(`[pico][shortcut] fired: ${accelerator}`);
+      console.log(`[orange-fuji][shortcut] fired: ${accelerator}`);
       debugWindowState('before-shortcut');
       triggerCaptureFromShortcut();
       debugWindowState('after-focus-show');
     });
-    console.log(`[pico][shortcut] register ${accelerator}: ${ok ? 'ok' : 'failed'}`);
-    if (!ok) console.warn(`[pico] Failed to register global shortcut: ${accelerator}`);
+    console.log(`[orange-fuji][shortcut] register ${accelerator}: ${ok ? 'ok' : 'failed'}`);
+    if (!ok) console.warn(`[orange-fuji] Failed to register global shortcut: ${accelerator}`);
   });
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow();

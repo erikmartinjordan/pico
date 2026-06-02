@@ -1,5 +1,5 @@
 {
-  "name": "pico",
+  "name": "orange-fuji",
   "version": "1.1.0",
   "description": "Lightweight screen-capture & annotation tool for Windows, Linux, and experimental macOS builds",
   "main": "src/main.js",
@@ -27,7 +27,7 @@
   },
   "build": {
     "appId": "com.pico.screenshot",
-    "productName": "pico",
+    "productName": "Orange Fuji",
     "buildVersion": "0.0.0",
     "directories": {
       "output": "dist",
@@ -37,7 +37,7 @@
       "src/**/*",
       "package.json"
     ],
-    "artifactName": "${productName}-${arch}.${ext}",
+    "artifactName": "orange-fuji-${arch}.${ext}",
     "mac": {
       "category": "public.app-category.graphics-design",
       "target": [
@@ -74,7 +74,7 @@
         }
       ],
       "requestedExecutionLevel": "asInvoker",
-      "artifactName": "${productName}-portable.${ext}",
+      "artifactName": "orange-fuji-portable.${ext}",
       "icon": "build/icon.ico"
     },
     "linux": {

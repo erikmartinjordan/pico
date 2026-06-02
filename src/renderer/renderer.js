@@ -1,5 +1,5 @@
 /**
- * pico - Renderer Process
+ * Orange Fuji - Renderer Process
  * Canvas drawing, tools, and UI interaction
  */
 
@@ -72,6 +72,9 @@ let recordingPreviewTimelineFrame = null;
 let timelineGenerationAbort = false;
 let timelineRangeInitialized = false;
 const recordingPreviewSpeeds = [1, 1.5, 2, 0.5];
+const RECORDING_SETTINGS_KEY = 'orangefuji-recording-settings';
+// Legacy key retained for one-time migration from builds branded as Pico.
+const LEGACY_RECORDING_SETTINGS_KEY = 'pico-recording-settings';
 
 const elements = {
   canvas: $('#canvas'),
@@ -390,11 +393,11 @@ function bindKeyboard() {
 
 function bindIPC() {
   window.pico.onTriggerCapture(() => {
-    console.log('[pico][renderer] received trigger-capture');
+    console.log('[orange-fuji][renderer] received trigger-capture');
     startCapture();
   });
   window.pico.onTriggerCaptureMenu((options = {}) => {
-    console.log('[pico][renderer] received trigger-capture-menu');
+    console.log('[orange-fuji][renderer] received trigger-capture-menu');
     showWindow();
     startCapture(options);
   });
@@ -723,7 +726,7 @@ async function startRecordingWithFormat(format = 'mp4', mode = 'region') {
 
 function loadRecordingSettings() {
   try {
-    const raw = localStorage.getItem('pico-recording-settings');
+    const raw = localStorage.getItem(RECORDING_SETTINGS_KEY) || localStorage.getItem(LEGACY_RECORDING_SETTINGS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       state.recordingSettings.format = parsed?.format === 'gif' ? 'gif' : 'mp4';
@@ -737,10 +740,11 @@ function loadRecordingSettings() {
 }
 
 function saveRecordingSettings() {
-  localStorage.setItem('pico-recording-settings', JSON.stringify({
+  localStorage.setItem(RECORDING_SETTINGS_KEY, JSON.stringify({
     ...state.recordingSettings,
     hideDesktopIcons: state.captureSettings.hideDesktopIcons,
   }));
+  localStorage.removeItem(LEGACY_RECORDING_SETTINGS_KEY);
   try {
     window.pico.saveSettings({ hideDesktopIcons: state.captureSettings.hideDesktopIcons });
   } catch (_) {}

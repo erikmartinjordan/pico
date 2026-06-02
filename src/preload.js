@@ -1,5 +1,5 @@
 /**
- * pico - Preload Script
+ * Orange Fuji - Preload Script
  * Secure bridge between main and renderer processes
  */
 
@@ -69,7 +69,7 @@ async function getDesktopStream(sourceId, includeAudio) {
       });
       return markStreamCursorMode(stream, 'synthetic');
     } catch (displayMediaError) {
-      console.warn('[pico][recording] getDisplayMedia failed; falling back to desktop getUserMedia:', displayMediaError?.message || displayMediaError);
+      console.warn('[orange-fuji][recording] getDisplayMedia failed; falling back to desktop getUserMedia:', displayMediaError?.message || displayMediaError);
     }
   }
 
@@ -570,10 +570,10 @@ async function getAutoZoomRegion(source = {}, requestedMode = source.mode) {
   }
 
   const autoZoomRegion = sourceRegion;
-  console.log('[pico] autoZoomRegion', sourceMode, JSON.stringify(autoZoomRegion));
+  console.log('[orange-fuji] autoZoomRegion', sourceMode, JSON.stringify(autoZoomRegion));
   if (sourceRegion) return sourceRegion;
 
-  console.warn('[pico] autoZoom: could not derive fullscreen region from source', JSON.stringify(source));
+  console.warn('[orange-fuji] autoZoom: could not derive fullscreen region from source', JSON.stringify(source));
   return null;
 }
 
@@ -736,6 +736,7 @@ function stopRecording(options = {}) {
   });
 }
 
+// Keep the preload API name stable so existing renderer code and tests keep working.
 contextBridge.exposeInMainWorld('pico', {
   showToast: (message, type) => ipcRenderer.send('show-toast', { message, type }),
   // Screen capture

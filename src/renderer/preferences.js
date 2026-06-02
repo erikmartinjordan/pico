@@ -12,9 +12,13 @@ const settings = {
   defaultSavePath: '',
 };
 
+const RECORDING_SETTINGS_KEY = 'orangefuji-recording-settings';
+// Legacy key retained for one-time migration from builds branded as Pico.
+const LEGACY_RECORDING_SETTINGS_KEY = 'pico-recording-settings';
+
 async function loadSettings() {
   try {
-    const raw = localStorage.getItem('pico-recording-settings');
+    const raw = localStorage.getItem(RECORDING_SETTINGS_KEY) || localStorage.getItem(LEGACY_RECORDING_SETTINGS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       settings.format = parsed?.format === 'gif' ? 'gif' : 'mp4';
@@ -36,7 +40,8 @@ async function loadSettings() {
 }
 
 async function saveSettings() {
-  localStorage.setItem('pico-recording-settings', JSON.stringify(settings));
+  localStorage.setItem(RECORDING_SETTINGS_KEY, JSON.stringify(settings));
+  localStorage.removeItem(LEGACY_RECORDING_SETTINGS_KEY);
   try {
     await window.pico.saveSettings({ defaultSavePath: settings.defaultSavePath, hideDesktopIcons: settings.hideDesktopIcons });
   } catch (_) {}
