@@ -785,7 +785,11 @@ contextBridge.exposeInMainWorld('pico', {
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
   getLicenseState: () => ipcRenderer.invoke('get-license-state'),
-  activateLicense: (email) => ipcRenderer.invoke('activate-license', email),
+  activateLicense: async (email) => {
+    const result = await ipcRenderer.invoke('activate-license', email);
+    if (!result?.ok) throw new Error(result?.error || 'Activation failed. Please try again.');
+    return result.state;
+  },
   openBuyLicense: () => ipcRenderer.invoke('open-buy-license'),
   chooseDefaultSavePath: (currentPath) => ipcRenderer.invoke('choose-default-save-path', currentPath),
   copyToClipboard: (dataUrl) => ipcRenderer.invoke('copy-to-clipboard', dataUrl),

@@ -269,9 +269,9 @@ function bindLicense() {
       updateLicenseDialog(licenseState);
     } catch (error) {
       const message = String(error?.message || 'Activation failed.');
-      const readable = message === 'license_not_found'
-        ? 'No active license was found for that email.'
-        : message === 'activation_limit_reached'
+      const readable = message.includes('license_not_found')
+        ? 'We could not find a license for this email. Use the same email you entered at checkout, or buy a license first.'
+        : message.includes('activation_limit_reached')
           ? 'This license has reached its 2-device activation limit.'
           : message;
       setLicenseMessage(readable, 'error');

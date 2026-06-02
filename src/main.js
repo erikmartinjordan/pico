@@ -8,6 +8,7 @@ const { execSync, execFile } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const https = require('https');
 const { tempRecordingPath, convertWebmToMp4, convertMp4ToGif } = require('./pro/recording');
 
 let mainWindow = null;
@@ -142,27 +143,45 @@ function shouldValidateLicense(settings) {
 }
 
 async function callLicenseApi(endpoint, payload) {
-  const response = await fetch(`${LICENSE_API_BASE_URL}/${endpoint}`, {
-    method: 'POST',
-    headers: {
-      apikey: SUPABASE_PUBLISHABLE_KEY,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok || data.ok === false) {
+  const { statusCode, data } = await postJson(`${LICENSE_API_BASE_URL}/${endpoint}`, payload);
+  if (statusCode < 200 || statusCode >= 300 || data.ok === false) {
     const error = new Error(data.error || `license_${endpoint}_failed`);
-    error.status = response.status;
+    error.status = statusCode;
     throw error;
   }
   return data;
 }
 
+function postJson(url, payload) {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify(payload);
+    const request = https.request(url, {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_PUBLISHABLE_KEY,
+        'content-type': 'application/json',
+        'content-length': Buffer.byteLength(body),
+      },
+    }, (response) => {
+      let raw = '';
+      response.setEncoding('utf8');
+      response.on('data', (chunk) => { raw += chunk; });
+      response.on('end', () => {
+        let data = {};
+        try { data = raw ? JSON.parse(raw) : {}; } catch (_) {}
+        resolve({ statusCode: response.statusCode || 0, data });
+      });
+    });
+    request.on('error', reject);
+    request.write(body);
+    request.end();
+  });
+}
+
 async function validateLicenseIfNeeded(settings) {
   if (!shouldValidateLicense(settings)) return settings;
   try {
-    const result = await callLicenseApi('validateLicense', {
+    const result = await callLicenseApi('validate-license', {
       email: settings.licenseEmail,
       deviceId: settings.deviceId,
       appVersion: app.getVersion(),
@@ -198,11 +217,16 @@ async function activateLicense(email) {
   const normalizedEmail = String(email || '').trim().toLowerCase();
   if (!normalizedEmail) throw new Error('Email is required.');
 
-  const result = await callLicenseApi('activateLicense', {
-    email: normalizedEmail,
-    deviceId: settings.deviceId,
-    appVersion: app.getVersion(),
-  });
+  let result;
+  try {
+    result = await callLicenseApi('activate-license', {
+      email: normalizedEmail,
+      deviceId: settings.deviceId,
+      appVersion: app.getVersion(),
+    });
+  } catch (error) {
+    throw new Error(readableLicenseError(error.message));
+  }
 
   writeSettings({
     licenseEmail: normalizedEmail,
@@ -212,6 +236,19 @@ async function activateLicense(email) {
   });
 
   return getLicenseState();
+}
+
+function readableLicenseError(message = '') {
+  if (message.includes('license_not_found')) {
+    return 'We could not find a license for this email. Use the same email you entered at checkout, or buy a license first.';
+  }
+  if (message.includes('activation_limit_reached')) {
+    return 'This license is already active on 2 devices.';
+  }
+  if (message.includes('email_required')) {
+    return 'Enter the email you used at checkout.';
+  }
+  return message || 'Activation failed. Please try again.';
 }
 
 async function hasUsageEntitlement() {
@@ -2020,7 +2057,13 @@ ipcMain.handle('save-settings', async (event, nextSettings = {}) => writeSetting
 
 ipcMain.handle('get-license-state', async () => getLicenseState());
 
-ipcMain.handle('activate-license', async (event, email) => activateLicense(email));
+ipcMain.handle('activate-license', async (event, email) => {
+  try {
+    return { ok: true, state: await activateLicense(email) };
+  } catch (error) {
+    return { ok: false, error: readableLicenseError(error.message) };
+  }
+});
 
 ipcMain.handle('open-buy-license', async () => {
   await shell.openExternal(BUY_LICENSE_URL);
