@@ -90,6 +90,12 @@ const elements = {
   recordingFormatMenu: $('#recording-format-menu'),
   recordingSaveProgress: $('#recording-save-progress'),
   preferencesDialog: $('#preferences-dialog'),
+  licenseDialog: $('#license-dialog'),
+  licenseStatusCopy: $('#license-status-copy'),
+  licenseEmailInput: $('#license-email-input'),
+  licenseMessage: $('#license-message'),
+  licenseBuy: $('#license-buy'),
+  licenseActivate: $('#license-activate'),
   recordingFormatSetting: $('#recording-format-setting'),
   recordingAutozoomSetting: $('#recording-autozoom-setting'),
   hideDesktopIconsSetting: $('#hide-desktop-icons-setting'),
@@ -165,10 +171,12 @@ function init() {
   bindContextMenu();
   bindPaste();
   bindCrop();
+  bindLicense();
   bindTooltips();
   if (elements.textFontFamily) elements.textFontFamily.value = state.textFontFamily;
   if (elements.textFontSize) elements.textFontSize.value = String(state.textFontSize);
   loadRecordingSettings();
+  refreshLicenseState();
   selectStrokeWidth(state.strokeWidth);
   toggleTextStyleControls();
   updateStatus();
@@ -203,6 +211,77 @@ function setCaptureModeButton(mode = null) {
   [elements.btnCaptureRegion, elements.btnCaptureWindow, elements.btnCaptureFullscreen].forEach((btn) => {
     if (!btn) return;
     btn.classList.toggle('active', btn === selected);
+  });
+}
+
+function setLicenseMessage(message = '', type = '') {
+  if (!elements.licenseMessage) return;
+  elements.licenseMessage.textContent = message;
+  elements.licenseMessage.classList.toggle('error', type === 'error');
+  elements.licenseMessage.classList.toggle('success', type === 'success');
+}
+
+function updateLicenseDialog(licenseState) {
+  if (!elements.licenseDialog || !licenseState) return;
+  const trial = licenseState.trial || {};
+  if (elements.licenseEmailInput && licenseState.email) {
+    elements.licenseEmailInput.value = licenseState.email;
+  }
+
+  if (elements.licenseStatusCopy) {
+    if (licenseState.licensed) {
+      elements.licenseStatusCopy.textContent = `Licensed to ${licenseState.email}`;
+    } else if (trial.expired) {
+      elements.licenseStatusCopy.textContent = 'Your trial has ended. Activate a license to continue.';
+    } else {
+      elements.licenseStatusCopy.textContent = `${trial.daysRemaining} day${trial.daysRemaining === 1 ? '' : 's'} left in your trial.`;
+    }
+  }
+
+  if (licenseState.licensed) {
+    setLicenseMessage('License active.', 'success');
+    if (elements.licenseDialog.open) elements.licenseDialog.close();
+    return;
+  }
+
+  if (trial.expired && !elements.licenseDialog.open) {
+    elements.licenseDialog.showModal();
+  }
+}
+
+async function refreshLicenseState() {
+  try {
+    const licenseState = await window.pico.getLicenseState();
+    updateLicenseDialog(licenseState);
+  } catch (error) {
+    setLicenseMessage(error?.message || 'Could not load license status.', 'error');
+  }
+}
+
+function bindLicense() {
+  on(elements.licenseBuy, 'click', () => window.pico.openBuyLicense?.());
+  on(elements.licenseActivate, 'click', async () => {
+    const email = elements.licenseEmailInput?.value || '';
+    setLicenseMessage('Activating...', '');
+    if (elements.licenseActivate) elements.licenseActivate.disabled = true;
+    try {
+      const licenseState = await window.pico.activateLicense(email);
+      updateLicenseDialog(licenseState);
+    } catch (error) {
+      const message = String(error?.message || 'Activation failed.');
+      const readable = message === 'license_not_found'
+        ? 'No active license was found for that email.'
+        : message === 'activation_limit_reached'
+          ? 'This license has reached its 2-device activation limit.'
+          : message;
+      setLicenseMessage(readable, 'error');
+    } finally {
+      if (elements.licenseActivate) elements.licenseActivate.disabled = false;
+    }
+  });
+  elements.licenseDialog?.addEventListener('cancel', async (event) => {
+    const licenseState = await window.pico.getLicenseState().catch(() => null);
+    if (licenseState?.status === 'trial-expired') event.preventDefault();
   });
 }
 

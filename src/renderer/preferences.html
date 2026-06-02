@@ -33,8 +33,24 @@
       </div>
       <div class="path-picker">
         <input type="text" id="default-save-path-setting" placeholder="System default" readonly>
-        <button type="button" id="choose-default-save-path-setting">Choose…</button>
-        <button type="button" id="clear-default-save-path-setting" class="secondary">Clear</button>
+        <div class="path-picker-actions">
+          <button type="button" id="choose-default-save-path-setting">Choose...</button>
+          <button type="button" id="clear-default-save-path-setting" class="secondary">Clear</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="preferences-group preferences-field preferences-field--license" aria-label="License">
+      <div>
+        <label for="license-email-setting">License</label>
+        <p id="license-status-setting">Checking license status...</p>
+      </div>
+      <div class="license-settings-activation">
+        <input type="email" id="license-email-setting" placeholder="you@example.com" autocomplete="email">
+        <div class="license-settings-actions">
+          <button type="button" id="buy-license-setting">Buy</button>
+          <button type="button" id="activate-license-setting" class="secondary">Activate</button>
+        </div>
       </div>
     </section>
   </form>

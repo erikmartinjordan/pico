@@ -215,6 +215,26 @@
     </form>
   </dialog>
 
+  <dialog id="license-dialog" class="license-dialog">
+    <form method="dialog" class="license-panel">
+      <div class="license-panel__header">
+        <img src="../assets/icons/macos/256x256.png" alt="" width="44" height="44">
+        <div>
+          <h3>Orange Fuji</h3>
+          <p id="license-status-copy">Your trial is active.</p>
+        </div>
+      </div>
+      <label class="license-field">License email
+        <input type="email" id="license-email-input" placeholder="you@example.com" autocomplete="email">
+      </label>
+      <p class="license-message" id="license-message"></p>
+      <div class="license-actions">
+        <button type="button" class="btn btn-secondary" id="license-buy">Buy license</button>
+        <button type="button" class="btn btn-primary" id="license-activate">Activate</button>
+      </div>
+    </form>
+  </dialog>
+
   <div class="app-tooltip" id="app-tooltip" aria-hidden="true"></div>
 
   <script src="renderer.js"></script>

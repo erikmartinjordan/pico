@@ -414,19 +414,21 @@ body.has-content .toolbar-group.capture-modes + .toolbar-separator {
   background: transparent;
   -webkit-user-select: none;
   color: #1d1d1f;
+  overflow: hidden;
 }
 
 .preferences-window .preferences-panel {
   width: 100%;
-  min-height: 100%;
+  height: 100%;
   border: 0;
   border-radius: 0;
   background: transparent;
-  padding: 46px 22px 20px;
-  gap: 10px;
+  padding: 48px 24px 24px;
+  gap: 12px;
   box-shadow: none;
   color: #1d1d1f;
   position: relative;
+  overflow: hidden;
 }
 
 .preferences-titlebar {
@@ -439,8 +441,9 @@ body.has-content .toolbar-group.capture-modes + .toolbar-separator {
 .preferences-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 4px;
+  gap: 14px;
+  margin-bottom: 0;
+  flex: 0 0 auto;
   -webkit-app-region: drag;
 }
 
@@ -467,19 +470,20 @@ body.has-content .toolbar-group.capture-modes + .toolbar-separator {
 }
 
 .preferences-group {
-  border: 1px solid rgba(60, 60, 67, 0.16);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.42);
-  box-shadow: 0 1px 0 rgba(255,255,255,0.62) inset;
+  border: 1px solid rgba(60, 60, 67, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.48);
+  box-shadow: 0 0.5px 0 rgba(255,255,255,0.66) inset;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  flex: 0 0 auto;
 }
 
 .preferences-window .preferences-group > label {
-  min-height: 42px;
-  padding: 10px 12px;
-  border-bottom: 1px solid rgba(60, 60, 67, 0.12);
+  min-height: 40px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(60, 60, 67, 0.10);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -499,10 +503,17 @@ body.has-content .toolbar-group.capture-modes + .toolbar-separator {
 }
 
 .preferences-window .preferences-panel select {
-  border-color: rgba(60, 60, 67, 0.22);
+  min-width: 92px;
+  height: 24px;
+  border: 1px solid rgba(60, 60, 67, 0.20);
+  border-radius: 5px;
+  padding: 0 6px;
   background: rgba(255, 255, 255, 0.46);
   color: #1d1d1f;
+  font-size: 12px;
+  font-weight: 500;
   -webkit-app-region: no-drag;
+  appearance: auto;
 }
 
 .preferences-window .preferences-panel input[type="checkbox"] {
@@ -523,8 +534,8 @@ body.has-content .toolbar-group.capture-modes + .toolbar-separator {
 .preferences-field {
   display: flex;
   flex-direction: column;
-  gap: 11px;
-  padding: 13px 12px 12px;
+  gap: 8px;
+  padding: 12px;
 }
 
 .preferences-field label {
@@ -536,69 +547,121 @@ body.has-content .toolbar-group.capture-modes + .toolbar-separator {
 }
 
 .preferences-field p {
-  margin-top: 3px;
-  font-size: 11px;
-  line-height: 1.45;
-  color: rgba(60, 60, 67, 0.72);
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: rgba(60, 60, 67, 0.68);
 }
 
 .path-picker {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.path-picker input {
+.path-picker-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.license-settings-activation {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.license-settings-actions {
+  display: flex;
+  justify-content: flex-start;
+  gap: 6px;
+}
+
+.path-picker input,
+.license-settings-activation input {
   min-width: 0;
-  border: 1px solid rgba(60, 60, 67, 0.22);
-  border-radius: 6px;
-  padding: 5px 8px;
-  background: rgba(255, 255, 255, 0.34);
-  color: #1d1d1f;
-  font: inherit;
-  font-size: 11px;
-  height: 28px;
-  box-shadow: 0 1px 0 rgba(255,255,255,0.46) inset;
-}
-
-.path-picker button {
-  min-width: 58px;
-  height: 28px;
-  border: 1px solid rgba(60, 60, 67, 0.24);
-  border-radius: 6px;
-  padding: 0 10px;
-  background:
-    linear-gradient(180deg, rgba(255,255,255,0.72), rgba(255,255,255,0.46));
+  border: 1px solid rgba(60, 60, 67, 0.18);
+  border-radius: 5px;
+  padding: 0 8px;
+  background: rgba(255, 255, 255, 0.36);
   color: #1d1d1f;
   font: inherit;
   font-size: 12px;
-  font-weight: 590;
+  height: 24px;
+  box-shadow: 0 0.5px 0 rgba(255,255,255,0.48) inset;
+}
+
+.path-picker button,
+.license-settings-header button,
+.license-settings-actions button,
+.license-settings-activation button {
+  min-width: 58px;
+  height: 24px;
+  border: 1px solid rgba(60, 60, 67, 0.22);
+  border-radius: 5px;
+  padding: 0 10px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.68), rgba(255,255,255,0.42));
+  color: #1d1d1f;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
   -webkit-app-region: no-drag;
   box-shadow:
-    0 1px 0 rgba(255,255,255,0.72) inset,
-    0 1px 1px rgba(0,0,0,0.05);
+    0 0.5px 0 rgba(255,255,255,0.72) inset,
+    0 0.5px 0.5px rgba(0,0,0,0.04);
 }
 
 .path-picker button.secondary {
   min-width: 50px;
-  color: rgba(60, 60, 67, 0.76);
+  color: rgba(60, 60, 67, 0.72);
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.54), rgba(255,255,255,0.30));
+    linear-gradient(180deg, rgba(255,255,255,0.50), rgba(255,255,255,0.26));
 }
 
-.path-picker button:hover {
-  border-color: rgba(60, 60, 67, 0.30);
+.license-settings-actions button.secondary {
+  min-width: 72px;
+  color: rgba(60, 60, 67, 0.72);
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.82), rgba(255,255,255,0.56));
+    linear-gradient(180deg, rgba(255,255,255,0.50), rgba(255,255,255,0.26));
 }
 
-.path-picker button:active {
+@media (max-width: 460px) {
+  .license-settings-activation {
+    grid-template-columns: 1fr;
+  }
+
+  .path-picker-actions {
+    justify-content: flex-end;
+  }
+}
+
+.path-picker button:hover,
+.license-settings-header button:hover,
+.license-settings-actions button:hover,
+.license-settings-activation button:hover {
+  border-color: rgba(60, 60, 67, 0.28);
   background:
-    linear-gradient(180deg, rgba(225,225,230,0.52), rgba(255,255,255,0.42));
+    linear-gradient(180deg, rgba(255,255,255,0.78), rgba(255,255,255,0.52));
+}
+
+.path-picker button:active,
+.license-settings-header button:active,
+.license-settings-actions button:active,
+.license-settings-activation button:active {
+  background:
+    linear-gradient(180deg, rgba(225,225,230,0.48), rgba(255,255,255,0.38));
   box-shadow:
-    0 1px 2px rgba(0,0,0,0.08) inset,
-    0 1px 0 rgba(255,255,255,0.48);
+    0 0.5px 1.5px rgba(0,0,0,0.08) inset,
+    0 0.5px 0 rgba(255,255,255,0.48);
+}
+
+.preferences-field p.error {
+  color: #c41e1e;
+}
+
+.preferences-field p.success {
+  color: #1e8a3e;
 }
 
 .preferences-actions {
@@ -651,9 +714,15 @@ body.has-content .toolbar-group.capture-modes + .toolbar-separator {
   }
 
   .preferences-window .preferences-panel select {
-    border-color: rgba(255,255,255,0.16);
+    min-width: 92px;
+    height: 24px;
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 5px;
+    padding: 0 6px;
     background: rgba(40,42,48,0.82);
     color: #f0ede8;
+    font-size: 12px;
+    font-weight: 500;
   }
 
   .preferences-window .preferences-panel input[type="checkbox"] {
@@ -671,7 +740,7 @@ body.has-content .toolbar-group.capture-modes + .toolbar-separator {
   }
 
   .preferences-window .preferences-panel input[type="checkbox"]:focus-visible {
-    outline-color: rgba(249,115,22,0.55);
+    outline-color: rgba(0, 122, 255, 0.55);
   }
 
   .preferences-field label {
@@ -682,41 +751,75 @@ body.has-content .toolbar-group.capture-modes + .toolbar-separator {
     color: rgba(220,215,210,0.62);
   }
 
-  .path-picker input {
-    border-color: rgba(255,255,255,0.14);
+  .path-picker input,
+  .license-settings-activation input {
+    min-width: 0;
+    height: 24px;
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 5px;
+    padding: 0 8px;
     background: rgba(40,42,48,0.70);
     color: #f0ede8;
-    box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset;
+    font-size: 12px;
+    box-shadow: 0 0.5px 0 rgba(255,255,255,0.06) inset;
   }
 
-  .path-picker button {
-    border-color: rgba(255,255,255,0.14);
+  .path-picker button,
+  .license-settings-actions button,
+  .license-settings-activation button {
+    min-width: 58px;
+    height: 24px;
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 5px;
+    padding: 0 10px;
     background:
       linear-gradient(180deg, rgba(255,255,255,0.16), rgba(255,255,255,0.08));
     color: #f0ede8;
+    font-size: 12px;
+    font-weight: 500;
     box-shadow:
-      0 1px 0 rgba(255,255,255,0.08) inset,
-      0 1px 1px rgba(0,0,0,0.22);
+      0 0.5px 0 rgba(255,255,255,0.08) inset,
+      0 0.5px 0.5px rgba(0,0,0,0.18);
   }
 
   .path-picker button.secondary {
+    min-width: 50px;
     color: rgba(220,215,210,0.60);
     background:
       linear-gradient(180deg, rgba(255,255,255,0.11), rgba(255,255,255,0.05));
   }
 
-  .path-picker button:hover {
+  .license-settings-actions button.secondary {
+    min-width: 72px;
+    color: rgba(220,215,210,0.60);
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.11), rgba(255,255,255,0.05));
+  }
+
+  .path-picker button:hover,
+  .license-settings-actions button:hover,
+  .license-settings-activation button:hover {
     border-color: rgba(255,255,255,0.20);
     background:
       linear-gradient(180deg, rgba(255,255,255,0.20), rgba(255,255,255,0.11));
   }
 
-  .path-picker button:active {
+  .path-picker button:active,
+  .license-settings-actions button:active,
+  .license-settings-activation button:active {
     background:
       linear-gradient(180deg, rgba(0,0,0,0.16), rgba(255,255,255,0.08));
     box-shadow:
       0 1px 2px rgba(0,0,0,0.22) inset,
       0 1px 0 rgba(255,255,255,0.04);
+  }
+
+  .preferences-field p.error {
+    color: #fca5a5;
+  }
+
+  .preferences-field p.success {
+    color: #86efac;
   }
 
   .preferences-actions button {
@@ -735,9 +838,102 @@ body.has-content .toolbar-group.capture-modes + .toolbar-separator {
     border-color: rgba(255,255,255,0.14);
   }
 
-  .preferences-dialog .preferences-actions button:hover {
+.preferences-dialog .preferences-actions button:hover {
     background: rgba(255,255,255,0.18);
   }
+}
+
+.license-dialog {
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.license-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.38);
+}
+
+.license-panel {
+  width: min(360px, calc(100vw - 32px));
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 12px;
+  background: rgba(21, 22, 26, 0.98);
+  color: #f5f0eb;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 22px 54px rgba(0,0,0,0.58);
+}
+
+.license-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.license-panel__header img {
+  width: 44px;
+  height: 44px;
+  border-radius: 9px;
+}
+
+.license-panel__header h3 {
+  font-size: 15px;
+  font-weight: 780;
+  line-height: 1.2;
+}
+
+.license-panel__header p {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: rgba(255,255,255,0.62);
+}
+
+.license-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.78);
+}
+
+.license-field input {
+  height: 34px;
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 8px;
+  padding: 0 10px;
+  background: rgba(255,255,255,0.08);
+  color: #fff;
+  font: inherit;
+  outline: none;
+}
+
+.license-field input:focus {
+  border-color: rgba(249,115,22,0.58);
+  box-shadow: 0 0 0 3px rgba(249,115,22,0.16);
+}
+
+.license-message {
+  min-height: 16px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: rgba(255,255,255,0.58);
+}
+
+.license-message.error {
+  color: #fca5a5;
+}
+
+.license-message.success {
+  color: #86efac;
+}
+
+.license-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .colors {

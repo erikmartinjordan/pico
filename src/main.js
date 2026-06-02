@@ -7,6 +7,7 @@ const { app, BrowserWindow, ipcMain, desktopCapturer, dialog, screen, globalShor
 const { execSync, execFile } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const { tempRecordingPath, convertWebmToMp4, convertMp4ToGif } = require('./pro/recording');
 
 let mainWindow = null;
@@ -36,11 +37,22 @@ const EDITOR_MIN_SIZE = { width: 900, height: 600 };
 
 const SETTINGS_FILE = 'settings.json';
 const PRODUCT_NAME = 'Orange Fuji';
+const TRIAL_DAYS = 30;
+const LICENSE_CHECK_INTERVAL_DAYS = 7;
+const BUY_LICENSE_URL = 'https://buy.stripe.com/test_00w00ka8w3Us4cb5z6bQY00';
+const LICENSE_API_BASE_URL = 'https://xnppcugncigaiycrvmpk.supabase.co/functions/v1';
+const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_UF9_SxKlinhz2n0mPIYXGw_92sei9VY';
 // Keep the original userData directory so existing settings survive the rename.
 const LEGACY_USER_DATA_NAME = 'pico';
 const DEFAULT_SETTINGS = {
   defaultSavePath: '',
   hideDesktopIcons: true,
+  trialStartedAt: '',
+  deviceId: '',
+  licenseEmail: '',
+  licenseStatus: '',
+  licenseActivationId: '',
+  licenseLastValidatedAt: '',
 };
 
 function applyLegacyUserDataPath() {
@@ -60,6 +72,12 @@ function normalizeSettings(candidate = {}) {
   return {
     defaultSavePath: typeof candidate.defaultSavePath === 'string' ? candidate.defaultSavePath : DEFAULT_SETTINGS.defaultSavePath,
     hideDesktopIcons: typeof candidate.hideDesktopIcons === 'boolean' ? candidate.hideDesktopIcons : DEFAULT_SETTINGS.hideDesktopIcons,
+    trialStartedAt: typeof candidate.trialStartedAt === 'string' ? candidate.trialStartedAt : DEFAULT_SETTINGS.trialStartedAt,
+    deviceId: typeof candidate.deviceId === 'string' ? candidate.deviceId : DEFAULT_SETTINGS.deviceId,
+    licenseEmail: typeof candidate.licenseEmail === 'string' ? candidate.licenseEmail : DEFAULT_SETTINGS.licenseEmail,
+    licenseStatus: typeof candidate.licenseStatus === 'string' ? candidate.licenseStatus : DEFAULT_SETTINGS.licenseStatus,
+    licenseActivationId: typeof candidate.licenseActivationId === 'string' ? candidate.licenseActivationId : DEFAULT_SETTINGS.licenseActivationId,
+    licenseLastValidatedAt: typeof candidate.licenseLastValidatedAt === 'string' ? candidate.licenseLastValidatedAt : DEFAULT_SETTINGS.licenseLastValidatedAt,
   };
 }
 
@@ -68,9 +86,6 @@ function readSettings() {
     if (!fs.existsSync(settingsPath())) return { ...DEFAULT_SETTINGS };
     const rawSettings = JSON.parse(fs.readFileSync(settingsPath(), 'utf8'));
     const settings = normalizeSettings(rawSettings);
-    if (Object.prototype.hasOwnProperty.call(rawSettings, 'trialStartedAt')) {
-      fs.writeFileSync(settingsPath(), JSON.stringify(settings, null, 2));
-    }
     return settings;
   } catch (error) {
     console.error('[orange-fuji] failed to read settings:', error.message);
@@ -83,6 +98,125 @@ function writeSettings(nextSettings = {}) {
   fs.mkdirSync(path.dirname(settingsPath()), { recursive: true });
   fs.writeFileSync(settingsPath(), JSON.stringify(settings, null, 2));
   return settings;
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function addDays(date, days) {
+  return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
+}
+
+function parseDate(value) {
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date : null;
+}
+
+function ensureLocalLicenseSettings() {
+  const settings = readSettings();
+  const next = {};
+  if (!settings.trialStartedAt) next.trialStartedAt = nowIso();
+  if (!settings.deviceId) next.deviceId = crypto.randomUUID();
+  return Object.keys(next).length ? writeSettings(next) : settings;
+}
+
+function trialStateFromSettings(settings) {
+  const startedAt = parseDate(settings.trialStartedAt) || new Date();
+  const expiresAt = addDays(startedAt, TRIAL_DAYS);
+  const now = new Date();
+  const remainingMs = expiresAt.getTime() - now.getTime();
+  return {
+    startedAt: startedAt.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+    daysRemaining: Math.max(0, Math.ceil(remainingMs / (24 * 60 * 60 * 1000))),
+    expired: remainingMs <= 0,
+  };
+}
+
+function shouldValidateLicense(settings) {
+  if (settings.licenseStatus !== 'active' || !settings.licenseEmail) return false;
+  const lastValidatedAt = parseDate(settings.licenseLastValidatedAt);
+  if (!lastValidatedAt) return true;
+  return Date.now() - lastValidatedAt.getTime() >= LICENSE_CHECK_INTERVAL_DAYS * 24 * 60 * 60 * 1000;
+}
+
+async function callLicenseApi(endpoint, payload) {
+  const response = await fetch(`${LICENSE_API_BASE_URL}/${endpoint}`, {
+    method: 'POST',
+    headers: {
+      apikey: SUPABASE_PUBLISHABLE_KEY,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.ok === false) {
+    const error = new Error(data.error || `license_${endpoint}_failed`);
+    error.status = response.status;
+    throw error;
+  }
+  return data;
+}
+
+async function validateLicenseIfNeeded(settings) {
+  if (!shouldValidateLicense(settings)) return settings;
+  try {
+    const result = await callLicenseApi('validateLicense', {
+      email: settings.licenseEmail,
+      deviceId: settings.deviceId,
+      appVersion: app.getVersion(),
+    });
+    return writeSettings({
+      licenseStatus: result.status || 'active',
+      licenseActivationId: result.activationId || settings.licenseActivationId,
+      licenseLastValidatedAt: result.validatedAt || nowIso(),
+    });
+  } catch (error) {
+    console.error('[orange-fuji][license] validation failed:', error.message);
+    return settings;
+  }
+}
+
+async function getLicenseState() {
+  let settings = ensureLocalLicenseSettings();
+  settings = await validateLicenseIfNeeded(settings);
+  const trial = trialStateFromSettings(settings);
+  const licensed = settings.licenseStatus === 'active';
+  return {
+    trial,
+    licensed,
+    email: settings.licenseEmail,
+    status: licensed ? 'licensed' : (trial.expired ? 'trial-expired' : 'trial-active'),
+    buyUrl: BUY_LICENSE_URL,
+    checkIntervalDays: LICENSE_CHECK_INTERVAL_DAYS,
+  };
+}
+
+async function activateLicense(email) {
+  const settings = ensureLocalLicenseSettings();
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (!normalizedEmail) throw new Error('Email is required.');
+
+  const result = await callLicenseApi('activateLicense', {
+    email: normalizedEmail,
+    deviceId: settings.deviceId,
+    appVersion: app.getVersion(),
+  });
+
+  writeSettings({
+    licenseEmail: normalizedEmail,
+    licenseStatus: result.status || 'active',
+    licenseActivationId: result.activationId || settings.deviceId,
+    licenseLastValidatedAt: result.validatedAt || nowIso(),
+  });
+
+  return getLicenseState();
+}
+
+async function hasUsageEntitlement() {
+  const state = await getLicenseState();
+  return state.licensed || !state.trial.expired;
 }
 
 function configuredDefaultSaveDirectory() {
@@ -401,7 +535,7 @@ function openPreferencesWindow() {
 
   preferencesWindow = new BrowserWindow({
     width: 520,
-    height: 380,
+    height: 520,
     resizable: false,
     minimizable: false,
     maximizable: false,
@@ -1604,6 +1738,11 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
 async function captureRegion(options = {}) {
   notifyRendererCaptureModeStarted();
   try {
+    if (!await hasUsageEntitlement()) {
+      notifyRendererCaptureFinished();
+      if (mainWindow) showMainWindowForCurrentMode();
+      return { success: false, error: 'Trial expired. Activate a license to continue.' };
+    }
     if (!await ensureMacScreenRecordingPermission()) {
       notifyRendererCaptureFinished();
       if (mainWindow) showMainWindowForCurrentMode();
@@ -1666,6 +1805,11 @@ ipcMain.handle('start-capture', async (event, options = {}) => {
 
 ipcMain.handle('start-capture-window', async (event, options = {}) => {
   notifyRendererCaptureModeStarted();
+  if (!await hasUsageEntitlement()) {
+    notifyRendererCaptureFinished();
+    if (mainWindow) showMainWindowForCurrentMode();
+    return { success: false, error: 'Trial expired. Activate a license to continue.' };
+  }
   if (mainWindow && !mainWindow.isDestroyed()) {
     if (process.platform === 'darwin') mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     mainWindow.setAlwaysOnTop(true, process.platform === 'darwin' ? 'screen-saver' : 'normal');
@@ -1706,6 +1850,11 @@ ipcMain.handle('start-capture-window', async (event, options = {}) => {
 
 ipcMain.handle('start-capture-fullscreen', async (event, options = {}) => {
   notifyRendererCaptureModeStarted();
+  if (!await hasUsageEntitlement()) {
+    notifyRendererCaptureFinished();
+    if (mainWindow) showMainWindowForCurrentMode();
+    return { success: false, error: 'Trial expired. Activate a license to continue.' };
+  }
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.hide();
   }
@@ -1868,6 +2017,15 @@ ipcMain.on('window-source-cancel', () => {
 ipcMain.handle('get-settings', async () => readSettings());
 
 ipcMain.handle('save-settings', async (event, nextSettings = {}) => writeSettings(nextSettings));
+
+ipcMain.handle('get-license-state', async () => getLicenseState());
+
+ipcMain.handle('activate-license', async (event, email) => activateLicense(email));
+
+ipcMain.handle('open-buy-license', async () => {
+  await shell.openExternal(BUY_LICENSE_URL);
+  return { success: true };
+});
 
 ipcMain.handle('open-native-preferences', async () => {
   openPreferencesWindow();
@@ -2059,6 +2217,9 @@ function chooseRecordingWindowSource() {
 }
 
 ipcMain.handle('pro-recording-source', async (event, options = {}) => {
+  if (!await hasUsageEntitlement()) {
+    throw new Error('Trial expired. Activate a license to continue.');
+  }
   if (!await ensureMacScreenRecordingPermission()) {
     throw new Error('Screen Recording permission is required.');
   }
@@ -2248,6 +2409,7 @@ function setupTray() {
 applyLegacyUserDataPath();
 
 app.whenReady().then(() => {
+  ensureLocalLicenseSettings();
   setupRecordingDisplayMediaHandler();
   createMainWindow();
   setupTray();

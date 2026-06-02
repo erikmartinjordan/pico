@@ -4,6 +4,11 @@ const hideDesktopIconsSetting = document.querySelector('#hide-desktop-icons-sett
 const defaultSavePathSetting = document.querySelector('#default-save-path-setting');
 const chooseDefaultSavePathSetting = document.querySelector('#choose-default-save-path-setting');
 const clearDefaultSavePathSetting = document.querySelector('#clear-default-save-path-setting');
+const licenseStatusSetting = document.querySelector('#license-status-setting');
+const licenseEmailSetting = document.querySelector('#license-email-setting');
+const buyLicenseSetting = document.querySelector('#buy-license-setting');
+const activateLicenseSetting = document.querySelector('#activate-license-setting');
+
 
 const settings = {
   format: 'mp4',
@@ -39,6 +44,43 @@ async function loadSettings() {
   defaultSavePathSetting.value = settings.defaultSavePath;
 }
 
+function setLicenseMessage(message = '', type = '') {
+  if (!licenseStatusSetting) return;
+  licenseStatusSetting.textContent = message;
+  licenseStatusSetting.classList.toggle('error', type === 'error');
+  licenseStatusSetting.classList.toggle('success', type === 'success');
+}
+
+function renderLicenseState(state) {
+  if (!state || !licenseStatusSetting) return;
+  if (licenseEmailSetting && state.email) licenseEmailSetting.value = state.email;
+
+  if (state.licensed) {
+    licenseStatusSetting.textContent = `Active license for ${state.email}`;
+    setLicenseMessage('License active.', 'success');
+    return;
+  }
+
+  if (state.trial?.expired) {
+    licenseStatusSetting.textContent = 'Trial ended. Activate a license to continue.';
+    setLicenseMessage('', '');
+    return;
+  }
+
+  const days = state.trial?.daysRemaining ?? 0;
+  licenseStatusSetting.textContent = `${days} day${days === 1 ? '' : 's'} left in your trial.`;
+  setLicenseMessage('', '');
+}
+
+async function loadLicenseState() {
+  try {
+    renderLicenseState(await window.pico.getLicenseState());
+  } catch (error) {
+    if (licenseStatusSetting) licenseStatusSetting.textContent = 'Could not load license status.';
+    setLicenseMessage(error?.message || 'License status unavailable.', 'error');
+  }
+}
+
 async function saveSettings() {
   localStorage.setItem(RECORDING_SETTINGS_KEY, JSON.stringify(settings));
   localStorage.removeItem(LEGACY_RECORDING_SETTINGS_KEY);
@@ -64,6 +106,7 @@ hideDesktopIconsSetting.addEventListener('change', () => {
 });
 
 document.addEventListener('DOMContentLoaded', loadSettings);
+document.addEventListener('DOMContentLoaded', loadLicenseState);
 
 chooseDefaultSavePathSetting.addEventListener('click', async () => {
   const result = await window.pico.chooseDefaultSavePath(settings.defaultSavePath);
@@ -78,4 +121,27 @@ clearDefaultSavePathSetting.addEventListener('click', () => {
   settings.defaultSavePath = '';
   defaultSavePathSetting.value = '';
   saveSettings();
+});
+
+buyLicenseSetting?.addEventListener('click', () => {
+  window.pico.openBuyLicense?.();
+});
+
+activateLicenseSetting?.addEventListener('click', async () => {
+  const email = licenseEmailSetting?.value || '';
+  setLicenseMessage('Activating...', '');
+  activateLicenseSetting.disabled = true;
+  try {
+    renderLicenseState(await window.pico.activateLicense(email));
+  } catch (error) {
+    const message = String(error?.message || 'Activation failed.');
+    const readable = message === 'license_not_found'
+      ? 'No active license was found for that email.'
+      : message === 'activation_limit_reached'
+        ? 'This license has reached its 2-device activation limit.'
+        : message;
+    setLicenseMessage(readable, 'error');
+  } finally {
+    activateLicenseSetting.disabled = false;
+  }
 });
