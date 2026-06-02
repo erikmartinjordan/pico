@@ -2418,27 +2418,14 @@ function setupTray() {
   tray.setToolTip('Orange Fuji');
 
   const trayMenu = Menu.buildFromTemplate([
-    {
-      label: 'Open Orange Fuji',
-      click: () => {
-        if (!mainWindow || mainWindow.isDestroyed()) createMainWindow();
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          const sendOpenRequest = () => mainWindow?.webContents.send('toolbar-open-requested');
-          if (mainWindow.webContents.isLoading()) mainWindow.webContents.once('did-finish-load', sendOpenRequest);
-          else sendOpenRequest();
-        }
-        showMainWindowForCurrentMode();
-      },
-    },
+    { label: 'About OrangeFuji', click: showAboutDialog },
+    { type: 'separator' },
+    { label: 'Preferences...', click: () => openPreferencesWindow() },
     { type: 'separator' },
     { label: 'Capture Region\t⌘⇧S', click: () => mainWindow?.webContents.send('trigger-capture') },
     { label: 'Capture Window', click: () => mainWindow?.webContents.send('trigger-capture-window') },
     { label: 'Capture Fullscreen', click: () => mainWindow?.webContents.send('trigger-capture-fullscreen') },
     { label: 'Record Screen', click: () => mainWindow?.webContents.send('trigger-record-screen') },
-    { type: 'separator' },
-    { label: 'Preferences', click: () => openPreferencesWindow() },
-    { type: 'separator' },
-    { label: 'About Orange Fuji', click: showAboutDialog },
     { type: 'separator' },
     { label: 'Quit', role: 'quit' },
   ]);
