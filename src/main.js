@@ -1476,39 +1476,9 @@ function showAboutDialog() {
   aboutWin.setMenuBarVisibility(false);
 }
 
-function createMainWindow() {
-  mainWindowMode = 'toolbar';
-  const openOrangeFujiWindow = () => {
-    if (!mainWindow || mainWindow.isDestroyed()) createMainWindow();
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      const sendOpenRequest = () => mainWindow?.webContents.send('toolbar-open-requested');
-      if (mainWindow.webContents.isLoading()) mainWindow.webContents.once('did-finish-load', sendOpenRequest);
-      else sendOpenRequest();
-      showMainWindowForCurrentMode();
-    }
-  };
-  const triggerCaptureRegion = () => {
-    openOrangeFujiWindow();
-    mainWindow.webContents.send('trigger-capture');
-  };
-  const menu = Menu.buildFromTemplate([
-    {
-      label: 'File',
-      submenu: [
-        { label: 'Open Orange Fuji', click: openOrangeFujiWindow },
-        { type: 'separator' },
-        { label: 'Capture Region', click: triggerCaptureRegion },
-        { label: 'Capture Window', click: () => mainWindow?.webContents.send('trigger-capture-window') },
-        { label: 'Capture Fullscreen', click: () => mainWindow?.webContents.send('trigger-capture-fullscreen') },
-        { type: 'separator' },
-        { label: 'Preferences', accelerator: 'CommandOrControl+,', click: () => openPreferencesWindow() },
-        { type: 'separator' },
-        { role: 'quit' },
-      ],
-    },
-  ]);
-  Menu.setApplicationMenu(menu);
-
+function createMainWindow(focusOnReady = false) {
+  if (mainWindow && !mainWindow.isDestroyed()) return;
+  const pkg = require(path.join(__dirname, '..', 'package.json'));
   const toolbarBounds = getToolbarWindowBounds();
   mainWindow = new BrowserWindow({
     ...toolbarBounds,
@@ -1549,7 +1519,14 @@ function createMainWindow() {
   if (process.platform === 'darwin') {
     try { mainWindow.setWindowButtonVisibility(false); } catch (_) {}
   }
-  mainWindow.once('ready-to-show', () => showMainWindowForCurrentMode());
+  mainWindow.once('ready-to-show', () => {
+    showMainWindowForCurrentMode();
+    if (focusOnReady) {
+      mainWindow.show();
+      mainWindow.focus();
+      mainWindow.webContents.send('toolbar-open-requested');
+    }
+  });
   mainWindow.webContents.on('did-finish-load', () => console.log('[orange-fuji][main] did-finish-load'));
   mainWindow.webContents.on('render-process-gone', (_, details) => console.error('[orange-fuji][main] render-process-gone', details));
   mainWindow.webContents.on('did-fail-load', (_, code, desc) => console.error('[orange-fuji][main] did-fail-load', code, desc));
@@ -2419,7 +2396,7 @@ function setupTray() {
   tray.setToolTip('Orange Fuji');
 
   const trayMenu = Menu.buildFromTemplate([
-    { label: 'About OrangeFuji', click: showAboutDialog },
+    { label: 'Open', click: () => { if (!mainWindow || mainWindow.isDestroyed()) { createMainWindow(true); } else { applyToolbarWindowMode({ show: true }); mainWindow.show(); mainWindow.focus(); } mainWindow?.webContents?.send('toolbar-open-requested'); } },
     { type: 'separator' },
     { label: 'Preferences...', click: () => openPreferencesWindow() },
     { type: 'separator' },
@@ -2427,6 +2404,8 @@ function setupTray() {
     { label: 'Capture Window', click: () => mainWindow?.webContents.send('trigger-capture-window') },
     { label: 'Capture Fullscreen', click: () => mainWindow?.webContents.send('trigger-capture-fullscreen') },
     { label: 'Record Screen', click: () => mainWindow?.webContents.send('trigger-record-screen') },
+    { type: 'separator' },
+    { label: 'About', click: showAboutDialog },
     { type: 'separator' },
     { label: 'Quit', role: 'quit' },
   ]);

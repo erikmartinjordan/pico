@@ -13,6 +13,11 @@
     align-items: center;
     justify-content: center;
     padding: 50px 34px 34px;
+    -webkit-app-region: drag;
+  }
+  .about-container img,
+  .about-container .name {
+    -webkit-app-region: no-drag;
   }
   .about-container img {
     display: block;
@@ -48,7 +53,6 @@
 </style>
 </head>
 <body class="preferences-window">
-  <div class="preferences-titlebar"></div>
   <div class="about-container">
     <img id="icon" alt="Orange Fuji icon">
     <div class="name">Orange Fuji</div>
