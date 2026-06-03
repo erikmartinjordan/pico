@@ -1251,6 +1251,15 @@ function showRecordingIndicator(options = {}) {
       overlayWindow.setContentProtection(true);
       overlayWindow.setIgnoreMouseEvents(true, { forward: true });
 
+      overlayWindow.webContents.on('dom-ready', async () => {
+        if (overlayWindow.isDestroyed()) return;
+        await overlayWindow.webContents.insertCSS(`
+          * {
+            cursor: none !important;
+          }
+        `);
+      });
+
       overlayWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`
       <!DOCTYPE html>
       <html>
@@ -1654,7 +1663,7 @@ async function captureAllScreens() {
 async function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) {
     const displays = screen.getAllDisplays();
     const readyPromises = [];
-    const isDarwinCaptureOverlay = process.platform === 'darwin';
+    const isRecordingRegionOverlay = process.platform === 'darwin' && mode === 'record-region';
   
     displays.forEach((display) => {
       const win = new BrowserWindow({
@@ -1672,11 +1681,7 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
         movable: false,
         fullscreenable: true,
         enableLargerThanScreen: true,
-        // Match Kap's region picker approach on macOS: the overlay accepts
-        // mouse input but never becomes the focused app/window, so the target
-        // browser remains visually active while the selection UI floats above it.
-        acceptFirstMouse: isDarwinCaptureOverlay,
-        focusable: !isDarwinCaptureOverlay,
+        ...(isRecordingRegionOverlay ? { acceptFirstMouse: true } : {}),
         show: false,
         webPreferences: {
           preload: path.join(__dirname, 'preload.js'),
@@ -1698,7 +1703,7 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
             x: display.bounds.x, y: display.bounds.y,
             width: display.bounds.width, height: display.bounds.height,
           });
-          if (isDarwinCaptureOverlay) win.showInactive();
+          if (isRecordingRegionOverlay) win.showInactive();
           else win.show();
   
           const screenData = captureData.type === 'multi'

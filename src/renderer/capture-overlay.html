@@ -11,14 +11,11 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
-      cursor: none !important;
+      cursor: default;
     }
-
-    body,
-    #overlay,
-    #canvas,
-    #capture-result {
-      cursor: none !important;
+    
+    body.region-mode {
+      cursor: crosshair;
     }
     
     #overlay {
@@ -86,62 +83,6 @@
     
     #dimensions.visible {
       display: block;
-    }
-
-
-    #custom-cursor {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 28px;
-      height: 28px;
-      pointer-events: none;
-      display: none;
-      opacity: 0;
-      z-index: 90;
-      transform: translate3d(-9999px, -9999px, 0);
-      transition: opacity 80ms linear;
-      will-change: transform, opacity;
-      contain: layout paint style;
-    }
-
-    #custom-cursor.visible {
-      display: block;
-      opacity: 1;
-    }
-
-    #custom-cursor::before,
-    #custom-cursor::after {
-      content: '';
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      background: #f07d20;
-      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.62), 0 0 8px rgba(240, 125, 32, 0.45);
-      transform: translate(-50%, -50%);
-    }
-
-    #custom-cursor::before {
-      width: 28px;
-      height: 2px;
-    }
-
-    #custom-cursor::after {
-      width: 2px;
-      height: 28px;
-    }
-
-    #custom-cursor .custom-cursor-center {
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      width: 6px;
-      height: 6px;
-      border: 1px solid rgba(255, 255, 255, 0.95);
-      border-radius: 999px;
-      background: rgba(240, 125, 32, 0.92);
-      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55);
-      transform: translate(-50%, -50%);
     }
 
     #window-highlight {
@@ -253,7 +194,6 @@
     <canvas id="canvas"></canvas>
     <div id="selection"></div>
     <div id="dimensions"></div>
-    <div id="custom-cursor" aria-hidden="true"><span class="custom-cursor-center"></span></div>
     <div id="window-highlight"></div>
     <div id="window-label"></div>
     <div id="instructions" class="hidden"></div>
@@ -265,7 +205,6 @@
     const ctx = canvas.getContext('2d');
     const selection = document.getElementById('selection');
     const dimensions = document.getElementById('dimensions');
-    const customCursor = document.getElementById('custom-cursor');
     const windowHighlight = document.getElementById('window-highlight');
     const windowLabel = document.getElementById('window-label');
 
@@ -291,13 +230,6 @@
     let currentX = 0;
     let currentY = 0;
     let hoveredWindow = null;
-    let cursorX = -9999;
-    let cursorY = -9999;
-    let lastCursorX = null;
-    let lastCursorY = null;
-    let cursorVisible = false;
-    let cursorRafId = null;
-    let selectionRafId = null;
 
     // Scale factors to map display-relative window bounds to viewport coordinates.
     // The screenshot is stretched to fill the viewport, so window bounds (in display coords)
@@ -442,48 +374,6 @@
       ctx.lineTo(x, y + r);
       ctx.quadraticCurveTo(x, y, x + r, y);
       ctx.closePath();
-    }
-
-
-    function showCustomCursor() {
-      cursorVisible = true;
-      customCursor.classList.add('visible');
-      if (cursorRafId === null) cursorRafId = requestAnimationFrame(renderCustomCursor);
-    }
-
-    function hideCustomCursor() {
-      cursorVisible = false;
-      customCursor.classList.remove('visible');
-    }
-
-    function updateCursorTarget(e) {
-      cursorX = e.clientX;
-      cursorY = e.clientY;
-      showCustomCursor();
-    }
-
-    function renderCustomCursor() {
-      cursorRafId = null;
-      if (!cursorVisible) return;
-
-      // Render directly to the newest mouse sample on the animation frame.
-      // This avoids extra interpolation latency while still syncing DOM writes
-      // with Chromium's compositor for Kap-style smooth region selection.
-      if (cursorX !== lastCursorX || cursorY !== lastCursorY) {
-        customCursor.style.transform = `translate3d(${cursorX - 14}px, ${cursorY - 14}px, 0)`;
-        lastCursorX = cursorX;
-        lastCursorY = cursorY;
-      }
-
-      cursorRafId = requestAnimationFrame(renderCustomCursor);
-    }
-
-    function scheduleSelectionUiUpdate() {
-      if (selectionRafId !== null) return;
-      selectionRafId = requestAnimationFrame(() => {
-        selectionRafId = null;
-        updateSelectionUi();
-      });
     }
 
     function loadImage(src) {
@@ -655,7 +545,6 @@
     }
 
     document.addEventListener('mousedown', (e) => {
-      updateCursorTarget(e);
       if (captureMode === 'window') {
         if (hoveredWindow) {
           // Use native desktopCapturer for pixel-perfect window capture (no frame math needed).
@@ -673,11 +562,10 @@
       startY = currentY = e.clientY;
       selection.classList.add('visible');
       dimensions.classList.add('visible');
-      scheduleSelectionUiUpdate();
+      updateSelectionUi();
     });
 
     document.addEventListener('mousemove', (e) => {
-      updateCursorTarget(e);
       if (captureMode === 'window') {
         const win = findWindowAt(e.clientX, e.clientY);
         if (win !== hoveredWindow) updateWindowHover(win);
@@ -686,16 +574,11 @@
       if (!isSelecting) return;
       currentX = e.clientX;
       currentY = e.clientY;
-      scheduleSelectionUiUpdate();
+      updateSelectionUi();
     });
 
     // Clear hover when mouse leaves this overlay (fixes stuck highlight on multi-monitor)
-    document.addEventListener('mouseenter', (e) => {
-      updateCursorTarget(e);
-    });
-
     document.addEventListener('mouseleave', () => {
-      hideCustomCursor();
       if (captureMode === 'window' && hoveredWindow) {
         updateWindowHover(null);
       }
