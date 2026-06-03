@@ -1162,9 +1162,15 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
+function showWindowInactiveOnMac(win) {
+  if (!win || win.isDestroyed()) return;
+  if (process.platform === 'darwin') win.showInactive();
+  else win.show();
+}
+
 function showRecordingIndicator(options = {}) {
   if (recordingIndicatorWindows.length > 0) {
-    recordingIndicatorWindows.forEach(w => { if (!w.isDestroyed()) w.showInactive(); });
+    recordingIndicatorWindows.forEach(showWindowInactiveOnMac);
     return;
   }
 
@@ -1301,14 +1307,15 @@ function showRecordingIndicator(options = {}) {
     height: controlHeight,
     x: controlsX,
     y: controlsY,
+    ...(process.platform === 'darwin' ? { acceptFirstMouse: true } : {}),
     frame: false,
     transparent: true,
     resizable: false,
     movable: false,
     alwaysOnTop: true,
     skipTaskbar: true,
-    focusable: true,
     hasShadow: false,
+    show: false,
     autoHideMenuBar: true,
     webPreferences: {
       contextIsolation: false,
@@ -1320,6 +1327,10 @@ function showRecordingIndicator(options = {}) {
   controlsWindow.setAlwaysOnTop(true, 'screen-saver');
   controlsWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   controlsWindow.setContentProtection(true);
+
+  controlsWindow.webContents.once('did-finish-load', () => {
+    showWindowInactiveOnMac(controlsWindow);
+  });
 
   controlsWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`
   <!DOCTYPE html>
@@ -1407,7 +1418,8 @@ function showRecordingIndicator(options = {}) {
 
   // Keep Orange Fuji visible when the renderer is showing the selected stream inline.
   if (!options.inlinePreview && mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.minimize();
+    if (process.platform === 'darwin') mainWindow.hide();
+    else mainWindow.minimize();
   }
 }
 
@@ -1642,6 +1654,7 @@ async function captureAllScreens() {
 async function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) {
     const displays = screen.getAllDisplays();
     const readyPromises = [];
+    const isRecordingRegionOverlay = process.platform === 'darwin' && mode === 'record-region';
   
     displays.forEach((display) => {
       const win = new BrowserWindow({
@@ -1659,6 +1672,7 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
         movable: false,
         fullscreenable: true,
         enableLargerThanScreen: true,
+        ...(isRecordingRegionOverlay ? { acceptFirstMouse: true } : {}),
         show: false,
         webPreferences: {
           preload: path.join(__dirname, 'preload.js'),
@@ -1680,7 +1694,8 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
             x: display.bounds.x, y: display.bounds.y,
             width: display.bounds.width, height: display.bounds.height,
           });
-          win.show();
+          if (isRecordingRegionOverlay) win.showInactive();
+          else win.show();
   
           const screenData = captureData.type === 'multi'
             ? captureData.screens.find(s =>
@@ -1743,10 +1758,9 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
         try { mainWindow.setAlwaysOnTop(true, 'screen-saver'); } catch (_) { mainWindow.setAlwaysOnTop(true); }
       }
 
-      if (process.platform === 'darwin') mainWindow.showInactive();
-      else mainWindow.show();
+      showWindowInactiveOnMac(mainWindow);
 
-      if (process.platform === 'darwin') {
+      if (process.platform === 'darwin' && mode !== 'record-region') {
         mainWindow.moveTop();
       }
     }
@@ -2195,7 +2209,8 @@ ipcMain.handle('pro-recording-prepare', async (event, payload = {}) => {
     // selection elevated it to screen-saver. Keep it visible for showcasing.
     if (mainWindow && !mainWindow.isDestroyed()) {
       try { mainWindow.setAlwaysOnTop(true, 'floating'); } catch (_) { mainWindow.setAlwaysOnTop(true); }
-      mainWindow.moveTop();
+      if (process.platform === 'darwin') mainWindow.showInactive();
+      else mainWindow.moveTop();
     }
   }
   return { success: true };
@@ -2213,8 +2228,11 @@ async function chooseRecordingRegionSource(options = {}) {
         applyToolbarWindowMode();
         if (process.platform === 'darwin') mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
         mainWindow.setBounds({ width: TOOLBAR_WINDOW_SIZE.width, height: TOOLBAR_WINDOW_SIZE.height }, false);
-        mainWindow.show();
-        mainWindow.moveTop();
+        if (process.platform === 'darwin') mainWindow.showInactive();
+        else {
+          mainWindow.show();
+          mainWindow.moveTop();
+        }
       }
       await new Promise(r => setTimeout(r, 200));
       if (!await ensureMacScreenRecordingPermission()) {
