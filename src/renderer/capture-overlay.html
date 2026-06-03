@@ -187,6 +187,35 @@
       transform: scale(1);
       opacity: 1;
     }
+
+    #loupe {
+      position: fixed;
+      pointer-events: none;
+      z-index: 9999;
+      display: none;
+      border-radius: 8px;
+      border: 1.5px solid rgba(255,255,255,0.35);
+      box-shadow: 0 4px 24px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,0,0,0.3);
+      overflow: hidden;
+      /* Size: loupe canvas is 120x80, same as element */
+      width: 120px;
+      height: 80px;
+    }
+
+    #loupe-coords {
+      position: fixed;
+      pointer-events: none;
+      z-index: 10000;
+      display: none;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 10px;
+      color: rgba(255,255,255,0.85);
+      background: rgba(0,0,0,0.6);
+      padding: 2px 6px;
+      border-radius: 0 0 7px 7px;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+    }
   </style>
 </head>
 <body>
@@ -199,6 +228,8 @@
     <div id="instructions" class="hidden"></div>
   </div>
   <div id="capture-result"></div>
+  <canvas id="loupe" width="240" height="160"></canvas><!-- 2x retina -->
+  <div id="loupe-coords"></div>
 
   <script>
     const canvas = document.getElementById('canvas');
@@ -207,6 +238,14 @@
     const dimensions = document.getElementById('dimensions');
     const windowHighlight = document.getElementById('window-highlight');
     const windowLabel = document.getElementById('window-label');
+    const loupeCanvas = document.getElementById('loupe');
+    const loupeCtx = loupeCanvas.getContext('2d');
+    const loupeCoords = document.getElementById('loupe-coords');
+    const LOUPE_W = 120;   // CSS px (canvas is 2x: 240x160)
+    const LOUPE_H = 80;
+    const LOUPE_ZOOM = 4;  // 4x magnification
+    const LOUPE_OFFSET_X = 20;  // offset from cursor
+    const LOUPE_OFFSET_Y = 20;
 
     // ── Selector tuning constants ────────────────────────────────────────────
     // Generous padding around detected bounds ensures the window is always
@@ -405,6 +444,90 @@
       repaintOverlay();
     }
 
+    function updateLoupe(mouseX, mouseY) {
+      const isRegionMode = captureMode === 'region' || captureMode === 'record-region';
+      if (!isRegionMode || !screenshotCanvas) {
+        loupeCanvas.style.display = 'none';
+        loupeCoords.style.display = 'none';
+        return;
+      }
+
+      // --- Draw loupe ---
+      // Source region on the screenshot canvas to magnify
+      // LOUPE_W/LOUPE_ZOOM = how many screenshot pixels fit in the loupe
+      const srcW = Math.round(LOUPE_W / LOUPE_ZOOM);
+      const srcH = Math.round(LOUPE_H / LOUPE_ZOOM);
+      const srcX = Math.round(mouseX - srcW / 2);
+      const srcY = Math.round(mouseY - srcH / 2);
+
+      // Clear and draw magnified region (canvas is 2x for retina: 240x160)
+      loupeCtx.clearRect(0, 0, 240, 160);
+      loupeCtx.imageSmoothingEnabled = false; // crisp pixels
+      loupeCtx.drawImage(
+        screenshotCanvas,
+        srcX, srcY, srcW, srcH,
+        0, 0, 240, 160
+      );
+
+      // Draw center crosshair lines on loupe
+      loupeCtx.strokeStyle = 'rgba(255,255,255,0.7)';
+      loupeCtx.lineWidth = 1;
+      loupeCtx.beginPath();
+      loupeCtx.moveTo(120, 0); loupeCtx.lineTo(120, 160); // vertical
+      loupeCtx.moveTo(0, 80);  loupeCtx.lineTo(240, 80);  // horizontal
+      loupeCtx.stroke();
+      // Thin dark shadow pass for contrast
+      loupeCtx.strokeStyle = 'rgba(0,0,0,0.4)';
+      loupeCtx.lineWidth = 0.5;
+      loupeCtx.beginPath();
+      loupeCtx.moveTo(119, 0); loupeCtx.lineTo(119, 160);
+      loupeCtx.moveTo(0, 79);  loupeCtx.lineTo(240, 79);
+      loupeCtx.stroke();
+
+      // --- Position loupe so it never goes off-screen ---
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      let lx = mouseX + LOUPE_OFFSET_X;
+      let ly = mouseY + LOUPE_OFFSET_Y;
+      // Flip left if too close to right edge
+      if (lx + LOUPE_W + 4 > vw) lx = mouseX - LOUPE_W - LOUPE_OFFSET_X;
+      // Flip up if too close to bottom edge
+      if (ly + LOUPE_H + 20 > vh) ly = mouseY - LOUPE_H - LOUPE_OFFSET_Y - 18;
+
+      loupeCanvas.style.left = lx + 'px';
+      loupeCanvas.style.top  = ly + 'px';
+      loupeCanvas.style.display = 'block';
+
+      // --- Coords label ---
+      // Convert viewport px → logical screen coordinates
+      // Use captureData.bounds to map back to real screen coords
+      let labelX = mouseX;
+      let labelY = mouseY;
+      if (captureData?.bounds) {
+        labelX = Math.round(mouseX / window.innerWidth  * captureData.bounds.width  + (captureData.bounds.x || 0));
+        labelY = Math.round(mouseY / window.innerHeight * captureData.bounds.height + (captureData.bounds.y || 0));
+      }
+      // If selecting, show width×height of current rect
+      let label = `${labelX}, ${labelY}`;
+      if (isSelecting) {
+        const rw = Math.abs(currentX - startX);
+        const rh = Math.abs(currentY - startY);
+        if (captureData?.bounds) {
+          const lw = Math.round(rw / window.innerWidth  * captureData.bounds.width);
+          const lh = Math.round(rh / window.innerHeight * captureData.bounds.height);
+          label = `${lw} × ${lh}`;
+        } else {
+          label = `${Math.round(rw)} × ${Math.round(rh)}`;
+        }
+      }
+      loupeCoords.textContent = label;
+      loupeCoords.style.left  = lx + 'px';
+      loupeCoords.style.top   = (ly + LOUPE_H) + 'px';
+      loupeCoords.style.width = LOUPE_W + 'px';
+      loupeCoords.style.textAlign = 'center';
+      loupeCoords.style.display = 'block';
+    }
+
     function findWindowAt(x, y) {
       // Convert viewport coords to display-relative coords for hit testing.
       // Use generous tolerance so hovering near a window boundary triggers it.
@@ -563,18 +686,22 @@
       selection.classList.add('visible');
       dimensions.classList.add('visible');
       updateSelectionUi();
+      updateLoupe(e.clientX, e.clientY);
     });
 
     document.addEventListener('mousemove', (e) => {
       if (captureMode === 'window') {
         const win = findWindowAt(e.clientX, e.clientY);
         if (win !== hoveredWindow) updateWindowHover(win);
+        updateLoupe(e.clientX, e.clientY);
         return;
       }
-      if (!isSelecting) return;
-      currentX = e.clientX;
-      currentY = e.clientY;
-      updateSelectionUi();
+      if (isSelecting) {
+        currentX = e.clientX;
+        currentY = e.clientY;
+        updateSelectionUi();
+      }
+      updateLoupe(e.clientX, e.clientY);
     });
 
     // Clear hover when mouse leaves this overlay (fixes stuck highlight on multi-monitor)
@@ -582,6 +709,8 @@
       if (captureMode === 'window' && hoveredWindow) {
         updateWindowHover(null);
       }
+      loupeCanvas.style.display = 'none';
+      loupeCoords.style.display = 'none';
     });
 
     function getRecordingRegionFromRect(rect) {
@@ -612,6 +741,8 @@
     document.addEventListener('mouseup', () => {
       if (captureMode === 'window' || !isSelecting) return;
       isSelecting = false;
+      loupeCanvas.style.display = 'none';
+      loupeCoords.style.display = 'none';
       const rect = getSelectionRect();
       if (rect.width < 4 || rect.height < 4) return window.pico.captureCancel();
       if (captureMode === 'record-region') {
