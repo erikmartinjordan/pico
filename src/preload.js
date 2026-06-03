@@ -617,6 +617,7 @@ async function startRecording(options = {}) {
     autoZoom: options?.autoZoom !== false,
     hideDesktopIcons: options?.hideDesktopIcons !== false,
     inlinePreview: Boolean(options?.previewVideoId),
+    captureOrangeFuji: options?.captureOrangeFuji === true,
   });
   if (!source) throw new Error('Recording canceled');
   let systemAudio = true;

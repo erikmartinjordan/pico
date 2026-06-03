@@ -2221,24 +2221,46 @@ async function chooseRecordingRegionSource(options = {}) {
 
   const promise = new Promise(async (resolve, reject) => {
     recordingRegionSelection = { resolve, reject, promise: null };
+
     try {
       notifyRendererCaptureModeStarted();
+
+      const shouldCaptureOrangeFuji = options?.captureOrangeFuji === true;
+
+      // Critical: for normal region recording, Orange Fuji must be hidden
+      // BEFORE we take the screenshot used by the crosshair selector.
       if (mainWindow && !mainWindow.isDestroyed()) {
-        lastToolbarBounds = null;
-        applyToolbarWindowMode();
-        if (process.platform === 'darwin') mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-        mainWindow.setBounds({ width: TOOLBAR_WINDOW_SIZE.width, height: TOOLBAR_WINDOW_SIZE.height }, false);
-        if (process.platform === 'darwin') mainWindow.showInactive();
-        else {
-          mainWindow.show();
-          mainWindow.moveTop();
+        if (shouldCaptureOrangeFuji) {
+          lastToolbarBounds = null;
+          applyToolbarWindowMode();
+          if (process.platform === 'darwin') {
+            mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+            mainWindow.showInactive();
+          } else {
+            mainWindow.show();
+            mainWindow.moveTop();
+          }
+        } else {
+          try { mainWindow.setContentProtection(true); } catch (_) {}
+          mainWindow.hide();
         }
       }
-      await new Promise(r => setTimeout(r, 200));
+
+      // Give the OS compositor time to actually remove Orange Fuji
+      // before captureAllScreens() snapshots the desktop.
+      await new Promise((resolve) =>
+        setTimeout(resolve, process.platform === 'darwin' ? 260 : 160)
+      );
+
       if (!await ensureMacScreenRecordingPermission()) {
         throw new Error('Screen Recording permission is required.');
       }
-      const captureData = await withHiddenDesktopIcons({ ...options, hideDesktopIcons: false }, async () => captureAllScreens());
+
+      const captureData = await withHiddenDesktopIcons(
+        { ...options, hideDesktopIcons: false },
+        async () => captureAllScreens()
+      );
+
       await createCaptureOverlays(captureData, 'record-region', []);
     } catch (error) {
       recordingRegionSelection = null;
@@ -2246,6 +2268,7 @@ async function chooseRecordingRegionSource(options = {}) {
       reject(error);
     }
   });
+
   recordingRegionSelection.promise = promise;
   return promise;
 }
