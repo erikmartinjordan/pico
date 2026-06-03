@@ -155,8 +155,12 @@ function createStreamWithCursorSetting(cursor) {
     'region recording must use the temporary record-select overlay before recording starts',
   );
   assert.ok(
-    mainSource.includes("mode === 'record-region' || mode === 'record-select'"),
-    'record-select overlays must use inactive recording overlay presentation on macOS',
+    mainSource.includes("const isRecordingSelector = isDarwinCaptureOverlay && mode === 'record-select'"),
+    'record-select overlays must use the active recording selector presentation on macOS',
+  );
+  assert.ok(
+    /focusable:\s*isRecordingSelector \? true : !isDarwinCaptureOverlay,[\s\S]*acceptFirstMouse:\s*true/.test(mainSource),
+    'record-select overlays must be focusable mouse surfaces without focusing Orange Fuji',
   );
   assert.ok(
     /videoBitsPerSecond:\s*50_000_000/.test(preloadSource),

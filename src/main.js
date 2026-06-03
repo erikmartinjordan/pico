@@ -1654,7 +1654,8 @@ async function captureAllScreens() {
 async function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) {
     const displays = screen.getAllDisplays();
     const readyPromises = [];
-    const isRecordingRegionOverlay = process.platform === 'darwin' && (mode === 'record-region' || mode === 'record-select');
+    const isDarwinCaptureOverlay = process.platform === 'darwin';
+    const isRecordingSelector = isDarwinCaptureOverlay && mode === 'record-select';
   
     displays.forEach((display) => {
       const win = new BrowserWindow({
@@ -1672,7 +1673,8 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
         movable: false,
         fullscreenable: true,
         enableLargerThanScreen: true,
-        ...(isRecordingRegionOverlay ? { acceptFirstMouse: true } : {}),
+        focusable: isRecordingSelector ? true : !isDarwinCaptureOverlay,
+        acceptFirstMouse: true,
         show: false,
         webPreferences: {
           preload: path.join(__dirname, 'preload.js'),
@@ -1694,8 +1696,13 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
             x: display.bounds.x, y: display.bounds.y,
             width: display.bounds.width, height: display.bounds.height,
           });
-          if (isRecordingRegionOverlay) win.showInactive();
-          else win.show();
+          if (isRecordingSelector) {
+            win.show();
+          } else if (process.platform === 'darwin') {
+            win.showInactive();
+          } else {
+            win.show();
+          }
   
           const screenData = captureData.type === 'multi'
             ? captureData.screens.find(s =>
@@ -1749,9 +1756,9 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
   
     await Promise.all(readyPromises);
 
-    // Once overlays are visible, lift the toolbar pill above them without stealing app focus.
-    // Keep record-select as a temporary selector only; the recording UI is shown after selection.
-    if (mode !== 'record-select' && mainWindow && !mainWindow.isDestroyed()) {
+    // Once overlays are visible, lift the toolbar pill above capture overlays,
+    // but never above video recording selection/indicator overlays.
+    if (mode !== 'record-select' && mode !== 'record-region' && mainWindow && !mainWindow.isDestroyed()) {
       applyToolbarWindowMode();
 
       if (process.platform === 'darwin') {
@@ -1761,7 +1768,7 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
 
       showWindowInactiveOnMac(mainWindow);
 
-      if (process.platform === 'darwin' && mode !== 'record-region') {
+      if (process.platform === 'darwin') {
         mainWindow.moveTop();
       }
     }
