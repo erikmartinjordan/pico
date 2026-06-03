@@ -69,21 +69,18 @@ The webhook creates or updates a license for the Checkout email.
 
 ## PRO app build
 
-Set `ORANGE_FUJI_LICENSE_TARGET` as a repository variable before packaging a
-PRO release. Set the remaining values as repository variables or secrets:
+The GitHub release workflow configures PRO automatically before packaging release
+artifacts. For a local PRO build, run:
 
-```text
-ORANGE_FUJI_LICENSE_TARGET=pro
-ORANGE_FUJI_PRO_BUY_LICENSE_URL=https://buy.stripe.com/00w00ka8w3Us4cb5z6bQY00
-ORANGE_FUJI_PRO_LICENSE_API_BASE_URL=https://lfckwzwhaqujmibicxeg.supabase.co/functions/v1
-ORANGE_FUJI_PRO_SUPABASE_PUBLISHABLE_KEY=<production publishable key>
+```bash
+ORANGE_FUJI_LICENSE_TARGET=pro npm run configure-license
+npm run build:desktop
 ```
 
-Then run:
+To restore the local PRE config after a PRO build, run:
 
 ```bash
 npm run configure-license
-npm run build:desktop
 ```
 
 ## App behavior

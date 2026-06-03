@@ -9,6 +9,11 @@ const defaults = {
     licenseApiBaseUrl: 'https://xnppcugncigaiycrvmpk.supabase.co/functions/v1',
     supabasePublishableKey: 'sb_publishable_UF9_SxKlinhz2n0mPIYXGw_92sei9VY',
   },
+  pro: {
+    buyLicenseUrl: 'https://buy.stripe.com/00w00ka8w3Us4cb5z6bQY00',
+    licenseApiBaseUrl: 'https://lfckwzwhaqujmibicxeg.supabase.co/functions/v1',
+    supabasePublishableKey: 'sb_publishable_R8GxNds436XaSRVhHfxOsA_vVe0cEwA',
+  },
 };
 
 const envPrefix = `ORANGE_FUJI_${target.toUpperCase()}`;
