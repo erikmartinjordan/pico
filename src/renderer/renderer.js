@@ -55,7 +55,7 @@ const state = {
   isSavingRecording: false,
   recordingLoop: true,
   recordingPreview: null,
-  recordingSettings: { format: 'mp4', autoZoom: true, autoHideDelay: 0 },
+  recordingSettings: { format: 'mp4', autoZoom: true, autoHideDelay: 0, captureOrangeFuji: false },
   captureSettings: { hideDesktopIcons: true },
 };
 
@@ -69,6 +69,7 @@ const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
 
 let resetToolbarDismissState = () => {};
+let scheduleAutoHideFn = () => {};
 let isCaptureMode = false;
 let recordingPreviewTimelineFrame = null;
 let timelineGenerationAbort = false;
@@ -101,6 +102,7 @@ const elements = {
   recordingFormatSetting: $('#recording-format-setting'),
   recordingAutozoomSetting: $('#recording-autozoom-setting'),
   hideDesktopIconsSetting: $('#hide-desktop-icons-setting'),
+  captureOrangeFujiSetting: $('#capture-orangefuji-setting'),
   btnCaptureRegion: $('#btn-capture-region'),
   btnCaptureWindow: $('#btn-capture-window'),
   btnCaptureFullscreen: $('#btn-capture-fullscreen'),
@@ -304,6 +306,10 @@ function bindToolbar() {
     state.captureSettings.hideDesktopIcons = Boolean(elements.hideDesktopIconsSetting.checked);
     saveRecordingSettings();
   });
+  on(elements.captureOrangeFujiSetting, 'change', () => {
+    state.recordingSettings.captureOrangeFuji = Boolean(elements.captureOrangeFujiSetting.checked);
+    saveRecordingSettings();
+  });
   elements.recordingFormatMenu?.querySelectorAll('[data-format]').forEach((button) => {
     button.addEventListener('click', () => startRecordingWithFormat(button.dataset.format, button.dataset.mode));
   });
@@ -406,9 +412,6 @@ function bindTooltips() {
     const tooltipRect = tooltip.getBoundingClientRect();
     const x = Math.max(8, Math.min(window.innerWidth - tooltipRect.width - 8, rect.left + (rect.width - tooltipRect.width) / 2));
     let y = rect.bottom + 10;
-    if (y + tooltipRect.height > window.innerHeight - 8) {
-      y = Math.max(8, rect.top - tooltipRect.height - 10);
-    }
     tooltip.style.left = `${x}px`;
     tooltip.style.top = `${y}px`;
   };
@@ -504,7 +507,7 @@ function bindIPC() {
   window.pico.onRecordingStopRequested(() => {
     if (state.isRecording) toggleRecording();
   });
-  window.pico.onSettingsChanged?.(() => loadRecordingSettings());
+  window.pico.onSettingsChanged?.(() => { loadRecordingSettings(); scheduleAutoHideFn(); });
   window.pico.onSaveRecordingStarted?.(() => setRecordingSaveProgress(true));
 }
 
@@ -786,6 +789,7 @@ async function startRecordingWithFormat(format = 'mp4', mode = 'region') {
       mode,
       autoZoom: mode === 'region' ? state.recordingSettings.autoZoom : false,
       hideDesktopIcons: state.captureSettings.hideDesktopIcons,
+      captureOrangeFuji: state.recordingSettings.captureOrangeFuji,
     });
     state.isRecording = true;
     state.recordingFormat = normalizedFormat;
@@ -815,11 +819,13 @@ function loadRecordingSettings() {
       state.recordingSettings.autoZoom = parsed?.autoZoom !== false;
       state.recordingSettings.autoHideDelay = typeof parsed?.autoHideDelay === 'number' ? Math.min(Math.max(Math.round(parsed.autoHideDelay), 0), 7) : 0;
       state.captureSettings.hideDesktopIcons = parsed?.hideDesktopIcons !== false;
+      state.recordingSettings.captureOrangeFuji = parsed?.captureOrangeFuji === true;
     }
   } catch (_) {}
   if (elements.recordingFormatSetting) elements.recordingFormatSetting.value = state.recordingSettings.format;
   if (elements.recordingAutozoomSetting) elements.recordingAutozoomSetting.checked = state.recordingSettings.autoZoom;
   if (elements.hideDesktopIconsSetting) elements.hideDesktopIconsSetting.checked = state.captureSettings.hideDesktopIcons;
+  if (elements.captureOrangeFujiSetting) elements.captureOrangeFujiSetting.checked = state.recordingSettings.captureOrangeFuji;
 }
 
 function saveRecordingSettings() {
@@ -2790,9 +2796,11 @@ function initToolbarDismiss() {
   };
 
   resetToolbarDismissState = (options = {}) => restoreToolbar({ animate: false, ...options });
+  scheduleAutoHideFn = scheduleAutoHide;
 
   const autoHide = () => {
     if (hidden || !isFloatingMode()) return;
+    if (state.recordingSettings.captureOrangeFuji && state.isRecording) { scheduleAutoHide(); return; }
     if (dragging) {
       scheduleAutoHide();
       return;
@@ -2801,6 +2809,7 @@ function initToolbarDismiss() {
     toolbar.classList.add('auto-hidden');
     minimizeTimer = window.setTimeout(() => {
       if (!hidden || !isFloatingMode()) return;
+      if (state.recordingSettings.captureOrangeFuji && state.isRecording) return;
       window.pico.minimizeWindow().catch(() => {});
     }, hideAfterAnimationMs);
   };
@@ -2808,6 +2817,7 @@ function initToolbarDismiss() {
   function scheduleAutoHide() {
     window.clearTimeout(hideTimer);
     if (hidden || !isFloatingMode() || isCaptureMode) return;
+    if (state.recordingSettings.captureOrangeFuji && state.isRecording) return;
     const idx = Math.min(Math.max(Math.round(state.recordingSettings.autoHideDelay ?? 0), 0), 7);
     if (idx >= AUTO_HIDE_DELAYS.length - 1) return;
     const delayMs = AUTO_HIDE_DELAYS[idx];

@@ -632,6 +632,7 @@ async function startRecording(options = {}) {
     await ipcRenderer.invoke('pro-recording-prepare', {
       mode: source.mode || mode,
       region: source.mode === 'region' ? source.region : null,
+      captureOrangeFuji: options?.captureOrangeFuji === true,
     });
 
     try {

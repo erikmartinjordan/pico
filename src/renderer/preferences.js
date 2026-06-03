@@ -8,6 +8,7 @@ function sliderValueToLabel(v) {
 const recordingFormatSetting = document.querySelector('#recording-format-setting');
 const recordingAutozoomSetting = document.querySelector('#recording-autozoom-setting');
 const hideDesktopIconsSetting = document.querySelector('#hide-desktop-icons-setting');
+const captureOrangeFujiSetting = document.querySelector('#capture-orangefuji-setting');
 const autoHideDelaySetting = document.querySelector('#auto-hide-delay-setting');
 const autoHideDelaySettingValue = document.querySelector('#auto-hide-delay-setting-value');
 const autoHideSliderUi = autoHideDelaySetting?.closest('.slider-ui');
@@ -24,6 +25,7 @@ const settings = {
   format: 'mp4',
   autoZoom: true,
   hideDesktopIcons: true,
+  captureOrangeFuji: false,
   autoHideDelay: 0,
   defaultSavePath: '',
 };
@@ -40,6 +42,7 @@ async function loadSettings() {
       settings.format = parsed?.format === 'gif' ? 'gif' : 'mp4';
       settings.autoZoom = parsed?.autoZoom !== false;
       settings.hideDesktopIcons = parsed?.hideDesktopIcons !== false;
+      settings.captureOrangeFuji = parsed?.captureOrangeFuji === true;
       settings.autoHideDelay = typeof parsed?.autoHideDelay === 'number' ? Math.min(Math.max(Math.round(parsed.autoHideDelay), 0), 7) : 0;
     }
   } catch (_) {}
@@ -52,6 +55,7 @@ async function loadSettings() {
   recordingFormatSetting.value = settings.format;
   recordingAutozoomSetting.checked = settings.autoZoom;
   hideDesktopIconsSetting.checked = settings.hideDesktopIcons;
+  captureOrangeFujiSetting.checked = settings.captureOrangeFuji;
   autoHideDelaySetting.value = settings.autoHideDelay;
   autoHideDelaySettingValue.textContent = sliderValueToLabel(settings.autoHideDelay);
   if (autoHideSliderUi) autoHideSliderUi.style.setProperty('--track-fill', (settings.autoHideDelay / 7 * 100) + '%');
@@ -117,6 +121,11 @@ recordingAutozoomSetting.addEventListener('change', () => {
 
 hideDesktopIconsSetting.addEventListener('change', () => {
   settings.hideDesktopIcons = Boolean(hideDesktopIconsSetting.checked);
+  saveSettings();
+});
+
+captureOrangeFujiSetting.addEventListener('change', () => {
+  settings.captureOrangeFuji = Boolean(captureOrangeFujiSetting.checked);
   saveSettings();
 });
 

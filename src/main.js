@@ -31,8 +31,8 @@ let mainWindowMode = 'toolbar';
 let lastEditorBounds = null;
 let lastToolbarBounds = null;
 
-const TOOLBAR_WINDOW_SIZE = { width: 340, height: 260 };
-const TOOLBAR_MIN_SIZE = { width: 280, height: 260 };
+const TOOLBAR_WINDOW_SIZE = { width: 260, height: 110 };
+const TOOLBAR_MIN_SIZE = { width: 200, height: 110 };
 const EDITOR_DEFAULT_SIZE = { width: 1200, height: 800 };
 const EDITOR_MIN_SIZE = { width: 900, height: 600 };
 
@@ -573,9 +573,9 @@ function openPreferencesWindow() {
 
   preferencesWindow = new BrowserWindow({
     width: 520,
-    height: 570,
+    height: 605,
     minWidth: 480,
-    minHeight: 570,
+    minHeight: 605,
     resizable: true,
     minimizable: false,
     maximizable: false,
@@ -2188,7 +2188,16 @@ async function hideOrangeFujiWindowsBeforeRecording() {
 
 ipcMain.handle('pro-recording-prepare', async (event, payload = {}) => {
   if (payload?.region) lastRecordingRegion = payload.region;
-  await hideOrangeFujiWindowsBeforeRecording();
+  if (payload?.captureOrangeFuji !== true) {
+    await hideOrangeFujiWindowsBeforeRecording();
+  } else {
+    // Restore main window to its normal always-on-top level after region
+    // selection elevated it to screen-saver. Keep it visible for showcasing.
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      try { mainWindow.setAlwaysOnTop(true, 'floating'); } catch (_) { mainWindow.setAlwaysOnTop(true); }
+      mainWindow.moveTop();
+    }
+  }
   return { success: true };
 });
 
@@ -2200,8 +2209,10 @@ async function chooseRecordingRegionSource(options = {}) {
     try {
       notifyRendererCaptureModeStarted();
       if (mainWindow && !mainWindow.isDestroyed()) {
+        lastToolbarBounds = null;
+        applyToolbarWindowMode();
         if (process.platform === 'darwin') mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-        mainWindow.setAlwaysOnTop(true, process.platform === 'darwin' ? 'screen-saver' : 'normal');
+        mainWindow.setBounds({ width: TOOLBAR_WINDOW_SIZE.width, height: TOOLBAR_WINDOW_SIZE.height }, false);
         mainWindow.show();
         mainWindow.moveTop();
       }
