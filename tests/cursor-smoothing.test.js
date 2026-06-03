@@ -139,8 +139,8 @@ function createStreamWithCursorSetting(cursor) {
     'capture overlay instructions must be hidden before capture data arrives to avoid shortcut text flash',
   );
   assert.ok(
-    /captureMode === 'region' \|\| captureMode === 'record-region'[\s\S]*instructions\.classList\.add\('hidden'\)[\s\S]*instructions\.textContent = ''/.test(captureOverlaySource),
-    'region and record-region overlays must not show Esc/instruction text',
+    /captureMode === 'region' \|\| captureMode === 'record-select'[\s\S]*instructions\.classList\.add\('hidden'\)[\s\S]*instructions\.textContent = ''/.test(captureOverlaySource),
+    'region and record-select overlays must not show Esc/instruction text',
   );
   assert.ok(
     /#selection\s*\{[\s\S]*outline:\s*2px solid #f07d20;[\s\S]*background:\s*transparent;/.test(captureOverlaySource),
@@ -148,7 +148,11 @@ function createStreamWithCursorSetting(cursor) {
   );
   assert.ok(
     /region\.initialFrameDataUrl = dataUrl;[\s\S]*recordingRegionComplete\(region\)/.test(captureOverlaySource),
-    'record-region completion must include a selected screenshot seed for first-frame alignment',
+    'record-select completion must include a selected screenshot seed for first-frame alignment',
+  );
+  assert.ok(
+    mainSource.includes("createCaptureOverlays(captureData, 'record-select', [])"),
+    'region recording must use the temporary record-select overlay before recording starts',
   );
   assert.ok(
     /videoBitsPerSecond:\s*50_000_000/.test(preloadSource),

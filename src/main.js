@@ -1750,7 +1750,8 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
     await Promise.all(readyPromises);
 
     // Once overlays are visible, lift the toolbar pill above them without stealing app focus.
-    if (mainWindow && !mainWindow.isDestroyed()) {
+    // Keep record-select as a temporary selector only; the recording UI is shown after selection.
+    if (mode !== 'record-select' && mainWindow && !mainWindow.isDestroyed()) {
       applyToolbarWindowMode();
 
       if (process.platform === 'darwin') {
@@ -2261,7 +2262,7 @@ async function chooseRecordingRegionSource(options = {}) {
         async () => captureAllScreens()
       );
 
-      await createCaptureOverlays(captureData, 'record-region', []);
+      await createCaptureOverlays(captureData, 'record-select', []);
     } catch (error) {
       recordingRegionSelection = null;
       if (mainWindow) showMainWindowForCurrentMode();

@@ -15,6 +15,7 @@
     }
     
     body.region-mode,
+    body.region-mode *,
     body.region-mode #overlay,
     body.region-mode #canvas {
       cursor: crosshair !important;
@@ -287,7 +288,7 @@
       repaintOverlay();
 
       const instructions = document.getElementById('instructions');
-      if (captureMode === 'region' || captureMode === 'record-region') {
+      if (captureMode === 'region' || captureMode === 'record-select') {
         document.body.classList.add('region-mode');
         instructions.classList.add('hidden');
         instructions.textContent = '';
@@ -328,7 +329,7 @@
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(screenshotCanvas, 0, 0);
 
-      if (captureMode === 'window' || captureMode === 'record-region') {
+      if (captureMode === 'window') {
         ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
@@ -616,7 +617,7 @@
       isSelecting = false;
       const rect = getSelectionRect();
       if (rect.width < 4 || rect.height < 4) return window.pico.captureCancel();
-      if (captureMode === 'record-region') {
+      if (captureMode === 'record-select') {
         const region = getRecordingRegionFromRect(rect);
         if (!region?.sourceId) return window.pico.captureCancel();
         return cropFromScreenRect(rect)
