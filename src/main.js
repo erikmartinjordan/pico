@@ -30,6 +30,7 @@ let pendingPreviewToastPayload = null;
 let mainWindowMode = 'toolbar';
 let lastEditorBounds = null;
 let lastToolbarBounds = null;
+let mainWindowInvisibleForSelection = false;
 
 const TOOLBAR_WINDOW_SIZE = { width: 260, height: 110 };
 const TOOLBAR_MIN_SIZE = { width: 200, height: 110 };
@@ -460,7 +461,33 @@ function applyEditorWindowMode(options = {}) {
   }
 }
 
+function makeMainWindowInvisibleForSelection() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (process.platform !== 'darwin') { mainWindow.hide(); return; }
+  debugWindowState('makeMainWindowInvisibleForSelection:before');
+  // Move off-screen AND set opacity 0. Do NOT call hide() — that triggers Space switch.
+  // Store current bounds so we can restore precisely.
+  const currentBounds = mainWindow.getBounds();
+  // We deliberately do NOT call lastToolbarBounds here because applyToolbarWindowMode
+  // already saved them. We just park the window far off the visible area.
+  mainWindow.setBounds({ x: -32000, y: -32000, width: currentBounds.width, height: currentBounds.height }, false);
+  try { mainWindow.setOpacity(0); } catch {}
+  try { mainWindow.setIgnoreMouseEvents(true, { forward: true }); } catch {}
+  mainWindowInvisibleForSelection = true;
+  debugWindowState('makeMainWindowInvisibleForSelection:after');
+}
+
+function restoreMainWindowAfterSelection() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  debugWindowState('restoreMainWindowAfterSelection:before');
+  try { mainWindow.setOpacity(1); } catch {}
+  try { mainWindow.setIgnoreMouseEvents(false); } catch {}
+  mainWindowInvisibleForSelection = false;
+  debugWindowState('restoreMainWindowAfterSelection:after');
+}
+
 function showMainWindowForCurrentMode() {
+  restoreMainWindowAfterSelection();
   if (mainWindowMode === 'editor') applyEditorWindowMode({ show: true });
   else applyToolbarWindowMode({ show: true });
 }
@@ -1671,8 +1698,10 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
         movable: false,
         fullscreenable: true,
         enableLargerThanScreen: true,
-        ...(process.platform === 'darwin' && mode === 'record-region' ? { acceptFirstMouse: true } : {}),
+        // NEVER set focusable:true for any capture overlay on macOS — it steals key window
+        // status and triggers a Space/Desktop switch.
         focusable: false,
+        acceptFirstMouse: true,
         show: false,
         webPreferences: {
           preload: path.join(__dirname, 'preload.js'),
@@ -1682,10 +1711,10 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
         },
       });
   
-      win.setAlwaysOnTop(true, 'screen-saver');
       if (process.platform === 'darwin') {
         try { win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch (_) {}
       }
+      win.setAlwaysOnTop(true, 'screen-saver');
       win.loadFile(path.join(__dirname, 'renderer', 'capture-overlay.html'));
   
       const p = new Promise((resolve) => {
@@ -1694,7 +1723,8 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
             x: display.bounds.x, y: display.bounds.y,
             width: display.bounds.width, height: display.bounds.height,
           });
-          debugWindowState('createCaptureOverlays:showInactive');
+          // Always use showInactive — never win.show() — to avoid Space switching
+          debugWindowState('createCaptureOverlays:showInactive mode=' + mode);
           win.showInactive();
   
           const screenData = captureData.type === 'multi'
@@ -2191,8 +2221,21 @@ ipcMain.handle('pro-recording-indicator-hide', async () => {
 });
 
 async function hideOrangeFujiWindowsBeforeRecording() {
-  const windowsToHide = [mainWindow, preferencesWindow, windowPickerWindow]
-    .filter((win) => win && !win.isDestroyed());
+  const windowsToHide = [preferencesWindow, windowPickerWindow]
+    .filter(win => win && !win.isDestroyed());
+
+  // On macOS, hide() on mainWindow triggers a Space switch. Instead use opacity+offscreen.
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    // Only hide/park if not already parked by makeMainWindowInvisibleForSelection
+    if (!mainWindowInvisibleForSelection) {
+      if (process.platform === 'darwin') {
+        makeMainWindowInvisibleForSelection();
+      } else {
+        mainWindow.hide();
+      }
+    }
+    try { mainWindow.setContentProtection(true); } catch {}
+  }
 
   for (const win of windowsToHide) {
     try {
@@ -2206,7 +2249,7 @@ async function hideOrangeFujiWindowsBeforeRecording() {
   // Let the OS compositor publish the hidden state before Chromium starts
   // reading desktop frames. Without this guard, the first captured frames can
   // contain Orange Fuji itself and create the recursive preview effect.
-  await new Promise((resolve) => setTimeout(resolve, process.platform === 'darwin' ? 260 : 160));
+  await new Promise(resolve => setTimeout(resolve, process.platform === 'darwin' ? 260 : 160));
 }
 
 ipcMain.handle('pro-recording-prepare', async (event, payload = {}) => {
@@ -2233,23 +2276,10 @@ async function chooseRecordingRegionSource(options) {
     try {
       notifyRendererCaptureModeStarted();
 
-      // ── 1. Move the toolbar off-screen instead of hiding it ──────────────
-      // mainWindow.hide() causes macOS to switch Spaces. Instead, park the
-      // window far outside the visible area. It stays "visible" to the OS
-      // (no Space switch) but is not seen by the user or captured in the
-      // screenshot (it's off-screen).
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        debugWindowState('chooseRecordingRegionSource:before-offscreen');
-        // Reset always-on-top to floating so it doesn't layer above selector
-        try { mainWindow.setAlwaysOnTop(true, 'floating'); } catch {}
-        if (process.platform === 'darwin') {
-          try { mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch {}
-        }
-        // Park off-screen: move far to the right (100 000px)
-        const currentBounds = mainWindow.getBounds();
-        mainWindow.setBounds({ ...currentBounds, x: 100_000, y: 100_000 }, false);
-        debugWindowState('chooseRecordingRegionSource:after-offscreen');
-      }
+      // Move the toolbar off-screen instead of hiding it. mainWindow.hide()
+      // causes macOS to switch Spaces; parking keeps the window alive in the
+      // current Space while keeping it out of screenshots.
+      makeMainWindowInvisibleForSelection();
 
       // Small yield so macOS compositor paints the off-screen position
       await new Promise(r => setTimeout(r, 80));
@@ -2263,7 +2293,7 @@ async function chooseRecordingRegionSource(options) {
         async () => captureAllScreens()
       );
 
-      // ── 2. Show selector overlay — inactive, non-focusable ───────────────
+      // Show selector overlay inactive and non-focusable.
       await createCaptureOverlays(captureData, 'record-region', []);
 
     } catch (error) {
