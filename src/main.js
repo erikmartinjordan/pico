@@ -573,8 +573,10 @@ function openPreferencesWindow() {
 
   preferencesWindow = new BrowserWindow({
     width: 520,
-    height: 520,
-    resizable: false,
+    height: 570,
+    minWidth: 480,
+    minHeight: 570,
+    resizable: true,
     minimizable: false,
     maximizable: false,
     closable: true,

@@ -55,9 +55,11 @@ const state = {
   isSavingRecording: false,
   recordingLoop: true,
   recordingPreview: null,
-  recordingSettings: { format: 'mp4', autoZoom: true },
+  recordingSettings: { format: 'mp4', autoZoom: true, autoHideDelay: 0 },
   captureSettings: { hideDesktopIcons: true },
 };
+
+const AUTO_HIDE_DELAYS = [500, 1000, 2000, 5000, 10000, 15000, 30000, Infinity];
 
 // ══════════════════════════════════════════════════════════════════════════════
 // DOM Elements
@@ -811,6 +813,7 @@ function loadRecordingSettings() {
       const parsed = JSON.parse(raw);
       state.recordingSettings.format = parsed?.format === 'gif' ? 'gif' : 'mp4';
       state.recordingSettings.autoZoom = parsed?.autoZoom !== false;
+      state.recordingSettings.autoHideDelay = typeof parsed?.autoHideDelay === 'number' ? Math.min(Math.max(Math.round(parsed.autoHideDelay), 0), 7) : 0;
       state.captureSettings.hideDesktopIcons = parsed?.hideDesktopIcons !== false;
     }
   } catch (_) {}
@@ -2762,7 +2765,6 @@ function initToolbarDismiss() {
   const toolbar = document.querySelector('.toolbar');
   if (!toolbar) return;
 
-  const inactivityDelay = 2500;
   const hideAfterAnimationMs = 340;
   let hidden = false;
   let hideTimer = null;
@@ -2806,7 +2808,10 @@ function initToolbarDismiss() {
   function scheduleAutoHide() {
     window.clearTimeout(hideTimer);
     if (hidden || !isFloatingMode() || isCaptureMode) return;
-    hideTimer = window.setTimeout(autoHide, inactivityDelay);
+    const idx = Math.min(Math.max(Math.round(state.recordingSettings.autoHideDelay ?? 0), 0), 7);
+    if (idx >= AUTO_HIDE_DELAYS.length - 1) return;
+    const delayMs = AUTO_HIDE_DELAYS[idx];
+    hideTimer = window.setTimeout(autoHide, delayMs);
   }
 
   const markActivity = () => {

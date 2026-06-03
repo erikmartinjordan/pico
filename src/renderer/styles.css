@@ -414,7 +414,6 @@ body.has-content .toolbar-group.capture-modes + .toolbar-separator {
   background: transparent;
   -webkit-user-select: none;
   color: #1d1d1f;
-  overflow: hidden;
 }
 
 .preferences-window .preferences-panel {
@@ -428,7 +427,6 @@ body.has-content .toolbar-group.capture-modes + .toolbar-separator {
   box-shadow: none;
   color: #1d1d1f;
   position: relative;
-  overflow: hidden;
 }
 
 .preferences-titlebar {
@@ -529,6 +527,178 @@ body.has-content .toolbar-group.capture-modes + .toolbar-separator {
 
 .preferences-window .preferences-panel input[type="checkbox"]:focus-visible {
   outline-color: rgba(0, 122, 255, 0.58);
+}
+
+.preferences-window .preferences-group > label.range-row {
+  min-height: 40px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(60, 60, 67, 0.10);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  cursor: default;
+}
+
+.preferences-window .preferences-group > label.range-row:last-child {
+  border-bottom: 0;
+}
+
+.preferences-window .preferences-panel .range-unit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+
+.preferences-window .preferences-panel .slider-ui {
+  position: relative;
+  flex: 1;
+  height: 30px;
+  min-width: 0;
+  -webkit-app-region: no-drag;
+  display: flex;
+  align-items: center;
+}
+
+.preferences-window .preferences-panel .slider-ui input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  cursor: default;
+  z-index: 2;
+}
+
+.preferences-window .preferences-panel .slider-ui input[type="range"]::-webkit-slider-runnable-track {
+  -webkit-appearance: none;
+  height: 4px;
+  background: transparent;
+  position: relative;
+}
+
+.preferences-window .preferences-panel .slider-ui input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 40px;
+  height: 20px;
+  border-radius: 9999px;
+  background:
+    radial-gradient(circle at 35% 25%, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0.08) 30%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(249, 115, 22, 0.3) 0%, rgba(249, 115, 22, 0.55) 100%);
+  border: 0.5px solid rgba(255,255,255,0.2);
+  cursor: default;
+  margin-top: -8px;
+  position: relative;
+  z-index: 3;
+  box-shadow:
+    0 1px 3px rgba(0,0,0,0.08),
+    0 4px 10px rgba(0,0,0,0.06),
+    inset 0 0.5px 0 rgba(255,255,255,0.25);
+}
+
+.preferences-window .preferences-panel .slider-ui input[type="range"]:focus-visible {
+  outline: none;
+}
+
+.preferences-window .preferences-panel .slider-ui input[type="range"]:focus-visible::-webkit-slider-thumb {
+  filter: brightness(1.1);
+  outline: 2px solid rgba(0, 122, 255, 0.55);
+  outline-offset: 4px;
+}
+
+.preferences-window .preferences-panel .slider-ticks {
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  top: 12px;
+  height: 6px;
+  z-index: 1;
+  background-image: repeating-linear-gradient(
+    to right,
+    rgba(60, 60, 67, 0.35) 0px,
+    rgba(60, 60, 67, 0.35) 1px,
+    transparent 1px,
+    transparent calc(100% / 7)
+  );
+  pointer-events: none;
+}
+
+.preferences-window .preferences-panel .slider-ticks::before {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  height: 3px;
+  background-image: repeating-linear-gradient(
+    to right,
+    rgba(60, 60, 67, 0.12) 0px,
+    rgba(60, 60, 67, 0.12) 1px,
+    transparent 1px,
+    transparent calc(100% / 60)
+  );
+  pointer-events: none;
+}
+
+.preferences-window .preferences-panel .slider-ui::before {
+  content: '';
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  top: 13px;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right, #f97316 var(--track-fill, 0%), transparent var(--track-fill, 0%));
+  z-index: 1;
+  pointer-events: none;
+}
+
+.preferences-window .preferences-panel .slider-ui::after {
+  content: '';
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  top: 13px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(120, 120, 128, 0.12);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.preferences-window .preferences-panel .slider-labels {
+  position: absolute;
+  inset: auto 20px 2px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 7.5px;
+  color: rgba(60, 60, 67, 0.40);
+  font-weight: 500;
+  line-height: 1;
+  pointer-events: none;
+  letter-spacing: -0.02em;
+}
+
+.preferences-window .preferences-panel .range-unit output {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  text-align: center;
+  width: 40px;
+  line-height: 20px;
+  pointer-events: none;
+  z-index: 4;
 }
 
 .preferences-field {
@@ -741,6 +911,53 @@ body.has-content .toolbar-group.capture-modes + .toolbar-separator {
 
   .preferences-window .preferences-panel input[type="checkbox"]:focus-visible {
     outline-color: rgba(0, 122, 255, 0.55);
+  }
+
+  .preferences-window .preferences-panel .slider-ui input[type="range"]::-webkit-slider-thumb {
+    background:
+      radial-gradient(circle at 35% 25%, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0.05) 30%, transparent 50%),
+      radial-gradient(circle at 50% 50%, rgba(249, 115, 22, 0.3) 0%, rgba(249, 115, 22, 0.5) 100%);
+    border: 0.5px solid rgba(255,255,255,0.1);
+    box-shadow:
+      0 1px 3px rgba(0,0,0,0.3),
+      0 4px 12px rgba(0,0,0,0.25),
+      inset 0 0.5px 0 rgba(255,255,255,0.15);
+  }
+
+  .preferences-window .preferences-panel .slider-ui::before {
+    background: linear-gradient(to right, #f97316 var(--track-fill, 0%), transparent var(--track-fill, 0%));
+  }
+
+  .preferences-window .preferences-panel .slider-ui::after {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .preferences-window .preferences-panel .slider-ticks {
+    background-image: repeating-linear-gradient(
+      to right,
+      rgba(255, 255, 255, 0.25) 0px,
+      rgba(255, 255, 255, 0.25) 1px,
+      transparent 1px,
+      transparent calc(100% / 7)
+    );
+  }
+
+  .preferences-window .preferences-panel .slider-ticks::before {
+    background-image: repeating-linear-gradient(
+      to right,
+      rgba(255, 255, 255, 0.1) 0px,
+      rgba(255, 255, 255, 0.1) 1px,
+      transparent 1px,
+      transparent calc(100% / 60)
+    );
+  }
+
+  .preferences-window .preferences-panel .slider-labels {
+    color: rgba(220, 215, 210, 0.35);
+  }
+
+  .preferences-window .preferences-panel .range-unit output {
+    color: #e8e4df;
   }
 
   .preferences-field label {

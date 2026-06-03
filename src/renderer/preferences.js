@@ -1,6 +1,16 @@
+const DISPLAY_LABELS = ['0.5s', '1s', '2s', '5s', '10s', '15s', '30s', '∞'];
+
+function sliderValueToLabel(v) {
+  const idx = Math.min(Math.max(Math.round(v), 0), 7);
+  return DISPLAY_LABELS[idx];
+}
+
 const recordingFormatSetting = document.querySelector('#recording-format-setting');
 const recordingAutozoomSetting = document.querySelector('#recording-autozoom-setting');
 const hideDesktopIconsSetting = document.querySelector('#hide-desktop-icons-setting');
+const autoHideDelaySetting = document.querySelector('#auto-hide-delay-setting');
+const autoHideDelaySettingValue = document.querySelector('#auto-hide-delay-setting-value');
+const autoHideSliderUi = autoHideDelaySetting?.closest('.slider-ui');
 const defaultSavePathSetting = document.querySelector('#default-save-path-setting');
 const chooseDefaultSavePathSetting = document.querySelector('#choose-default-save-path-setting');
 const clearDefaultSavePathSetting = document.querySelector('#clear-default-save-path-setting');
@@ -14,6 +24,7 @@ const settings = {
   format: 'mp4',
   autoZoom: true,
   hideDesktopIcons: true,
+  autoHideDelay: 0,
   defaultSavePath: '',
 };
 
@@ -29,7 +40,7 @@ async function loadSettings() {
       settings.format = parsed?.format === 'gif' ? 'gif' : 'mp4';
       settings.autoZoom = parsed?.autoZoom !== false;
       settings.hideDesktopIcons = parsed?.hideDesktopIcons !== false;
-      settings.defaultSavePath = typeof parsed?.defaultSavePath === 'string' ? parsed.defaultSavePath : '';
+      settings.autoHideDelay = typeof parsed?.autoHideDelay === 'number' ? Math.min(Math.max(Math.round(parsed.autoHideDelay), 0), 7) : 0;
     }
   } catch (_) {}
 
@@ -41,6 +52,10 @@ async function loadSettings() {
   recordingFormatSetting.value = settings.format;
   recordingAutozoomSetting.checked = settings.autoZoom;
   hideDesktopIconsSetting.checked = settings.hideDesktopIcons;
+  autoHideDelaySetting.value = settings.autoHideDelay;
+  autoHideDelaySettingValue.textContent = sliderValueToLabel(settings.autoHideDelay);
+  if (autoHideSliderUi) autoHideSliderUi.style.setProperty('--track-fill', (settings.autoHideDelay / 7 * 100) + '%');
+  positionOutput();
   defaultSavePathSetting.value = settings.defaultSavePath;
 }
 
@@ -102,6 +117,27 @@ recordingAutozoomSetting.addEventListener('change', () => {
 
 hideDesktopIconsSetting.addEventListener('change', () => {
   settings.hideDesktopIcons = Boolean(hideDesktopIconsSetting.checked);
+  saveSettings();
+});
+
+function positionOutput() {
+  if (!autoHideDelaySetting || !autoHideSliderUi || !autoHideDelaySettingValue) return;
+  const pct = parseInt(autoHideDelaySetting.value, 10) / 7;
+  const trackWidth = autoHideSliderUi.offsetWidth;
+  const thumbSize = 40;
+  const left = pct * (trackWidth - thumbSize) + thumbSize / 2;
+  autoHideDelaySettingValue.style.left = left + 'px';
+}
+
+autoHideDelaySetting.addEventListener('input', () => {
+  const idx = parseInt(autoHideDelaySetting.value, 10);
+  autoHideDelaySettingValue.textContent = sliderValueToLabel(idx);
+  if (autoHideSliderUi) autoHideSliderUi.style.setProperty('--track-fill', (idx / 7 * 100) + '%');
+  positionOutput();
+});
+
+autoHideDelaySetting.addEventListener('change', () => {
+  settings.autoHideDelay = parseFloat(autoHideDelaySetting.value);
   saveSettings();
 });
 
