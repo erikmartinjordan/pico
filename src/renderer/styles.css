@@ -182,14 +182,6 @@ body.platform-darwin.has-content .editor-drag-region {
 
 .toolbar-btn svg { width: 18px; height: 18px; }
 
-.toolbar-label {
-  display: none;
-  font-size: 12px;
-  font-weight: 650;
-  line-height: 1;
-  white-space: nowrap;
-}
-
 .toolbar-btn:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.36);
   color: var(--toolbar-icon-hover, rgba(9, 13, 20, 0.96));
@@ -212,11 +204,8 @@ body:not(.has-image) .toolbar .liquidGlass-shine {
 }
 
 body:not(.has-image) .toolbar .toolbar-btn {
-  width: auto;
-  min-width: 36px;
+  width: 36px;
   height: 36px;
-  padding: 0 10px;
-  gap: 7px;
   color: rgba(46, 28, 17, 0.72);
   cursor: pointer;
 }
@@ -224,10 +213,6 @@ body:not(.has-image) .toolbar .toolbar-btn {
 body:not(.has-image) .toolbar .toolbar-btn svg {
   width: 18px;
   height: 18px;
-}
-
-body:not(.has-image) .toolbar .capture-modes .toolbar-label {
-  display: inline;
 }
 
 body:not(.has-image) .toolbar .toolbar-btn:hover:not(:disabled) {
