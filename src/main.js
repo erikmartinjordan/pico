@@ -28,6 +28,7 @@ let preferencesWindow = null;
 let previewToastWindow = null;
 let pendingPreviewToastPayload = null;
 let mainWindowMode = 'toolbar';
+let mainWindowInvisibleForSelection = false;
 let lastEditorBounds = null;
 let lastToolbarBounds = null;
 
@@ -463,6 +464,39 @@ function applyEditorWindowMode(options = {}) {
 function showMainWindowForCurrentMode() {
   if (mainWindowMode === 'editor') applyEditorWindowMode({ show: true });
   else applyToolbarWindowMode({ show: true });
+}
+
+function makeMainWindowInvisibleForSelection() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  if (process.platform !== 'darwin') {
+    mainWindow.hide();
+    return;
+  }
+
+  try {
+    mainWindow.setIgnoreMouseEvents(true, { forward: true });
+  } catch (_) {}
+
+  try {
+    mainWindow.setOpacity(0);
+  } catch (_) {}
+
+  mainWindowInvisibleForSelection = true;
+}
+
+function restoreMainWindowAfterSelection() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  try {
+    mainWindow.setOpacity(1);
+  } catch (_) {}
+
+  try {
+    mainWindow.setIgnoreMouseEvents(false);
+  } catch (_) {}
+
+  mainWindowInvisibleForSelection = false;
 }
 
 
@@ -1434,6 +1468,7 @@ function hideRecordingIndicator() {
 
   // Restore Orange Fuji main window when recording ends
   if (mainWindow && !mainWindow.isDestroyed()) {
+    restoreMainWindowAfterSelection();
     showMainWindowForCurrentMode();
   }
 }
@@ -1980,6 +2015,9 @@ ipcMain.on('capture-cancel', () => {
     recordingRegionSelection.resolve(null);
     recordingRegionSelection = null;
     notifyRendererCaptureFinished();
+
+    restoreMainWindowAfterSelection();
+
     if (mainWindow) showMainWindowForCurrentMode();
     return;
   }
@@ -2249,8 +2287,7 @@ async function chooseRecordingRegionSource(options = {}) {
             mainWindow.moveTop();
           }
         } else {
-          try { mainWindow.setContentProtection(true); } catch (_) {}
-          mainWindow.hide();
+          makeMainWindowInvisibleForSelection();
         }
       }
 
@@ -2272,6 +2309,7 @@ async function chooseRecordingRegionSource(options = {}) {
       await createCaptureOverlays(captureData, 'record-select', []);
     } catch (error) {
       recordingRegionSelection = null;
+      restoreMainWindowAfterSelection();
       if (mainWindow) showMainWindowForCurrentMode();
       reject(error);
     }

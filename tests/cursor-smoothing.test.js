@@ -163,6 +163,18 @@ function createStreamWithCursorSetting(cursor) {
     'record-select overlays must be focusable mouse surfaces without focusing Orange Fuji',
   );
   assert.ok(
+    mainSource.includes('function makeMainWindowInvisibleForSelection()') &&
+      mainSource.includes('mainWindow.setOpacity(0)') &&
+      mainSource.includes('mainWindow.setIgnoreMouseEvents(true, { forward: true })'),
+    'record-select preparation must make Orange Fuji invisible without hiding it on macOS',
+  );
+  assert.ok(
+    mainSource.includes('function restoreMainWindowAfterSelection()') &&
+      mainSource.includes('mainWindow.setOpacity(1)') &&
+      mainSource.includes('mainWindow.setIgnoreMouseEvents(false)'),
+    'record-select cleanup must restore Orange Fuji opacity and mouse handling',
+  );
+  assert.ok(
     /videoBitsPerSecond:\s*50_000_000/.test(preloadSource),
     'screen recorder must request a high video bitrate to preserve screen-detail alignment checks',
   );
