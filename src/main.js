@@ -28,6 +28,7 @@ let preferencesWindow = null;
 let previewToastWindow = null;
 let pendingPreviewToastPayload = null;
 let mainWindowMode = 'toolbar';
+let mainWindowInvisibleForSelection = false;
 let lastEditorBounds = null;
 let lastToolbarBounds = null;
 
@@ -463,6 +464,39 @@ function applyEditorWindowMode(options = {}) {
 function showMainWindowForCurrentMode() {
   if (mainWindowMode === 'editor') applyEditorWindowMode({ show: true });
   else applyToolbarWindowMode({ show: true });
+}
+
+function makeMainWindowInvisibleForSelection() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  if (process.platform !== 'darwin') {
+    mainWindow.hide();
+    return;
+  }
+
+  try {
+    mainWindow.setIgnoreMouseEvents(true, { forward: true });
+  } catch (_) {}
+
+  try {
+    mainWindow.setOpacity(0);
+  } catch (_) {}
+
+  mainWindowInvisibleForSelection = true;
+}
+
+function restoreMainWindowAfterSelection() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  try {
+    mainWindow.setOpacity(1);
+  } catch (_) {}
+
+  try {
+    mainWindow.setIgnoreMouseEvents(false);
+  } catch (_) {}
+
+  mainWindowInvisibleForSelection = false;
 }
 
 
@@ -1434,6 +1468,7 @@ function hideRecordingIndicator() {
 
   // Restore Orange Fuji main window when recording ends
   if (mainWindow && !mainWindow.isDestroyed()) {
+    restoreMainWindowAfterSelection();
     showMainWindowForCurrentMode();
   }
 }
@@ -1654,7 +1689,8 @@ async function captureAllScreens() {
 async function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) {
     const displays = screen.getAllDisplays();
     const readyPromises = [];
-    const isRecordingRegionOverlay = process.platform === 'darwin' && mode === 'record-region';
+    const isDarwinCaptureOverlay = process.platform === 'darwin';
+    const isRecordingSelector = isDarwinCaptureOverlay && mode === 'record-select';
   
     displays.forEach((display) => {
       const win = new BrowserWindow({
@@ -1672,7 +1708,8 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
         movable: false,
         fullscreenable: true,
         enableLargerThanScreen: true,
-        ...(isRecordingRegionOverlay ? { acceptFirstMouse: true } : {}),
+        focusable: isRecordingSelector ? true : !isDarwinCaptureOverlay,
+        acceptFirstMouse: true,
         show: false,
         webPreferences: {
           preload: path.join(__dirname, 'preload.js'),
@@ -1694,8 +1731,13 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
             x: display.bounds.x, y: display.bounds.y,
             width: display.bounds.width, height: display.bounds.height,
           });
-          if (isRecordingRegionOverlay) win.showInactive();
-          else win.show();
+          if (isRecordingSelector) {
+            win.show();
+          } else if (process.platform === 'darwin') {
+            win.showInactive();
+          } else {
+            win.show();
+          }
   
           const screenData = captureData.type === 'multi'
             ? captureData.screens.find(s =>
@@ -1749,8 +1791,9 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
   
     await Promise.all(readyPromises);
 
-    // Once overlays are visible, lift the toolbar pill above them without stealing app focus.
-    if (mainWindow && !mainWindow.isDestroyed()) {
+    // Once overlays are visible, lift the toolbar pill above capture overlays,
+    // but never above video recording selection/indicator overlays.
+    if (mode !== 'record-select' && mode !== 'record-region' && mainWindow && !mainWindow.isDestroyed()) {
       applyToolbarWindowMode();
 
       if (process.platform === 'darwin') {
@@ -1760,7 +1803,7 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
 
       showWindowInactiveOnMac(mainWindow);
 
-      if (process.platform === 'darwin' && mode !== 'record-region') {
+      if (process.platform === 'darwin') {
         mainWindow.moveTop();
       }
     }
@@ -1972,6 +2015,9 @@ ipcMain.on('capture-cancel', () => {
     recordingRegionSelection.resolve(null);
     recordingRegionSelection = null;
     notifyRendererCaptureFinished();
+
+    restoreMainWindowAfterSelection();
+
     if (mainWindow) showMainWindowForCurrentMode();
     return;
   }
@@ -2221,31 +2267,54 @@ async function chooseRecordingRegionSource(options = {}) {
 
   const promise = new Promise(async (resolve, reject) => {
     recordingRegionSelection = { resolve, reject, promise: null };
+
     try {
       notifyRendererCaptureModeStarted();
+
+      const shouldCaptureOrangeFuji = options?.captureOrangeFuji === true;
+
+      // Critical: for normal region recording, Orange Fuji must be hidden
+      // BEFORE we take the screenshot used by the crosshair selector.
       if (mainWindow && !mainWindow.isDestroyed()) {
-        lastToolbarBounds = null;
-        applyToolbarWindowMode();
-        if (process.platform === 'darwin') mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-        mainWindow.setBounds({ width: TOOLBAR_WINDOW_SIZE.width, height: TOOLBAR_WINDOW_SIZE.height }, false);
-        if (process.platform === 'darwin') mainWindow.showInactive();
-        else {
-          mainWindow.show();
-          mainWindow.moveTop();
+        if (shouldCaptureOrangeFuji) {
+          lastToolbarBounds = null;
+          applyToolbarWindowMode();
+          if (process.platform === 'darwin') {
+            mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+            mainWindow.showInactive();
+          } else {
+            mainWindow.show();
+            mainWindow.moveTop();
+          }
+        } else {
+          makeMainWindowInvisibleForSelection();
         }
       }
-      await new Promise(r => setTimeout(r, 200));
+
+      // Give the OS compositor time to actually remove Orange Fuji
+      // before captureAllScreens() snapshots the desktop.
+      await new Promise((resolve) =>
+        setTimeout(resolve, process.platform === 'darwin' ? 260 : 160)
+      );
+
       if (!await ensureMacScreenRecordingPermission()) {
         throw new Error('Screen Recording permission is required.');
       }
-      const captureData = await withHiddenDesktopIcons({ ...options, hideDesktopIcons: false }, async () => captureAllScreens());
-      await createCaptureOverlays(captureData, 'record-region', []);
+
+      const captureData = await withHiddenDesktopIcons(
+        { ...options, hideDesktopIcons: false },
+        async () => captureAllScreens()
+      );
+
+      await createCaptureOverlays(captureData, 'record-select', []);
     } catch (error) {
       recordingRegionSelection = null;
+      restoreMainWindowAfterSelection();
       if (mainWindow) showMainWindowForCurrentMode();
       reject(error);
     }
   });
+
   recordingRegionSelection.promise = promise;
   return promise;
 }

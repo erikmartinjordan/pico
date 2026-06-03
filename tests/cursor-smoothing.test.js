@@ -139,8 +139,8 @@ function createStreamWithCursorSetting(cursor) {
     'capture overlay instructions must be hidden before capture data arrives to avoid shortcut text flash',
   );
   assert.ok(
-    /captureMode === 'region' \|\| captureMode === 'record-region'[\s\S]*instructions\.classList\.add\('hidden'\)[\s\S]*instructions\.textContent = ''/.test(captureOverlaySource),
-    'region and record-region overlays must not show Esc/instruction text',
+    /captureMode === 'region' \|\| captureMode === 'record-select'[\s\S]*instructions\.classList\.add\('hidden'\)[\s\S]*instructions\.textContent = ''/.test(captureOverlaySource),
+    'region and record-select overlays must not show Esc/instruction text',
   );
   assert.ok(
     /#selection\s*\{[\s\S]*outline:\s*2px solid #f07d20;[\s\S]*background:\s*transparent;/.test(captureOverlaySource),
@@ -148,7 +148,31 @@ function createStreamWithCursorSetting(cursor) {
   );
   assert.ok(
     /region\.initialFrameDataUrl = dataUrl;[\s\S]*recordingRegionComplete\(region\)/.test(captureOverlaySource),
-    'record-region completion must include a selected screenshot seed for first-frame alignment',
+    'record-select completion must include a selected screenshot seed for first-frame alignment',
+  );
+  assert.ok(
+    mainSource.includes("createCaptureOverlays(captureData, 'record-select', [])"),
+    'region recording must use the temporary record-select overlay before recording starts',
+  );
+  assert.ok(
+    mainSource.includes("const isRecordingSelector = isDarwinCaptureOverlay && mode === 'record-select'"),
+    'record-select overlays must use the active recording selector presentation on macOS',
+  );
+  assert.ok(
+    /focusable:\s*isRecordingSelector \? true : !isDarwinCaptureOverlay,[\s\S]*acceptFirstMouse:\s*true/.test(mainSource),
+    'record-select overlays must be focusable mouse surfaces without focusing Orange Fuji',
+  );
+  assert.ok(
+    mainSource.includes('function makeMainWindowInvisibleForSelection()') &&
+      mainSource.includes('mainWindow.setOpacity(0)') &&
+      mainSource.includes('mainWindow.setIgnoreMouseEvents(true, { forward: true })'),
+    'record-select preparation must make Orange Fuji invisible without hiding it on macOS',
+  );
+  assert.ok(
+    mainSource.includes('function restoreMainWindowAfterSelection()') &&
+      mainSource.includes('mainWindow.setOpacity(1)') &&
+      mainSource.includes('mainWindow.setIgnoreMouseEvents(false)'),
+    'record-select cleanup must restore Orange Fuji opacity and mouse handling',
   );
   assert.ok(
     /videoBitsPerSecond:\s*50_000_000/.test(preloadSource),
