@@ -24,8 +24,9 @@ Add these repository secrets:
 
 ```text
 SUPABASE_ACCESS_TOKEN
-SUPABASE_DB_PASSWORD
 ```
+
+No database password is required here unless the Supabase CLI later asks for one.
 
 Then run:
 

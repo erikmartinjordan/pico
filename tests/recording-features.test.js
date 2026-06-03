@@ -79,7 +79,7 @@ assert.ok(
 );
 assert.ok(/ipcMain\.handle\('activate-license'/.test(mainSource), 'main process must expose license activation IPC');
 assert.ok(/getLicenseState: \(\) => ipcRenderer\.invoke\('get-license-state'\)/.test(preloadSource), 'preload must expose license state IPC');
-assert.ok(/activateLicense: \(email\) => ipcRenderer\.invoke\('activate-license', email\)/.test(preloadSource), 'preload must expose license activation IPC');
+assert.ok(/activateLicense:\s*async\s*\(email\)\s*=>[\s\S]*ipcRenderer\.invoke\('activate-license', email\)/.test(preloadSource), 'preload must expose license activation IPC');
 assert.ok(indexSource.includes('id="license-dialog"'), 'renderer must include a license activation dialog');
 assert.ok(rendererSource.includes('refreshLicenseState();'), 'renderer must check license state during startup');
 

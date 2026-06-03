@@ -240,7 +240,7 @@ function createStreamWithCursorSetting(cursor) {
   assert.ok(mainSource.includes('const LICENSE_CHECK_INTERVAL_DAYS = 7;'), 'main process must keep the 7-day license validation interval');
   assert.ok(mainSource.includes("ipcMain.handle('activate-license'"), 'main process must expose license activation IPC');
   assert.ok(preloadSource.includes("getLicenseState: () => ipcRenderer.invoke('get-license-state')"), 'preload must expose license state');
-  assert.ok(preloadSource.includes("activateLicense: (email) => ipcRenderer.invoke('activate-license', email)"), 'preload must expose license activation');
+  assert.ok(/activateLicense:\s*async\s*\(email\)\s*=>[\s\S]*ipcRenderer\.invoke\('activate-license', email\)/.test(preloadSource), 'preload must expose license activation');
   assert.ok(indexSource.includes('id="license-dialog"'), 'renderer markup must include the license dialog');
   assert.ok(rendererSource.includes('refreshLicenseState();'), 'renderer must check trial/license state on startup');
   assert.ok(!indexSource.includes('pro-feature'), 'recording button must not keep old pro feature styling hooks');

@@ -9,6 +9,7 @@
     "start": "electron .",
     "test": "node tests/cursor-smoothing.test.js && node tests/recording-features.test.js",
     "test:recording": "node tests/recording-features.test.js",
+    "configure-license": "node scripts/configure-license.js",
     "build": "electron-builder",
     "build:mac": "electron-builder --mac",
     "build:win": "electron-builder --win",

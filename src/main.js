@@ -40,9 +40,10 @@ const SETTINGS_FILE = 'settings.json';
 const PRODUCT_NAME = 'Orange Fuji';
 const TRIAL_DAYS = 30;
 const LICENSE_CHECK_INTERVAL_DAYS = 7;
-const BUY_LICENSE_URL = 'https://buy.stripe.com/test_00w00ka8w3Us4cb5z6bQY00';
-const LICENSE_API_BASE_URL = 'https://xnppcugncigaiycrvmpk.supabase.co/functions/v1';
-const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_UF9_SxKlinhz2n0mPIYXGw_92sei9VY';
+const licenseConfig = require('./license-config');
+const BUY_LICENSE_URL = licenseConfig.buyLicenseUrl;
+const LICENSE_API_BASE_URL = licenseConfig.licenseApiBaseUrl;
+const SUPABASE_PUBLISHABLE_KEY = licenseConfig.supabasePublishableKey;
 // Keep the original userData directory so existing settings survive the rename.
 const LEGACY_USER_DATA_NAME = 'pico';
 const DEFAULT_SETTINGS = {
