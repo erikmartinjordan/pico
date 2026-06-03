@@ -155,6 +155,10 @@ function createStreamWithCursorSetting(cursor) {
     'region recording must use the temporary record-select overlay before recording starts',
   );
   assert.ok(
+    mainSource.includes("mode === 'record-region' || mode === 'record-select'"),
+    'record-select overlays must use inactive recording overlay presentation on macOS',
+  );
+  assert.ok(
     /videoBitsPerSecond:\s*50_000_000/.test(preloadSource),
     'screen recorder must request a high video bitrate to preserve screen-detail alignment checks',
   );

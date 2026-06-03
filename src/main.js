@@ -1654,7 +1654,7 @@ async function captureAllScreens() {
 async function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) {
     const displays = screen.getAllDisplays();
     const readyPromises = [];
-    const isRecordingRegionOverlay = process.platform === 'darwin' && mode === 'record-region';
+    const isRecordingRegionOverlay = process.platform === 'darwin' && (mode === 'record-region' || mode === 'record-select');
   
     displays.forEach((display) => {
       const win = new BrowserWindow({
