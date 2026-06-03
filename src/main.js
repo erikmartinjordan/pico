@@ -1654,7 +1654,7 @@ async function captureAllScreens() {
 async function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) {
     const displays = screen.getAllDisplays();
     const readyPromises = [];
-    const isRecordingRegionOverlay = process.platform === 'darwin' && mode === 'record-region';
+    const isDarwinCaptureOverlay = process.platform === 'darwin';
   
     displays.forEach((display) => {
       const win = new BrowserWindow({
@@ -1672,7 +1672,11 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
         movable: false,
         fullscreenable: true,
         enableLargerThanScreen: true,
-        ...(isRecordingRegionOverlay ? { acceptFirstMouse: true } : {}),
+        // Match Kap's region picker approach on macOS: the overlay accepts
+        // mouse input but never becomes the focused app/window, so the target
+        // browser remains visually active while the selection UI floats above it.
+        acceptFirstMouse: isDarwinCaptureOverlay,
+        focusable: !isDarwinCaptureOverlay,
         show: false,
         webPreferences: {
           preload: path.join(__dirname, 'preload.js'),
@@ -1694,7 +1698,7 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
             x: display.bounds.x, y: display.bounds.y,
             width: display.bounds.width, height: display.bounds.height,
           });
-          if (isRecordingRegionOverlay) win.showInactive();
+          if (isDarwinCaptureOverlay) win.showInactive();
           else win.show();
   
           const screenData = captureData.type === 'multi'
