@@ -31,8 +31,8 @@ let mainWindowMode = 'toolbar';
 let lastEditorBounds = null;
 let lastToolbarBounds = null;
 
-const TOOLBAR_WINDOW_SIZE = { width: 260, height: 110 };
-const TOOLBAR_MIN_SIZE = { width: 200, height: 110 };
+const TOOLBAR_WINDOW_SIZE = { width: 460, height: 110 };
+const TOOLBAR_MIN_SIZE = { width: 460, height: 110 };
 const EDITOR_DEFAULT_SIZE = { width: 1200, height: 800 };
 const EDITOR_MIN_SIZE = { width: 900, height: 600 };
 
@@ -419,6 +419,9 @@ function applyToolbarWindowMode(options = {}) {
 
   if (options.show) {
     if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.setFocusable(true);
+    mainWindow.setOpacity(1);
+    mainWindow.setIgnoreMouseEvents(false);
     if (process.platform === 'darwin') {
       mainWindow.showInactive();
     } else {
@@ -454,6 +457,9 @@ function applyEditorWindowMode(options = {}) {
 
   if (options.show) {
     if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.setFocusable(true);
+    mainWindow.setOpacity(1);
+    mainWindow.setIgnoreMouseEvents(false);
     mainWindow.show();
     mainWindow.moveTop();
     mainWindow.focus();
@@ -463,6 +469,14 @@ function applyEditorWindowMode(options = {}) {
 function showMainWindowForCurrentMode() {
   if (mainWindowMode === 'editor') applyEditorWindowMode({ show: true });
   else applyToolbarWindowMode({ show: true });
+}
+
+function showToolbarAsHUD() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.setAlwaysOnTop(true, 'screen-saver', 1);
+  mainWindow.setFocusable(true);
+  mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  mainWindow.showInactive();
 }
 
 
@@ -1307,6 +1321,7 @@ function showRecordingIndicator(options = {}) {
     movable: false,
     alwaysOnTop: true,
     skipTaskbar: true,
+    show: false,
     focusable: true,
     hasShadow: false,
     autoHideMenuBar: true,
@@ -1399,16 +1414,19 @@ function showRecordingIndicator(options = {}) {
   </html>
 `)}`);
 
+  controlsWindow.once('ready-to-show', () => {
+    if (process.platform === 'darwin') {
+      controlsWindow.showInactive();
+    } else {
+      controlsWindow.show();
+    }
+  });
+
   controlsWindow.on('closed', () => {
     recordingIndicatorWindows = recordingIndicatorWindows.filter(w => w !== controlsWindow);
   });
 
   recordingIndicatorWindows.push(controlsWindow);
-
-  // Keep Orange Fuji visible when the renderer is showing the selected stream inline.
-  if (!options.inlinePreview && mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.minimize();
-  }
 }
 
 function hideRecordingIndicator() {
@@ -1484,7 +1502,7 @@ function createMainWindow(focusOnReady = false) {
   const toolbarBounds = getToolbarWindowBounds();
   mainWindow = new BrowserWindow({
     ...toolbarBounds,
-    type: 'panel',
+    ...(process.platform === 'darwin' ? {} : { type: 'panel' }),
     minWidth: TOOLBAR_MIN_SIZE.width,
     minHeight: TOOLBAR_MIN_SIZE.height,
     resizable: false,
@@ -1649,7 +1667,7 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
         y: display.bounds.y,
         width: display.bounds.width,
         height: display.bounds.height,
-        type: 'panel',
+        ...(process.platform === 'darwin' ? {} : { type: 'panel' }),
         frame: false,
         transparent: true,
         backgroundColor: '#00000000',
@@ -1680,7 +1698,11 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
             x: display.bounds.x, y: display.bounds.y,
             width: display.bounds.width, height: display.bounds.height,
           });
-          win.show();
+          if (process.platform === 'darwin') {
+            win.showInactive();
+          } else {
+            win.show();
+          }
   
           const screenData = captureData.type === 'multi'
             ? captureData.screens.find(s =>
@@ -1735,21 +1757,7 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
     await Promise.all(readyPromises);
 
     // Once overlays are visible, lift the toolbar pill above them without stealing app focus.
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      applyToolbarWindowMode();
-
-      if (process.platform === 'darwin') {
-        try { mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch (_) {}
-        try { mainWindow.setAlwaysOnTop(true, 'screen-saver'); } catch (_) { mainWindow.setAlwaysOnTop(true); }
-      }
-
-      if (process.platform === 'darwin') mainWindow.showInactive();
-      else mainWindow.show();
-
-      if (process.platform === 'darwin') {
-        mainWindow.moveTop();
-      }
-    }
+    showToolbarAsHUD();
   }
 
 async function captureRegion(options = {}) {
@@ -1811,10 +1819,7 @@ ipcMain.handle('start-capture', async (event, options = {}) => {
     console.log('[orange-fuji][capture] start-capture invoked');
     const showToolbarBeforeCapture = options?.showToolbar !== false;
     if (showToolbarBeforeCapture && mainWindow && !mainWindow.isDestroyed()) {
-      if (process.platform === 'darwin') mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-      mainWindow.setAlwaysOnTop(true, process.platform === 'darwin' ? 'screen-saver' : 'normal');
-      mainWindow.show();
-      mainWindow.moveTop();
+      showToolbarAsHUD();
     }
     if (showToolbarBeforeCapture) await new Promise(r => setTimeout(r, 120));
     return captureRegion(options);
@@ -1828,10 +1833,7 @@ ipcMain.handle('start-capture-window', async (event, options = {}) => {
     return { success: false, error: 'Trial expired. Activate a license to continue.' };
   }
   if (mainWindow && !mainWindow.isDestroyed()) {
-    if (process.platform === 'darwin') mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-    mainWindow.setAlwaysOnTop(true, process.platform === 'darwin' ? 'screen-saver' : 'normal');
-    mainWindow.show();
-    mainWindow.moveTop();
+    showToolbarAsHUD();
   }
   await new Promise(r => setTimeout(r, process.platform === 'darwin' ? 180 : 80));
   try {
@@ -2174,7 +2176,8 @@ async function hideOrangeFujiWindowsBeforeRecording() {
   for (const win of windowsToHide) {
     try {
       win.setContentProtection(true);
-      win.hide();
+      win.setOpacity(0);
+      win.setIgnoreMouseEvents(true);
     } catch (error) {
       console.error('[orange-fuji][recording] failed to hide Orange Fuji window:', error.message);
     }
@@ -2211,10 +2214,8 @@ async function chooseRecordingRegionSource(options = {}) {
       if (mainWindow && !mainWindow.isDestroyed()) {
         lastToolbarBounds = null;
         applyToolbarWindowMode();
-        if (process.platform === 'darwin') mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
         mainWindow.setBounds({ width: TOOLBAR_WINDOW_SIZE.width, height: TOOLBAR_WINDOW_SIZE.height }, false);
-        mainWindow.show();
-        mainWindow.moveTop();
+        showToolbarAsHUD();
       }
       await new Promise(r => setTimeout(r, 200));
       if (!await ensureMacScreenRecordingPermission()) {
@@ -2460,7 +2461,7 @@ app.whenReady().then(() => {
 
     const startCapture = () => {
       const settings = readSettings();
-      captureRegion({ hideDesktopIcons: settings.hideDesktopIcons, showToolbar: false });
+      captureRegion({ hideDesktopIcons: settings.hideDesktopIcons, showToolbar: true });
     };
 
     if (wasMissingWindow) {

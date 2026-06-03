@@ -8,20 +8,31 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
     
     html, body {
-      width: 100%;
-      height: 100%;
+      width: 100vw;
+      height: 100vh;
       overflow: hidden;
-      cursor: default;
+      cursor: crosshair !important;
+      margin: 0;
+      padding: 0;
+      pointer-events: auto;
     }
     
     body.region-mode {
-      cursor: crosshair;
+      cursor: crosshair !important;
+    }
+
+    body.window-mode {
+      cursor: crosshair !important;
     }
     
     #overlay {
       position: fixed;
       inset: 0;
       transition: opacity 0.2s ease;
+      width: 100vw;
+      height: 100vh;
+      cursor: crosshair !important;
+      -webkit-app-region: no-drag;
     }
 
     #overlay.fade-out {
@@ -35,6 +46,8 @@
       left: 0;
       width: 100vw;
       height: 100vh;
+      cursor: crosshair !important;
+      -webkit-app-region: no-drag;
     }
     
     #selection {
@@ -44,6 +57,8 @@
       background: transparent;
       pointer-events: none;
       display: none;
+      cursor: crosshair !important;
+      -webkit-app-region: no-drag;
     }
     
     #selection.visible {
@@ -79,6 +94,8 @@
       font-size: 12px;
       pointer-events: none;
       display: none;
+      cursor: crosshair !important;
+      -webkit-app-region: no-drag;
     }
     
     #dimensions.visible {
@@ -98,6 +115,8 @@
         0 0 14px rgba(240, 125, 32, 0.58),
         0 0 28px rgba(240, 125, 32, 0.22);
       transition: top 0.08s ease-out, left 0.08s ease-out, width 0.08s ease-out, height 0.08s ease-out;
+      cursor: crosshair !important;
+      -webkit-app-region: no-drag;
     }
 
     #window-highlight.visible {
@@ -120,6 +139,8 @@
       overflow: hidden;
       text-overflow: ellipsis;
       border: 1px solid rgba(240, 125, 32, 0.5);
+      cursor: crosshair !important;
+      -webkit-app-region: no-drag;
     }
 
     #window-label.visible {
@@ -140,6 +161,8 @@
       pointer-events: none;
       backdrop-filter: blur(10px);
       transition: opacity 0.3s ease;
+      cursor: crosshair !important;
+      -webkit-app-region: no-drag;
     }
     
     #instructions.hidden {
@@ -326,12 +349,12 @@
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(screenshotCanvas, 0, 0);
 
-      if (captureMode === 'window' || captureMode === 'record-region') {
+      if (captureMode === 'window' || captureMode === 'region' || captureMode === 'record-region') {
         ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
 
-      if (captureMode === 'record-region' && isSelecting) {
+      if ((captureMode === 'region' || captureMode === 'record-region') && isSelecting) {
         const rect = getSelectionRect();
         if (rect.width > 0 && rect.height > 0) {
           ctx.drawImage(
