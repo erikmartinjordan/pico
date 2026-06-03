@@ -116,6 +116,28 @@ jobs:
           path: artifacts
           merge-multiple: false
 
+      - name: Format release notes
+        run: |
+          tag="${{ inputs.release_tag || needs.release-please.outputs.tag_name }}"
+          marker="<!-- orange-fuji-release-logo -->"
+          icon_url="https://raw.githubusercontent.com/${{ github.repository }}/${tag}/src/assets/icons/macos/64x64.png"
+          body="$(gh release view "$tag" --json body -q .body --repo "${{ github.repository }}")"
+          body="$(printf '%s' "$body" | perl -pe 's/^(\s*[-*]\s+(?:\*\*[^*]+:\*\*\s*)?)([a-z])/$1\U$2/')"
+
+          if printf '%s' "$body" | grep -q "$marker"; then
+            printf '%s\n' "$body" > /tmp/orange-fuji-release-notes.md
+          else
+            {
+              printf '%s\n' "$marker"
+              printf '![Orange Fuji logo](%s)\n\n' "$icon_url"
+              printf '%s\n' "$body"
+            } > /tmp/orange-fuji-release-notes.md
+          fi
+
+          gh release edit "$tag" --notes-file /tmp/orange-fuji-release-notes.md --repo "${{ github.repository }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Collect binaries
         run: |
           mkdir -p release
