@@ -1,5 +1,5 @@
 /**
- * pico - Renderer Process
+ * Orange Fuji - Renderer Process
  * Canvas drawing, tools, and UI interaction
  */
 
@@ -72,6 +72,9 @@ let recordingPreviewTimelineFrame = null;
 let timelineGenerationAbort = false;
 let timelineRangeInitialized = false;
 const recordingPreviewSpeeds = [1, 1.5, 2, 0.5];
+const RECORDING_SETTINGS_KEY = 'orangefuji-recording-settings';
+// Legacy key retained for one-time migration from builds branded as Pico.
+const LEGACY_RECORDING_SETTINGS_KEY = 'pico-recording-settings';
 
 const elements = {
   canvas: $('#canvas'),
@@ -87,6 +90,12 @@ const elements = {
   recordingFormatMenu: $('#recording-format-menu'),
   recordingSaveProgress: $('#recording-save-progress'),
   preferencesDialog: $('#preferences-dialog'),
+  licenseDialog: $('#license-dialog'),
+  licenseStatusCopy: $('#license-status-copy'),
+  licenseEmailInput: $('#license-email-input'),
+  licenseMessage: $('#license-message'),
+  licenseBuy: $('#license-buy'),
+  licenseActivate: $('#license-activate'),
   recordingFormatSetting: $('#recording-format-setting'),
   recordingAutozoomSetting: $('#recording-autozoom-setting'),
   hideDesktopIconsSetting: $('#hide-desktop-icons-setting'),
@@ -162,10 +171,12 @@ function init() {
   bindContextMenu();
   bindPaste();
   bindCrop();
+  bindLicense();
   bindTooltips();
   if (elements.textFontFamily) elements.textFontFamily.value = state.textFontFamily;
   if (elements.textFontSize) elements.textFontSize.value = String(state.textFontSize);
   loadRecordingSettings();
+  refreshLicenseState();
   selectStrokeWidth(state.strokeWidth);
   toggleTextStyleControls();
   updateStatus();
@@ -180,6 +191,7 @@ function init() {
 
   window.pico.onCaptureFinished(() => {
     isCaptureMode = false;
+    setCaptureModeButton(null);
     resetFloatingToolbar();
   });
 }
@@ -202,10 +214,81 @@ function setCaptureModeButton(mode = null) {
   });
 }
 
+function setLicenseMessage(message = '', type = '') {
+  if (!elements.licenseMessage) return;
+  elements.licenseMessage.textContent = message;
+  elements.licenseMessage.classList.toggle('error', type === 'error');
+  elements.licenseMessage.classList.toggle('success', type === 'success');
+}
+
+function updateLicenseDialog(licenseState) {
+  if (!elements.licenseDialog || !licenseState) return;
+  const trial = licenseState.trial || {};
+  if (elements.licenseEmailInput && licenseState.email) {
+    elements.licenseEmailInput.value = licenseState.email;
+  }
+
+  if (elements.licenseStatusCopy) {
+    if (licenseState.licensed) {
+      elements.licenseStatusCopy.textContent = `Licensed to ${licenseState.email}`;
+    } else if (trial.expired) {
+      elements.licenseStatusCopy.textContent = 'Your trial has ended. Activate a license to continue.';
+    } else {
+      elements.licenseStatusCopy.textContent = `${trial.daysRemaining} day${trial.daysRemaining === 1 ? '' : 's'} left in your trial.`;
+    }
+  }
+
+  if (licenseState.licensed) {
+    setLicenseMessage('License active.', 'success');
+    if (elements.licenseDialog.open) elements.licenseDialog.close();
+    return;
+  }
+
+  if (trial.expired && !elements.licenseDialog.open) {
+    elements.licenseDialog.showModal();
+  }
+}
+
+async function refreshLicenseState() {
+  try {
+    const licenseState = await window.pico.getLicenseState();
+    updateLicenseDialog(licenseState);
+  } catch (error) {
+    setLicenseMessage(error?.message || 'Could not load license status.', 'error');
+  }
+}
+
+function bindLicense() {
+  on(elements.licenseBuy, 'click', () => window.pico.openBuyLicense?.());
+  on(elements.licenseActivate, 'click', async () => {
+    const email = elements.licenseEmailInput?.value || '';
+    setLicenseMessage('Activating...', '');
+    if (elements.licenseActivate) elements.licenseActivate.disabled = true;
+    try {
+      const licenseState = await window.pico.activateLicense(email);
+      updateLicenseDialog(licenseState);
+    } catch (error) {
+      const message = String(error?.message || 'Activation failed.');
+      const readable = message.includes('license_not_found')
+        ? 'We could not find a license for this email. Use the same email you entered at checkout, or buy a license first.'
+        : message.includes('activation_limit_reached')
+          ? 'This license has reached its 2-device activation limit.'
+          : message;
+      setLicenseMessage(readable, 'error');
+    } finally {
+      if (elements.licenseActivate) elements.licenseActivate.disabled = false;
+    }
+  });
+  elements.licenseDialog?.addEventListener('cancel', async (event) => {
+    const licenseState = await window.pico.getLicenseState().catch(() => null);
+    if (licenseState?.status === 'trial-expired') event.preventDefault();
+  });
+}
+
 function bindToolbar() {
-  on(elements.btnCaptureRegion, 'click', () => { setCaptureModeButton('region'); startCapture(); });
-  on(elements.btnCaptureWindow, 'click', () => { setCaptureModeButton('window'); startCaptureWindow(); });
-  on(elements.btnCaptureFullscreen, 'click', () => { setCaptureModeButton('fullscreen'); startCaptureFullscreen(); });
+  on(elements.btnCaptureRegion, 'click', () => { elements.btnCaptureRegion.blur(); setCaptureModeButton('region'); startCapture(); });
+  on(elements.btnCaptureWindow, 'click', () => { elements.btnCaptureWindow.blur(); setCaptureModeButton('window'); startCaptureWindow(); });
+  on(elements.btnCaptureFullscreen, 'click', () => { elements.btnCaptureFullscreen.blur(); setCaptureModeButton('fullscreen'); startCaptureFullscreen(); });
   on(elements.btnRecordScreen, 'click', onRecordButtonClick);
   on(elements.recordingFormatSetting, 'change', () => {
     state.recordingSettings.format = elements.recordingFormatSetting.value === 'gif' ? 'gif' : 'mp4';
@@ -390,11 +473,11 @@ function bindKeyboard() {
 
 function bindIPC() {
   window.pico.onTriggerCapture(() => {
-    console.log('[pico][renderer] received trigger-capture');
+    console.log('[orange-fuji][renderer] received trigger-capture');
     startCapture();
   });
   window.pico.onTriggerCaptureMenu((options = {}) => {
-    console.log('[pico][renderer] received trigger-capture-menu');
+    console.log('[orange-fuji][renderer] received trigger-capture-menu');
     showWindow();
     startCapture(options);
   });
@@ -723,7 +806,7 @@ async function startRecordingWithFormat(format = 'mp4', mode = 'region') {
 
 function loadRecordingSettings() {
   try {
-    const raw = localStorage.getItem('pico-recording-settings');
+    const raw = localStorage.getItem(RECORDING_SETTINGS_KEY) || localStorage.getItem(LEGACY_RECORDING_SETTINGS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       state.recordingSettings.format = parsed?.format === 'gif' ? 'gif' : 'mp4';
@@ -737,10 +820,11 @@ function loadRecordingSettings() {
 }
 
 function saveRecordingSettings() {
-  localStorage.setItem('pico-recording-settings', JSON.stringify({
+  localStorage.setItem(RECORDING_SETTINGS_KEY, JSON.stringify({
     ...state.recordingSettings,
     hideDesktopIcons: state.captureSettings.hideDesktopIcons,
   }));
+  localStorage.removeItem(LEGACY_RECORDING_SETTINGS_KEY);
   try {
     window.pico.saveSettings({ hideDesktopIcons: state.captureSettings.hideDesktopIcons });
   } catch (_) {}
@@ -2446,9 +2530,7 @@ function updateToolbarState() {
 }
 
 
-function showToast(message, type = 'info') {
-  window.pico.showToast(message, type);
-}
+function showToast() {}
 
 
 // ══════════════════════════════════════════════════════════════════════════════

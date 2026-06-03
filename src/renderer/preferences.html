@@ -9,23 +9,50 @@
 </head>
 <body class="preferences-window">
   <form class="preferences-panel" id="preferences-form" aria-label="Preferences">
-    <label>Recording format
-      <select id="recording-format-setting"><option value="mp4">MP4</option><option value="gif">GIF</option></select>
-    </label>
-    <label><span>Autozoom on region recording</span><input type="checkbox" id="recording-autozoom-setting" checked></label>
-    <label><span>Hide desktop icons while capturing</span><input type="checkbox" id="hide-desktop-icons-setting" checked></label>
+    <div class="preferences-titlebar" aria-hidden="true"></div>
+    <header class="preferences-header">
+      <img src="../assets/icons/macos/256x256.png" alt="" width="48" height="48">
+      <div>
+        <h1>Orange Fuji</h1>
+        <p>Preferences</p>
+      </div>
+    </header>
 
-    <div class="preferences-field preferences-field--path">
+    <section class="preferences-group" aria-label="Recording">
+      <label>Recording format
+        <select id="recording-format-setting"><option value="mp4">MP4</option><option value="gif">GIF</option></select>
+      </label>
+      <label><span>Autozoom on region recording</span><input type="checkbox" id="recording-autozoom-setting" checked></label>
+      <label><span>Hide desktop icons while capturing</span><input type="checkbox" id="hide-desktop-icons-setting" checked></label>
+    </section>
+
+    <section class="preferences-group preferences-field preferences-field--path" aria-label="Saving">
       <div>
         <label for="default-save-path-setting">Default save path</label>
         <p>Choose the folder used first when saving screenshots and recordings.</p>
       </div>
       <div class="path-picker">
         <input type="text" id="default-save-path-setting" placeholder="System default" readonly>
-        <button type="button" id="choose-default-save-path-setting">Choose…</button>
-        <button type="button" id="clear-default-save-path-setting" class="secondary">Clear</button>
+        <div class="path-picker-actions">
+          <button type="button" id="choose-default-save-path-setting">Choose...</button>
+          <button type="button" id="clear-default-save-path-setting" class="secondary">Clear</button>
+        </div>
       </div>
-    </div>
+    </section>
+
+    <section class="preferences-group preferences-field preferences-field--license" aria-label="License">
+      <div>
+        <label for="license-email-setting">License</label>
+        <p id="license-status-setting">Checking license status...</p>
+      </div>
+      <div class="license-settings-activation">
+        <input type="email" id="license-email-setting" placeholder="you@example.com" autocomplete="email">
+        <div class="license-settings-actions">
+          <button type="button" id="buy-license-setting">Buy</button>
+          <button type="button" id="activate-license-setting" class="secondary">Activate</button>
+        </div>
+      </div>
+    </section>
   </form>
 
   <script src="preferences.js"></script>

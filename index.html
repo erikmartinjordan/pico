@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Pico — Lightweight screen-capture & annotation tool for macOS, Windows, and Linux." />
-  <title>Pico · Capture, annotate, share.</title>
+  <meta name="description" content="Orange Fuji — Lightweight screen-capture & annotation tool for macOS, Windows, and Linux." />
+  <title>Orange Fuji · Capture, annotate, share.</title>
   <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png" />
   <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png" />
   <style>
@@ -112,12 +112,12 @@
 
 <!-- Hero -->
 <section id="hero">
-  <img src="256x256.png" alt="Pico mascot" />
-  <h1>Pico<span class="version">v1.1.0</span></h1>
+  <img src="256x256.png" alt="Orange Fuji icon" />
+  <h1>Orange Fuji<span class="version" id="latest-version">v1.1.0</span></h1>
   <p class="tagline">Fast captures. Clean marks. Zero friction.</p>
   <div class="pill">macOS · Windows · Linux</div>
   <div class="actions">
-    <a class="btn btn-primary" href="https://github.com/erikmartinjordan/pico/releases/latest/download/pico-universal.dmg">
+    <a class="btn btn-primary" id="download-macos" href="https://github.com/erikmartinjordan/orange-fuji/releases/latest">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Download for macOS
     </a>
@@ -129,7 +129,7 @@
 
   <!-- 00 · Why -->
   <div class="section" id="why">
-    <div class="section-label">00 · Why Pico</div>
+    <div class="section-label">00 · Why Orange Fuji</div>
     <h2>Lightweight, private, yours.</h2>
     <p>One binary. No telemetry. Instant startup. Capture, annotate, and share.</p>
     <div class="principle-grid">
@@ -140,8 +140,8 @@
       </div>
       <div class="principle-card">
         <div class="num">02</div>
-        <h3>Privacy first</h3>
-        <p>No analytics, no telemetry, no accounts. Everything stays on your machine.</p>
+        <h3>Private by default</h3>
+        <p>Captures and recordings stay on your machine. No account is required to start the trial.</p>
       </div>
       <div class="principle-card">
         <div class="num">03</div>
@@ -219,15 +219,15 @@
     <h2>Honest answers.</h2>
     <div class="faq-list">
       <div class="faq-item">
-        <h3>Is Pico free?</h3>
-        <p>Yes. Pico is free and open source. No trials, no licenses, no accounts needed.</p>
+        <h3>Is Orange Fuji free?</h3>
+        <p>Download Orange Fuji from the latest release and start capturing right away.</p>
       </div>
       <div class="faq-item">
-        <h3>What platforms does Pico support?</h3>
+        <h3>What platforms does Orange Fuji support?</h3>
         <p>macOS (Intel &amp; Apple Silicon), Windows (portable), and Linux (AppImage). Same feature set on all three.</p>
       </div>
       <div class="faq-item">
-        <h3>Does Pico upload my data?</h3>
+        <h3>Does Orange Fuji upload my data?</h3>
         <p>No. Everything runs locally. No analytics, no telemetry, no accounts. Your screen stays yours.</p>
       </div>
       <div class="faq-item">
@@ -242,14 +242,35 @@
 <footer>
   <div class="container">
     <div class="inner">
-      <div class="copy">Pico · MIT License</div>
+      <div class="copy">Orange Fuji</div>
       <div class="links">
-        <a href="https://github.com/erikmartinjordan/pico" target="_blank" rel="noopener">GitHub</a>
-        <a href="https://github.com/erikmartinjordan/pico/releases" target="_blank" rel="noopener">Releases</a>
+        <a href="https://github.com/erikmartinjordan/orange-fuji" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/erikmartinjordan/orange-fuji/releases" target="_blank" rel="noopener">Releases</a>
       </div>
     </div>
   </div>
 </footer>
+
+<script>
+  const releaseApiUrl = 'https://api.github.com/repos/erikmartinjordan/orange-fuji/releases/latest';
+  const releasePageUrl = 'https://github.com/erikmartinjordan/orange-fuji/releases/latest';
+
+  function findMacDownloadUrl(assets = []) {
+    const dmg = assets.find((asset) => /orange-fuji.*\.dmg$/i.test(asset.name));
+    return dmg?.browser_download_url || releasePageUrl;
+  }
+
+  fetch(releaseApiUrl)
+    .then((response) => (response.ok ? response.json() : null))
+    .then((release) => {
+      if (!release) return;
+      const version = document.getElementById('latest-version');
+      const macDownload = document.getElementById('download-macos');
+      if (version && release.tag_name) version.textContent = release.tag_name;
+      if (macDownload) macDownload.href = findMacDownloadUrl(release.assets || []);
+    })
+    .catch(() => {});
+</script>
 
 </body>
 </html>

@@ -1,7 +1,7 @@
-# pico
+# Orange Fuji
 
 <p align="center">
-  <img src="src/assets/icons/macos/256x256.png" alt="pico icon" width="128" height="128" />
+  <img src="src/assets/icons/macos/256x256.png" alt="Orange Fuji icon" width="128" height="128" />
 </p>
 
 <p align="center">
@@ -9,10 +9,10 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/github/downloads/erikmartinjordan/pico/total?label=Total%20downloads&style=flat-square" alt="Total downloads" />
+  <img src="https://img.shields.io/github/downloads/erikmartinjordan/orange-fuji/total?label=Total%20downloads&style=flat-square" alt="Total downloads" />
 </p>
 
-pico is a minimal screen capture and annotation app for Windows, Linux, and experimental macOS builds.
+Orange Fuji is a minimal screen capture and annotation app for Windows, Linux, and experimental macOS builds.
 
 ## Download
 
@@ -26,16 +26,16 @@ Recommended launch targets:
 
 > Windows may show a SmartScreen warning on first launch because releases are not yet signed.
 >
-> macOS builds are intentionally unsigned and not notarized until pico can fund an Apple Developer Program account. Recent macOS versions can block unsigned apps and require manual approval in System Settings. If you are not comfortable with that security tradeoff, use the Windows/Linux builds or build pico from source on a Mac you control.
+> macOS builds are intentionally unsigned and not notarized until Orange Fuji can fund an Apple Developer Program account. Recent macOS versions can block unsigned apps and require manual approval in System Settings. If you are not comfortable with that security tradeoff, use the Windows/Linux builds or build Orange Fuji from source on a Mac you control.
 
 ### macOS status
 
 The native macOS app is not the primary launch target right now. It is useful for testing, but it has two known limitations:
 
 1. Gatekeeper can make unsigned, unnotarized apps difficult or impossible for mainstream users to open.
-2. Screen capture requires Screen Recording permission in System Settings → Privacy & Security → Screen & System Audio Recording. pico now detects denied permission and opens the correct settings pane with recovery instructions.
+2. Screen capture requires Screen Recording permission in System Settings → Privacy & Security → Screen & System Audio Recording. Orange Fuji now detects denied permission and opens the correct settings pane with recovery instructions.
 
-If you test the macOS build, download it only from the official GitHub release, verify checksums when provided, and expect to quit and reopen pico after changing Screen Recording permission.
+If you test the macOS build, download it only from the official GitHub release, verify checksums when provided, and expect to quit and reopen Orange Fuji after changing Screen Recording permission.
 
 ## Features
 
@@ -83,7 +83,7 @@ Builds are written to `dist/`.
 
 ## Release strategy
 
-pico uses Release Please with Conventional Commits for all official GitHub Releases. Pushes to `main` can build and upload CI artifacts, but they do not create official releases.
+Orange Fuji uses Release Please with Conventional Commits for all official GitHub Releases. Pushes to `main` can build and upload CI artifacts, but they do not create official releases.
 
 Use Conventional Commits for changes:
 
@@ -94,7 +94,7 @@ Use Conventional Commits for changes:
 
 After commits are merged to `main`, Release Please opens or updates a release PR containing the next version bump and `CHANGELOG.md` changes. Merge that Release Please PR only when you are ready to publish officially; merging it creates the Git tag, GitHub Release, changelog update, and package version update. The release workflow then builds the desktop binaries and attaches them to that GitHub Release.
 
-pico's no-budget launch path is to treat Windows and Linux as the primary downloadable platforms while keeping macOS transparent and experimental until notarization is affordable.
+Orange Fuji's no-budget launch path is to treat Windows and Linux as the primary downloadable platforms while keeping macOS transparent and experimental until notarization is affordable.
 
 Before publishing a release:
 

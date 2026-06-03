@@ -43,6 +43,15 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Configure PRO license
+        if: github.event_name != 'pull_request' && vars.ORANGE_FUJI_LICENSE_TARGET == 'pro'
+        run: npm run configure-license
+        env:
+          ORANGE_FUJI_LICENSE_TARGET: ${{ vars.ORANGE_FUJI_LICENSE_TARGET }}
+          ORANGE_FUJI_PRO_BUY_LICENSE_URL: ${{ vars.ORANGE_FUJI_PRO_BUY_LICENSE_URL || secrets.ORANGE_FUJI_PRO_BUY_LICENSE_URL }}
+          ORANGE_FUJI_PRO_LICENSE_API_BASE_URL: ${{ vars.ORANGE_FUJI_PRO_LICENSE_API_BASE_URL || secrets.ORANGE_FUJI_PRO_LICENSE_API_BASE_URL }}
+          ORANGE_FUJI_PRO_SUPABASE_PUBLISHABLE_KEY: ${{ vars.ORANGE_FUJI_PRO_SUPABASE_PUBLISHABLE_KEY || secrets.ORANGE_FUJI_PRO_SUPABASE_PUBLISHABLE_KEY }}
+
       - name: Build (macOS)
         if: matrix.platform == 'mac'
         run: npm run build:mac -- --publish never
@@ -66,7 +75,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: pico-${{ matrix.platform }}
+          name: orange-fuji-${{ matrix.platform }}
           path: |
             dist/*.dmg
             dist/*.zip

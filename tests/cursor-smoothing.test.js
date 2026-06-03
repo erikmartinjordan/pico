@@ -236,16 +236,16 @@ function createStreamWithCursorSetting(cursor) {
 }
 
 {
-  assert.ok(!mainSource.includes('getTrialStatus'), 'main process must not keep trial status logic');
-  assert.ok(!mainSource.includes('get-trial-status'), 'main process must not expose trial IPC');
-  assert.ok(!preloadSource.includes('getTrialStatus'), 'preload must not expose trial status');
-  assert.ok(!rendererSource.includes('trialStatus'), 'renderer must not gate recording behind trial state');
-  assert.ok(!indexSource.includes('pro-feature'), 'recording button must not keep trial/pro feature styling hooks');
-  assert.ok(!stylesSource.includes('pro-feature'), 'styles must not keep trial/pro feature hooks');
-  assert.ok(!stylesSource.includes('pro-badge'), 'styles must not keep pro/trial badges');
-  assert.ok(!indexSource.includes('trial'), 'main renderer markup must not mention trial');
-  assert.ok(!fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'preferences.html'), 'utf8').includes('Trial'), 'preferences must not show trial status');
-  assert.ok(!fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'preferences.js'), 'utf8').includes('trial'), 'preferences script must not read trial status');
+  assert.ok(mainSource.includes('const TRIAL_DAYS = 30;'), 'main process must keep the 30-day trial configuration');
+  assert.ok(mainSource.includes('const LICENSE_CHECK_INTERVAL_DAYS = 7;'), 'main process must keep the 7-day license validation interval');
+  assert.ok(mainSource.includes("ipcMain.handle('activate-license'"), 'main process must expose license activation IPC');
+  assert.ok(preloadSource.includes("getLicenseState: () => ipcRenderer.invoke('get-license-state')"), 'preload must expose license state');
+  assert.ok(/activateLicense:\s*async\s*\(email\)\s*=>[\s\S]*ipcRenderer\.invoke\('activate-license', email\)/.test(preloadSource), 'preload must expose license activation');
+  assert.ok(indexSource.includes('id="license-dialog"'), 'renderer markup must include the license dialog');
+  assert.ok(rendererSource.includes('refreshLicenseState();'), 'renderer must check trial/license state on startup');
+  assert.ok(!indexSource.includes('pro-feature'), 'recording button must not keep old pro feature styling hooks');
+  assert.ok(!stylesSource.includes('pro-feature'), 'styles must not keep old pro feature hooks');
+  assert.ok(!stylesSource.includes('pro-badge'), 'styles must not keep old pro badges');
 }
 
 {
@@ -288,4 +288,4 @@ function createStreamWithCursorSetting(cursor) {
   assert.ok(/\.color-swatch\s*\{[\s\S]*?-webkit-app-region: no-drag;/.test(stylesSource), 'color swatches must be clickable inside the draggable toolbar');
 }
 
-console.log('pico proof regression tests passed');
+console.log('Orange Fuji proof regression tests passed');

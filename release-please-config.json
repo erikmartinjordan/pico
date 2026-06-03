@@ -3,13 +3,13 @@
   "packages": {
     ".": {
       "release-type": "node",
-      "package-name": "pico",
+      "package-name": "orange-fuji",
       "changelog-path": "CHANGELOG.md",
       "include-component-in-tag": false,
       "draft": false,
       "prerelease": false,
 
-      "pull-request-header": "## 🚀 Pico Release\n\nThis PR prepares the next Pico release.\n\nReview the changelog below, test the app, and merge only when you are ready to publish.",
+      "pull-request-header": "## 🚀 Orange Fuji Release\n\nThis PR prepares the next Orange Fuji release.\n\nReview the changelog below, test the app, and merge only when you are ready to publish.",
       "pull-request-footer": "",
       "changelog-sections": [
         {

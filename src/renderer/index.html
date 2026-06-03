@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: data:;">
-  <title>pico</title>
+  <title>Orange Fuji</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -212,6 +212,26 @@
       <label><span>Autozoom on region recording</span><input type="checkbox" id="recording-autozoom-setting" checked/></label>
       <label><span>Hide desktop icons while capturing</span><input type="checkbox" id="hide-desktop-icons-setting" checked/></label>
       <div class="preferences-actions"><button value="close">Done</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="license-dialog" class="license-dialog">
+    <form method="dialog" class="license-panel">
+      <div class="license-panel__header">
+        <img src="../assets/icons/macos/256x256.png" alt="" width="44" height="44">
+        <div>
+          <h3>Orange Fuji</h3>
+          <p id="license-status-copy">Your trial is active.</p>
+        </div>
+      </div>
+      <label class="license-field">License email
+        <input type="email" id="license-email-input" placeholder="you@example.com" autocomplete="email">
+      </label>
+      <p class="license-message" id="license-message"></p>
+      <div class="license-actions">
+        <button type="button" class="btn btn-secondary" id="license-buy">Buy license</button>
+        <button type="button" class="btn btn-primary" id="license-activate">Activate</button>
+      </div>
     </form>
   </dialog>
 

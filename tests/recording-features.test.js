@@ -69,19 +69,19 @@ const codeSurfaces = [
   ['src/renderer/preferences.js', preferencesScript],
 ];
 
-assert.ok(!/getTrialStatus|get-trial-status|trialStatus|TRIAL_DAYS|30-day trial|expired/i.test(mainSource), 'main process must not contain trial feature logic');
 assert.ok(
-  !/trial/i.test(mainSource.replace(/trialStartedAt/g, '')),
-  'main process may only mention the legacy trialStartedAt key while stripping it from persisted settings',
+  /const TRIAL_DAYS = 30;/.test(mainSource),
+  'main process must start a 30-day local trial',
 );
 assert.ok(
-  /hasOwnProperty\.call\(rawSettings, 'trialStartedAt'\)[\s\S]*fs\.writeFileSync\(settingsPath\(\), JSON\.stringify\(settings, null, 2\)\)/.test(mainSource),
-  'settings reads must migrate old installs by removing the legacy trialStartedAt field',
+  /const LICENSE_CHECK_INTERVAL_DAYS = 7;/.test(mainSource),
+  'main process must validate active licenses every 7 days',
 );
-
-for (const [file, source] of codeSurfaces) {
-  assert.ok(!/trial|getTrialStatus|get-trial-status|trialStatus|trialStartedAt|TRIAL_DAYS|30-day trial/i.test(source), `${file} must not contain trial feature logic or copy`);
-}
+assert.ok(/ipcMain\.handle\('activate-license'/.test(mainSource), 'main process must expose license activation IPC');
+assert.ok(/getLicenseState: \(\) => ipcRenderer\.invoke\('get-license-state'\)/.test(preloadSource), 'preload must expose license state IPC');
+assert.ok(/activateLicense:\s*async\s*\(email\)\s*=>[\s\S]*ipcRenderer\.invoke\('activate-license', email\)/.test(preloadSource), 'preload must expose license activation IPC');
+assert.ok(indexSource.includes('id="license-dialog"'), 'renderer must include a license activation dialog');
+assert.ok(rendererSource.includes('refreshLicenseState();'), 'renderer must check license state during startup');
 
 assert.ok(!/pro-feature|pro-badge/.test(indexSource), 'recording UI must not keep pro/trial hooks in markup');
 assert.ok(!/pro-feature|pro-badge/.test(stylesSource), 'recording UI must not keep pro/trial hooks in styles');
