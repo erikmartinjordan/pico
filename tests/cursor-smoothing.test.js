@@ -163,8 +163,8 @@ function createStreamWithCursorSetting(cursor) {
     'recording indicator windows must not use macOS panel type because it emits NSWindow nonactivating panel errors',
   );
   assert.ok(
-    !/focusable:\s*false/.test(mainSource),
-    'recording overlay windows must not request non-focusable macOS windows because they can become nonactivating panels',
+    /async function createCaptureOverlays[\s\S]*focusable:\s*false/.test(mainSource),
+    'capture overlays must be non-focusable so region selection does not activate or switch macOS Spaces',
   );
   assert.ok(
     /show:\s*false,[\s\S]*overlayWindow\.showInactive\(\)/.test(mainSource),
