@@ -2182,6 +2182,10 @@ body.toolbar-transition .statusbar {
       color: var(--toolbar-icon-hover) !important;
       background: rgba(255, 255, 255, 0.15) !important;
     }
+
+    .toolbar-separator {
+      background: rgba(255, 255, 255, 0.22);
+    }
   }
 
 @media (prefers-color-scheme: light) {
