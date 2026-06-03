@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.1](https://github.com/erikmartinjordan/orange-fuji/compare/v1.2.0...v1.2.1) (2026-06-03)
+
+
+### 🐛 Fixes
+
+* Activate license process ([904a62a](https://github.com/erikmartinjordan/orange-fuji/commit/904a62add65ca8ca1b1ae44f0e6f3854f95608fe))
+* Delete toast notifications ([3575d37](https://github.com/erikmartinjordan/orange-fuji/commit/3575d37695b62bc3d62abb013a7f9ab5421c516b))
+* Improved design of About and Preferences ([03c4bf4](https://github.com/erikmartinjordan/orange-fuji/commit/03c4bf4aba8c464b18b94504c7824e39606e255c))
+* Landing shows always last release version ([a5fda04](https://github.com/erikmartinjordan/orange-fuji/commit/a5fda04d613f3beced86215aa1b074d6e5b80374))
+* Orange halo and losing focus ([7da23b9](https://github.com/erikmartinjordan/orange-fuji/commit/7da23b92143c6c6400463b582365b1017b7190c6))
+* Remove trial sentence from landing page ([07dcc2c](https://github.com/erikmartinjordan/orange-fuji/commit/07dcc2cd83de57ed39dc6f0243be2d4c3983dd15))
+* Simplify tray menu ([8699b6d](https://github.com/erikmartinjordan/orange-fuji/commit/8699b6de08079470411a9a5ffe15fab9254d5299))
+
 ## [1.2.0](https://github.com/erikmartinjordan/orange-fuji/compare/v1.1.0...v1.2.0) (2026-06-02)
 
 

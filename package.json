@@ -1,6 +1,6 @@
 {
   "name": "orange-fuji",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Lightweight screen-capture & annotation tool for Windows, Linux, and experimental macOS builds",
   "main": "src/main.js",
   "author": "Erik Martín Jordán",
