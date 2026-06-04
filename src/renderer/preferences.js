@@ -58,6 +58,7 @@ async function loadSettings() {
   captureOrangeFujiSetting.checked = settings.captureOrangeFuji;
   autoHideDelaySetting.value = settings.autoHideDelay;
   autoHideDelaySettingValue.textContent = sliderValueToLabel(settings.autoHideDelay);
+  autoHideDelaySettingValue.classList.toggle('output-infinity', autoHideDelaySettingValue.textContent === '∞');
   if (autoHideSliderUi) autoHideSliderUi.style.setProperty('--track-fill', (settings.autoHideDelay / 7 * 100) + '%');
   positionOutput();
   defaultSavePathSetting.value = settings.defaultSavePath;
@@ -145,6 +146,7 @@ function positionOutput() {
 autoHideDelaySetting.addEventListener('input', () => {
   const idx = parseInt(autoHideDelaySetting.value, 10);
   autoHideDelaySettingValue.textContent = sliderValueToLabel(idx);
+  autoHideDelaySettingValue.classList.toggle('output-infinity', autoHideDelaySettingValue.textContent === '∞');
   if (autoHideSliderUi) autoHideSliderUi.style.setProperty('--track-fill', (idx / 7 * 100) + '%');
   positionOutput();
 });

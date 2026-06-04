@@ -618,20 +618,18 @@ body.has-content .toolbar-group.capture-modes + .toolbar-separator {
   -webkit-appearance: none;
   appearance: none;
   width: 40px;
-  height: 20px;
-  border-radius: 9999px;
-  background:
-    radial-gradient(circle at 35% 25%, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0.08) 30%, transparent 50%),
-    radial-gradient(circle at 50% 50%, rgba(249, 115, 22, 0.3) 0%, rgba(249, 115, 22, 0.55) 100%);
-  border: 0.5px solid rgba(255,255,255,0.2);
+  height: 22px;
+  border-radius: 999px;
+  background: #fff;
+  border: 0;
   cursor: default;
-  margin-top: -8px;
+  margin-top: -9px;
   position: relative;
   z-index: 3;
   box-shadow:
-    0 1px 3px rgba(0,0,0,0.08),
-    0 4px 10px rgba(0,0,0,0.06),
-    inset 0 0.5px 0 rgba(255,255,255,0.25);
+    0 1px 3px rgba(0,0,0,0.20),
+    0 0.5px 1px rgba(0,0,0,0.12),
+    inset 0 0.5px 0 rgba(255,255,255,0.90);
 }
 
 .preferences-window .preferences-panel .slider-ui input[type="range"]:focus-visible {
@@ -671,8 +669,19 @@ body.has-content .toolbar-group.capture-modes + .toolbar-separator {
     rgba(60, 60, 67, 0.12) 0px,
     rgba(60, 60, 67, 0.12) 1px,
     transparent 1px,
-    transparent calc(100% / 60)
+    transparent calc(100% / 42)
   );
+  pointer-events: none;
+}
+
+.preferences-window .preferences-panel .slider-ticks::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 1px;
+  height: 6px;
+  background: rgba(60, 60, 67, 0.35);
   pointer-events: none;
 }
 
@@ -707,12 +716,17 @@ body.has-content .toolbar-group.capture-modes + .toolbar-separator {
   inset: auto 20px 2px;
   display: flex;
   justify-content: space-between;
-  font-size: 7.5px;
+  font-size: 8.5px;
   color: rgba(60, 60, 67, 0.40);
   font-weight: 500;
   line-height: 1;
   pointer-events: none;
   letter-spacing: -0.02em;
+}
+
+.preferences-window .preferences-panel .slider-labels > span:last-child {
+  font-size: 13px;
+  line-height: 0.7;
 }
 
 .preferences-window .preferences-panel .range-unit output {
@@ -723,12 +737,16 @@ body.has-content .toolbar-group.capture-modes + .toolbar-separator {
   font-variant-numeric: tabular-nums;
   font-size: 11px;
   font-weight: 700;
-  color: #fff;
+  color: #f97316;
   text-align: center;
   width: 40px;
-  line-height: 20px;
+  line-height: 22px;
   pointer-events: none;
   z-index: 4;
+}
+
+.preferences-window .preferences-panel .range-unit output.output-infinity {
+  font-size: 18px;
 }
 
 .preferences-field {
@@ -944,14 +962,12 @@ body.has-content .toolbar-group.capture-modes + .toolbar-separator {
   }
 
   .preferences-window .preferences-panel .slider-ui input[type="range"]::-webkit-slider-thumb {
-    background:
-      radial-gradient(circle at 35% 25%, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0.05) 30%, transparent 50%),
-      radial-gradient(circle at 50% 50%, rgba(249, 115, 22, 0.3) 0%, rgba(249, 115, 22, 0.5) 100%);
-    border: 0.5px solid rgba(255,255,255,0.1);
+    background: #fff;
+    border: 0;
     box-shadow:
-      0 1px 3px rgba(0,0,0,0.3),
-      0 4px 12px rgba(0,0,0,0.25),
-      inset 0 0.5px 0 rgba(255,255,255,0.15);
+      0 1px 3px rgba(0,0,0,0.30),
+      0 0.5px 1px rgba(0,0,0,0.18),
+      inset 0 0.5px 0 rgba(255,255,255,0.90);
   }
 
   .preferences-window .preferences-panel .slider-ui::before {
@@ -978,8 +994,12 @@ body.has-content .toolbar-group.capture-modes + .toolbar-separator {
       rgba(255, 255, 255, 0.1) 0px,
       rgba(255, 255, 255, 0.1) 1px,
       transparent 1px,
-      transparent calc(100% / 60)
+      transparent calc(100% / 42)
     );
+  }
+
+  .preferences-window .preferences-panel .slider-ticks::after {
+    background: rgba(255, 255, 255, 0.25);
   }
 
   .preferences-window .preferences-panel .slider-labels {
@@ -987,7 +1007,7 @@ body.has-content .toolbar-group.capture-modes + .toolbar-separator {
   }
 
   .preferences-window .preferences-panel .range-unit output {
-    color: #e8e4df;
+    color: #f97316;
   }
 
   .preferences-field label {
