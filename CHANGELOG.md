@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.3.0](https://github.com/erikmartinjordan/orange-fuji/compare/v1.2.1...v1.3.0) (2026-06-04)
+
+
+### ✨ Features
+
+* add capture region magnifier loupe ([857c285](https://github.com/erikmartinjordan/orange-fuji/commit/857c28597db710159d25ca2a381d32b7f3b31704))
+* add capture region magnifier loupe ([f283dfa](https://github.com/erikmartinjordan/orange-fuji/commit/f283dfafa328e7be7ca4f3bcdbf11d6e2fb3d668))
+* Set the delay to hide the pill ([cc589e3](https://github.com/erikmartinjordan/orange-fuji/commit/cc589e3d28c80cc8a2d72a94d93d5ab77e931bb9))
+
+
+### 🐛 Fixes
+
+* Menu structure ([a877513](https://github.com/erikmartinjordan/orange-fuji/commit/a877513fbc1bb3595a3a39b5aebe92ebd4291592))
+* Only show frames when ready on video screen-recording ([c08f8e0](https://github.com/erikmartinjordan/orange-fuji/commit/c08f8e001fbf4b18b4be0914d979872ee36ec22c))
+* Orange halo in some buttons ([cc095ea](https://github.com/erikmartinjordan/orange-fuji/commit/cc095ea4d9c6272948d002446a4c28469a367242))
+* Preferences to autorecord and record video ([f3aae9b](https://github.com/erikmartinjordan/orange-fuji/commit/f3aae9b46b48050097bdd743f8614267ec5f0a59))
+* Screen record not moving window to Desktop ([d31024b](https://github.com/erikmartinjordan/orange-fuji/commit/d31024b26960a7d3efe966120dfa0612e475e3c2))
+* Separators in dark-mode ([973c3ff](https://github.com/erikmartinjordan/orange-fuji/commit/973c3ffc5b23bb3d0075451c30243ad2536437e7))
+* Toast window now shows preview without broken image ([b98c6fa](https://github.com/erikmartinjordan/orange-fuji/commit/b98c6fa41fdb8516a780c641243679e540a33c33))
+* use default cursor for region capture ([b9496cd](https://github.com/erikmartinjordan/orange-fuji/commit/b9496cde48e9777f97912e0bc271ee65e38040d4))
+
 ## [1.2.1](https://github.com/erikmartinjordan/orange-fuji/compare/v1.2.0...v1.2.1) (2026-06-03)
 
 
