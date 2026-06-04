@@ -104,7 +104,11 @@ async function saveSettings() {
   localStorage.setItem(RECORDING_SETTINGS_KEY, JSON.stringify(settings));
   localStorage.removeItem(LEGACY_RECORDING_SETTINGS_KEY);
   try {
-    await window.pico.saveSettings({ defaultSavePath: settings.defaultSavePath, hideDesktopIcons: settings.hideDesktopIcons });
+    await window.pico.saveSettings({
+      defaultSavePath: settings.defaultSavePath,
+      hideDesktopIcons: settings.hideDesktopIcons,
+      captureOrangeFuji: settings.captureOrangeFuji,
+    });
   } catch (_) {}
   window.pico.notifySettingsChanged?.();
 }

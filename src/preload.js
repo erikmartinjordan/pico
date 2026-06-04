@@ -616,6 +616,7 @@ async function startRecording(options = {}) {
     mode,
     autoZoom: options?.autoZoom !== false,
     hideDesktopIcons: options?.hideDesktopIcons !== false,
+    captureOrangeFuji: options?.captureOrangeFuji === true,
     inlinePreview: Boolean(options?.previewVideoId),
   });
   if (!source) throw new Error('Recording canceled');
@@ -641,6 +642,7 @@ async function startRecording(options = {}) {
       systemAudio = false;
       rawStream = await getDesktopStream(source.id, false);
     }
+    await ipcRenderer.invoke('pro-recording-restore-frontmost-app').catch(() => {});
     if (rawStream.getAudioTracks().length === 0) systemAudio = false;
 
     let zoomPipeline = null;

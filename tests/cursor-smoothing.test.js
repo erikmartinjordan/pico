@@ -174,6 +174,7 @@ function createStreamWithCursorSetting(cursor) {
     /const shouldShowRegionOverlay = Boolean\(lastRecordingRegion\);/.test(mainSource),
     'region recordings must keep a visible recording overlay on every platform',
   );
+  assert.ok(!/process\.platform === 'darwin' && shouldShowRegionOverlay && !options\.inlinePreview[\s\S]*return;/.test(mainSource), 'macOS region recordings must keep the dim overlay and stop controls visible');
   assert.ok(
     /const overlayWindow = new BrowserWindow\(\{[\s\S]*backgroundColor: '#00000000'[\s\S]*fullscreenable: true[\s\S]*enableLargerThanScreen: true/.test(mainSource),
     'recording overlay window must match capture overlay screen coverage so macOS does not offset it below the menu bar',

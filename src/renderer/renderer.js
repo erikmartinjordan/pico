@@ -487,7 +487,7 @@ function bindIPC() {
     startCapture(options);
   });
   window.pico.onTriggerCaptureWindow(() => startCaptureWindow());
-  window.pico.onTriggerRecordScreen(() => startRecordingWithFormat(state.recordingSettings.format, 'region'));
+  window.pico.onTriggerRecordScreen((event) => onRecordButtonClick(event));
   window.pico.onTriggerCaptureFullscreen(() => startCaptureFullscreen());
   window.pico.onShortcutCaptureReady(() => {
     showWindow();
@@ -835,7 +835,10 @@ function saveRecordingSettings() {
   }));
   localStorage.removeItem(LEGACY_RECORDING_SETTINGS_KEY);
   try {
-    window.pico.saveSettings({ hideDesktopIcons: state.captureSettings.hideDesktopIcons });
+    window.pico.saveSettings({
+      hideDesktopIcons: state.captureSettings.hideDesktopIcons,
+      captureOrangeFuji: state.recordingSettings.captureOrangeFuji,
+    });
   } catch (_) {}
 }
 
@@ -1648,6 +1651,7 @@ async function startCapture(options = {}) {
     const result = await window.pico.startCapture({
       hideDesktopIcons: options?.hideDesktopIcons ?? state.captureSettings.hideDesktopIcons,
       showToolbar: options?.showToolbar,
+      captureOrangeFuji: state.recordingSettings.captureOrangeFuji,
     });
     if (!result.success) showToast(result.error || 'Failed to start capture', 'error');
   } catch (err) {
@@ -1660,7 +1664,10 @@ async function startCapture(options = {}) {
 async function startCaptureWindow() {
   if (state.cropActive) cancelCrop();
   try {
-    const result = await window.pico.startCaptureWindow({ hideDesktopIcons: state.captureSettings.hideDesktopIcons });
+    const result = await window.pico.startCaptureWindow({
+      hideDesktopIcons: state.captureSettings.hideDesktopIcons,
+      captureOrangeFuji: state.recordingSettings.captureOrangeFuji,
+    });
     if (!result.success) showToast(result.error || 'Failed to capture window', 'error');
   } catch (err) {
     showToast(err?.message || 'Failed to capture window', 'error');
@@ -1672,7 +1679,10 @@ async function startCaptureWindow() {
 async function startCaptureFullscreen() {
   if (state.cropActive) cancelCrop();
   try {
-    const result = await window.pico.startCaptureFullscreen({ hideDesktopIcons: state.captureSettings.hideDesktopIcons });
+    const result = await window.pico.startCaptureFullscreen({
+      hideDesktopIcons: state.captureSettings.hideDesktopIcons,
+      captureOrangeFuji: state.recordingSettings.captureOrangeFuji,
+    });
     if (!result.success) {
       showToast(result.error || 'Failed to capture screen', 'error');
     }

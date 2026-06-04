@@ -21,6 +21,8 @@ let recordingRegionSelection = null;
 let lastRecordingSourceId = null;
 let lastRecordingRegion = null;
 let recordingDisplayMediaSourceId = null;
+let recordingInProgress = false;
+let recordingReturnAppPath = '';
 let tray = null;
 let desktopIconsHidden = false;
 let desktopIconsVisibleBeforeRecording = true;
@@ -49,6 +51,7 @@ const LEGACY_USER_DATA_NAME = 'pico';
 const DEFAULT_SETTINGS = {
   defaultSavePath: '',
   hideDesktopIcons: true,
+  captureOrangeFuji: false,
   trialStartedAt: '',
   deviceId: '',
   licenseEmail: '',
@@ -74,6 +77,7 @@ function normalizeSettings(candidate = {}) {
   return {
     defaultSavePath: typeof candidate.defaultSavePath === 'string' ? candidate.defaultSavePath : DEFAULT_SETTINGS.defaultSavePath,
     hideDesktopIcons: typeof candidate.hideDesktopIcons === 'boolean' ? candidate.hideDesktopIcons : DEFAULT_SETTINGS.hideDesktopIcons,
+    captureOrangeFuji: typeof candidate.captureOrangeFuji === 'boolean' ? candidate.captureOrangeFuji : DEFAULT_SETTINGS.captureOrangeFuji,
     trialStartedAt: typeof candidate.trialStartedAt === 'string' ? candidate.trialStartedAt : DEFAULT_SETTINGS.trialStartedAt,
     deviceId: typeof candidate.deviceId === 'string' ? candidate.deviceId : DEFAULT_SETTINGS.deviceId,
     licenseEmail: typeof candidate.licenseEmail === 'string' ? candidate.licenseEmail : DEFAULT_SETTINGS.licenseEmail,
@@ -765,10 +769,18 @@ function getHighQualityThumbnailSize(minWidth = 1920, minHeight = 1200) {
 }
 
 
+function shouldCaptureOrangeFuji(options = {}) {
+  return options?.captureOrangeFuji === true;
+}
+
+function isOrangeFujiWindowText(value) {
+  const text = String(value || '').toLowerCase();
+  return text.includes('orange fuji') || text.includes('orange-fuji') || text.includes('pico');
+}
+
 function isOrangeFujiWindowSource(source) {
   const id = String(source?.id || '');
-  const name = String(source?.name || '').toLowerCase();
-  return id.startsWith('window:') && (name.includes('orange fuji') || name.includes('orange-fuji') || name.includes('pico'));
+  return id.startsWith('window:') && isOrangeFujiWindowText(source?.name);
 }
 
 function toPickerSource(source) {
@@ -788,9 +800,10 @@ async function getDesktopSourcesForPicker(types = ['window']) {
   });
 }
 
-async function getWindowSourcesForPicker() {
+async function getWindowSourcesForPicker(options = {}) {
+  const includeOrangeFuji = shouldCaptureOrangeFuji(options);
   const windowSources = (await getDesktopSourcesForPicker(['window']))
-    .filter((source) => source && source.name && !isOrangeFujiWindowSource(source));
+    .filter((source) => source && source.name && (includeOrangeFuji || !isOrangeFujiWindowSource(source)));
 
   let pickerSources = windowSources;
   let fallbackReason = '';
@@ -812,7 +825,7 @@ async function getWindowSourcesForPicker() {
   return { sources: pickerSources.map(toPickerSource), fallbackReason };
 }
 
-async function openWindowPickerFallback() {
+async function openWindowPickerFallback(options = {}) {
   if (windowPickerWindow && !windowPickerWindow.isDestroyed()) {
     windowPickerWindow.focus();
     return { success: true, fallback: true };
@@ -839,7 +852,7 @@ async function openWindowPickerFallback() {
   });
 
   windowPickerWindow.webContents.once('did-finish-load', async () => {
-    const payload = await getWindowSourcesForPicker();
+    const payload = await getWindowSourcesForPicker(options);
     windowPickerWindow?.webContents.send('window-sources', payload);
   });
 
@@ -946,6 +959,17 @@ function getVisibleWindowBounds() {
     console.error('Window enumeration failed:', err.message);
   }
   return [];
+}
+
+function isOrangeFujiWindowBound(win) {
+  return isOrangeFujiWindowText(win?.name) ||
+    isOrangeFujiWindowText(win?.owner) ||
+    isOrangeFujiWindowText(win?.title);
+}
+
+function filterOrangeFujiWindowBounds(windowBounds, includeOrangeFuji) {
+  if (includeOrangeFuji) return windowBounds;
+  return (windowBounds || []).filter((win) => !isOrangeFujiWindowBound(win));
 }
 
 function getWindowBoundsWindows() {
@@ -1126,8 +1150,10 @@ function sourceNameMatchesWindow(sourceName, win) {
     (full && full.includes(source));
 }
 
-function attachCapturerSourcesToWindowBounds(windowBounds, capturerSources) {
-  const sources = (capturerSources || []).filter((source) => source && source.id && source.name && !isOrangeFujiWindowSource(source));
+function attachCapturerSourcesToWindowBounds(windowBounds, capturerSources, options = {}) {
+  const includeOrangeFuji = shouldCaptureOrangeFuji(options);
+  const sources = (capturerSources || [])
+    .filter((source) => source && source.id && source.name && (includeOrangeFuji || !isOrangeFujiWindowSource(source)));
   if (sources.length === 0) return windowBounds;
 
   return windowBounds.map((win) => {
@@ -1166,6 +1192,29 @@ function showWindowInactiveOnMac(win) {
   if (!win || win.isDestroyed()) return;
   if (process.platform === 'darwin') win.showInactive();
   else win.show();
+}
+
+function rememberMacRecordingReturnApp() {
+  if (process.platform !== 'darwin') return;
+  try {
+    const appPath = execSync('osascript -e \'POSIX path of (path to frontmost application as alias)\'', {
+      encoding: 'utf8',
+      timeout: 1500,
+    }).trim();
+    const normalized = appPath.toLowerCase();
+    if (!appPath || normalized.includes('/electron.app') || normalized.includes('/orange-fuji/')) return;
+    recordingReturnAppPath = appPath;
+  } catch (error) {
+    console.error('[orange-fuji][recording] failed to remember frontmost app:', error.message);
+  }
+}
+
+function restoreMacRecordingReturnApp() {
+  if (process.platform !== 'darwin' || !recordingReturnAppPath) return;
+  const appPath = recordingReturnAppPath;
+  execFile('open', [appPath], (error) => {
+    if (error) console.error('[orange-fuji][recording] failed to restore frontmost app:', error.message);
+  });
 }
 
 function showRecordingIndicator(options = {}) {
@@ -1749,8 +1798,9 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
   
     await Promise.all(readyPromises);
 
-    // Once overlays are visible, lift the toolbar pill above them without stealing app focus.
-    if (mainWindow && !mainWindow.isDestroyed()) {
+    // Once screenshot overlays are visible, lift the toolbar pill above them without stealing app focus.
+    // Recording region selection must stay overlay-only on macOS so full-screen app Spaces are not disturbed.
+    if (mode !== 'record-region' && mainWindow && !mainWindow.isDestroyed()) {
       applyToolbarWindowMode();
 
       if (process.platform === 'darwin') {
@@ -1760,11 +1810,46 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
 
       showWindowInactiveOnMac(mainWindow);
 
-      if (process.platform === 'darwin' && mode !== 'record-region') {
+      if (process.platform === 'darwin') {
         mainWindow.moveTop();
       }
     }
   }
+
+function getOrangeFujiAppWindows() {
+  return [mainWindow, preferencesWindow, windowPickerWindow, previewToastWindow]
+    .filter((win) => win && !win.isDestroyed());
+}
+
+function setOrangeFujiWindowsContentProtection(enabled) {
+  for (const win of getOrangeFujiAppWindows()) {
+    try {
+      win.setContentProtection(enabled);
+    } catch (error) {
+      console.error('[orange-fuji] failed to update Orange Fuji window content protection:', error.message);
+    }
+  }
+}
+
+async function hideOrangeFujiWindowsBeforeCapture(options = {}) {
+  if (shouldCaptureOrangeFuji(options)) {
+    setOrangeFujiWindowsContentProtection(false);
+    return false;
+  }
+
+  const windowsToHide = getOrangeFujiAppWindows();
+
+  for (const win of windowsToHide) {
+    try {
+      win.hide();
+    } catch (error) {
+      console.error('[orange-fuji][capture] failed to hide Orange Fuji window:', error.message);
+    }
+  }
+
+  await new Promise((resolve) => setTimeout(resolve, process.platform === 'darwin' ? 260 : 160));
+  return windowsToHide.length > 0;
+}
 
 async function captureRegion(options = {}) {
   notifyRendererCaptureModeStarted();
@@ -1779,6 +1864,7 @@ async function captureRegion(options = {}) {
       if (mainWindow) showMainWindowForCurrentMode();
       return { success: false, error: 'Screen Recording permission is required.' };
     }
+    await hideOrangeFujiWindowsBeforeCapture(options);
     const captureData = await withHiddenDesktopIcons(options, async () => captureAllScreens());
     console.log('[orange-fuji][capture] capture data ready; creating overlays');
     await createCaptureOverlays(captureData, 'region', []);
@@ -1824,13 +1910,14 @@ ipcMain.on('preview-toast-clicked', () => {
 ipcMain.handle('start-capture', async (event, options = {}) => {
     console.log('[orange-fuji][capture] start-capture invoked');
     const showToolbarBeforeCapture = options?.showToolbar !== false;
-    if (showToolbarBeforeCapture && mainWindow && !mainWindow.isDestroyed()) {
+    const includeOrangeFuji = shouldCaptureOrangeFuji(options);
+    if (showToolbarBeforeCapture && includeOrangeFuji && mainWindow && !mainWindow.isDestroyed()) {
       if (process.platform === 'darwin') mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
       mainWindow.setAlwaysOnTop(true, process.platform === 'darwin' ? 'screen-saver' : 'normal');
-      mainWindow.show();
+      showWindowInactiveOnMac(mainWindow);
       mainWindow.moveTop();
     }
-    if (showToolbarBeforeCapture) await new Promise(r => setTimeout(r, 120));
+    if (showToolbarBeforeCapture && includeOrangeFuji) await new Promise(r => setTimeout(r, 120));
     return captureRegion(options);
   });
 
@@ -1841,13 +1928,19 @@ ipcMain.handle('start-capture-window', async (event, options = {}) => {
     if (mainWindow) showMainWindowForCurrentMode();
     return { success: false, error: 'Trial expired. Activate a license to continue.' };
   }
-  if (mainWindow && !mainWindow.isDestroyed()) {
+  const includeOrangeFuji = shouldCaptureOrangeFuji(options);
+  if (includeOrangeFuji && mainWindow && !mainWindow.isDestroyed()) {
+    setOrangeFujiWindowsContentProtection(false);
     if (process.platform === 'darwin') mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     mainWindow.setAlwaysOnTop(true, process.platform === 'darwin' ? 'screen-saver' : 'normal');
-    mainWindow.show();
+    showWindowInactiveOnMac(mainWindow);
     mainWindow.moveTop();
   }
-  await new Promise(r => setTimeout(r, process.platform === 'darwin' ? 180 : 80));
+  if (includeOrangeFuji) {
+    await new Promise(r => setTimeout(r, process.platform === 'darwin' ? 180 : 80));
+  } else {
+    await hideOrangeFujiWindowsBeforeCapture(options);
+  }
   try {
     if (process.platform === 'darwin') {
       return await captureNativeMacWindow();
@@ -1861,13 +1954,17 @@ ipcMain.handle('start-capture-window', async (event, options = {}) => {
       thumbnailSize: getHighQualityThumbnailSize(),
       fetchWindowIcons: false,
     });
-    windowPickerSources = windowSources.filter(s => s && s.name && !isOrangeFujiWindowSource(s));
+    windowPickerSources = windowSources.filter(s => s && s.name && (includeOrangeFuji || !isOrangeFujiWindowSource(s)));
 
-    const winBounds = attachCapturerSourcesToWindowBounds(getVisibleWindowBounds(), windowPickerSources)
+    const winBounds = attachCapturerSourcesToWindowBounds(
+      filterOrangeFujiWindowBounds(getVisibleWindowBounds(), includeOrangeFuji),
+      windowPickerSources,
+      options,
+    )
       .filter((win) => win.sourceId || process.platform !== 'darwin');
 
     if (winBounds.length === 0) {
-      return openWindowPickerFallback();
+      return openWindowPickerFallback(options);
     }
 
     await createCaptureOverlays(captureData, 'window', winBounds);
@@ -1886,10 +1983,7 @@ ipcMain.handle('start-capture-fullscreen', async (event, options = {}) => {
     if (mainWindow) showMainWindowForCurrentMode();
     return { success: false, error: 'Trial expired. Activate a license to continue.' };
   }
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.hide();
-  }
-  await new Promise(r => setTimeout(r, process.platform === 'darwin' ? 260 : 160));
+  await hideOrangeFujiWindowsBeforeCapture(options);
   try {
     if (!await ensureMacScreenRecordingPermission()) {
       notifyRendererCaptureFinished();
@@ -2171,13 +2265,25 @@ ipcMain.handle('get-cursor-screen-point', () => screen.getCursorScreenPoint());
 
 
 ipcMain.handle('pro-recording-indicator-show', async (event, payload = {}) => {
+  recordingInProgress = true;
   if (payload?.region) lastRecordingRegion = payload.region;
   showRecordingIndicator({ inlinePreview: Boolean(payload?.inlinePreview) });
+  if (process.platform === 'darwin' && payload?.region && !payload?.inlinePreview) {
+    setTimeout(() => restoreMacRecordingReturnApp(), 120);
+    setTimeout(() => restoreMacRecordingReturnApp(), 360);
+  }
   return { success: true };
 });
 
 ipcMain.handle('pro-recording-indicator-hide', async () => {
+  recordingInProgress = false;
+  recordingReturnAppPath = '';
   hideRecordingIndicator();
+  return { success: true };
+});
+
+ipcMain.handle('pro-recording-restore-frontmost-app', async () => {
+  restoreMacRecordingReturnApp();
   return { success: true };
 });
 
@@ -2205,12 +2311,12 @@ ipcMain.handle('pro-recording-prepare', async (event, payload = {}) => {
   if (payload?.captureOrangeFuji !== true) {
     await hideOrangeFujiWindowsBeforeRecording();
   } else {
-    // Restore main window to its normal always-on-top level after region
-    // selection elevated it to screen-saver. Keep it visible for showcasing.
-    if (mainWindow && !mainWindow.isDestroyed()) {
+    setOrangeFujiWindowsContentProtection(false);
+    // Do not show Orange Fuji here: after region selection, activating or
+    // re-showing an app window can pull macOS out of a full-screen app Space.
+    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
       try { mainWindow.setAlwaysOnTop(true, 'floating'); } catch (_) { mainWindow.setAlwaysOnTop(true); }
-      if (process.platform === 'darwin') mainWindow.showInactive();
-      else mainWindow.moveTop();
+      if (process.platform !== 'darwin') mainWindow.moveTop();
     }
   }
   return { success: true };
@@ -2224,12 +2330,16 @@ async function chooseRecordingRegionSource(options = {}) {
     try {
       notifyRendererCaptureModeStarted();
       if (mainWindow && !mainWindow.isDestroyed()) {
-        lastToolbarBounds = null;
-        applyToolbarWindowMode();
-        if (process.platform === 'darwin') mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-        mainWindow.setBounds({ width: TOOLBAR_WINDOW_SIZE.width, height: TOOLBAR_WINDOW_SIZE.height }, false);
-        if (process.platform === 'darwin') mainWindow.showInactive();
-        else {
+        if (process.platform === 'darwin') {
+          if (shouldCaptureOrangeFuji(options)) {
+            setOrangeFujiWindowsContentProtection(false);
+          } else {
+            await hideOrangeFujiWindowsBeforeRecording();
+          }
+        } else {
+          lastToolbarBounds = null;
+          applyToolbarWindowMode();
+          mainWindow.setBounds({ width: TOOLBAR_WINDOW_SIZE.width, height: TOOLBAR_WINDOW_SIZE.height }, false);
           mainWindow.show();
           mainWindow.moveTop();
         }
@@ -2238,6 +2348,7 @@ async function chooseRecordingRegionSource(options = {}) {
       if (!await ensureMacScreenRecordingPermission()) {
         throw new Error('Screen Recording permission is required.');
       }
+      rememberMacRecordingReturnApp();
       const captureData = await withHiddenDesktopIcons({ ...options, hideDesktopIcons: false }, async () => captureAllScreens());
       await createCaptureOverlays(captureData, 'record-region', []);
     } catch (error) {
@@ -2477,8 +2588,16 @@ app.whenReady().then(() => {
     if (wasMissingWindow) createMainWindow();
 
     const startCapture = () => {
+      if (recordingInProgress) {
+        mainWindow?.webContents?.send('pro-recording-stop-requested');
+        return;
+      }
       const settings = readSettings();
-      captureRegion({ hideDesktopIcons: settings.hideDesktopIcons, showToolbar: false });
+      captureRegion({
+        hideDesktopIcons: settings.hideDesktopIcons,
+        captureOrangeFuji: settings.captureOrangeFuji,
+        showToolbar: false,
+      });
     };
 
     if (wasMissingWindow) {
