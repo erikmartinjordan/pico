@@ -924,6 +924,8 @@ function showRecordingPreview(result = {}) {
         console.error('[pico][timeline] failed to generate filmstrip:', error);
       }
     }
+    const strip = document.querySelector('.timeline-filmstrip');
+    if (strip) strip.style.opacity = '1';
   };
   gen();
 }
@@ -1353,6 +1355,8 @@ function ensureTimelineElements() {
   filmstrip.style.cursor = 'pointer';
   filmstrip.style.touchAction = 'none';
   filmstrip.style.zIndex = '4';
+  filmstrip.style.opacity = '0';
+  filmstrip.style.transition = 'opacity 0.15s ease';
   filmstrip.setAttribute('aria-label', 'Video trim timeline');
 
   const frames = document.createElement('div');
@@ -1400,6 +1404,8 @@ function clearTimeline() {
   timelineGenerationAbort = true;
   const frames = document.getElementById('timeline-frames');
   if (frames) frames.replaceChildren();
+  const strip = document.querySelector('.timeline-filmstrip');
+  if (strip) strip.style.opacity = '0';
 }
 
 function updateTimeline() {
