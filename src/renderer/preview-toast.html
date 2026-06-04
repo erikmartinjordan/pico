@@ -29,9 +29,16 @@
         backdrop-filter: blur(16px);
         color: rgba(255,255,255,0.92);
         cursor: pointer;
+        box-shadow: none;
+        outline: none;
         transition: transform 0.15s ease, background 0.15s ease;
       }
       .toast:hover { transform: scale(1.025); background: rgba(18,20,24,0.9); }
+      .toast:focus,
+      .toast:focus-visible {
+        outline: none;
+        box-shadow: none;
+      }
       img {
         display: block;
         width: 100%;
@@ -39,6 +46,7 @@
         object-fit: contain;
         border-radius: 9px;
         background: rgba(255,255,255,0.06);
+        box-shadow: none;
       }
       .label {
         margin-top: 7px;

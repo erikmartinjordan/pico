@@ -1413,7 +1413,7 @@ function showRecordingIndicator(options = {}) {
           pointer-events: auto;
         }
         .status { display: flex; align-items: center; gap: 9px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: rgba(255,255,255,0.7); }
-        .dot { width: 10px; height: 10px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.85); animation: dotPulse 1.1s ease-out infinite; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; background: #ef4444; }
         button {
           border: 1px solid rgba(255, 255, 255, 0.12);
           border-radius: 8px;
@@ -1425,10 +1425,16 @@ function showRecordingIndicator(options = {}) {
           font-weight: 700;
           letter-spacing: 0.04em;
           cursor: pointer;
+          outline: none;
           transition: background 0.12s, border-color 0.12s;
           display: flex;
           align-items: center;
           gap: 6px;
+        }
+        button:focus,
+        button:focus-visible {
+          outline: none;
+          box-shadow: none;
         }
         button::before {
           content: '';
@@ -1442,7 +1448,6 @@ function showRecordingIndicator(options = {}) {
           background: rgba(239, 68, 68, 0.15);
           border-color: rgba(239, 68, 68, 0.5);
         }
-        @keyframes dotPulse { 0% { box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.85); } 80%, 100% { box-shadow: 0 0 0 10px rgba(248, 113, 113, 0); } }
       </style>
     </head>
     <body>

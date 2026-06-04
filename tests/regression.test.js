@@ -11,6 +11,7 @@ const indexSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer'
 const preferencesSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'preferences.html'), 'utf8');
 const preferencesScript = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'preferences.js'), 'utf8');
 const captureOverlaySource = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'capture-overlay.html'), 'utf8');
+const previewToastSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'preview-toast.html'), 'utf8');
 
 const tests = [];
 
@@ -210,6 +211,14 @@ function createStreamWithCursorSetting(cursor) {
     'recording overlay must illuminate the selected region by dimming only the outside bands',
   );
   assert.ok(
+    /\.dot\s*\{[^}]*background: #ef4444;[^}]*\}/.test(mainSource) && !/dotPulse|\.dot\s*\{[^}]*box-shadow/.test(mainSource),
+    'stop recording indicator must not draw a pulsing halo',
+  );
+  assert.ok(
+    /button:focus,[\s\S]*button:focus-visible\s*\{[\s\S]*outline: none;[\s\S]*box-shadow: none;[\s\S]*\}/.test(mainSource),
+    'stop recording button must not draw the native focus halo',
+  );
+  assert.ok(
     !/recording-frame|recording-glow|outline:\s*2px solid rgba\(249, 115, 22/.test(mainSource),
     'recording overlay must not draw orange borders that can misalign or leak into the captured video',
   );
@@ -275,6 +284,11 @@ function createStreamWithCursorSetting(cursor) {
   assert.ok(
     preloadSource.includes("onToolbarOpenRequested: (callback) => ipcRenderer.on('toolbar-open-requested'"),
     'preload must expose the menu-only toolbar restore event',
+  );
+  assert.ok(
+    /\.toast\s*\{[\s\S]*box-shadow: none;[\s\S]*outline: none;/.test(previewToastSource) &&
+    /\.toast:focus,[\s\S]*box-shadow: none;/.test(previewToastSource),
+    'capture preview toast must not draw a halo',
   );
   assert.ok(/const AUTO_HIDE_DELAYS = \[[^\]]*2000/.test(rendererSource), 'toolbar auto-hide delay must include 2 seconds');
   assert.ok(rendererSource.includes("toolbar.classList.add('auto-hidden')"), 'toolbar must use the auto-hidden animation state');
