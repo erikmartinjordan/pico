@@ -33,6 +33,9 @@
         outline: none;
         transition: transform 0.15s ease, background 0.15s ease;
       }
+      .toast:not(.ready) {
+        visibility: hidden;
+      }
       .toast:hover { transform: scale(1.025); background: rgba(18,20,24,0.9); }
       .toast:focus,
       .toast:focus-visible {
@@ -47,6 +50,11 @@
         border-radius: 9px;
         background: rgba(255,255,255,0.06);
         box-shadow: none;
+        opacity: 0;
+        transition: opacity 0.08s ease;
+      }
+      .toast.ready img {
+        opacity: 1;
       }
       .label {
         margin-top: 7px;
@@ -70,14 +78,30 @@
       const { ipcRenderer } = require('electron');
       const params = new URLSearchParams(window.location.search);
       const captureMode = params.get('captureMode') || 'region';
+      const toast = document.getElementById('toast');
       const preview = document.getElementById('preview');
       const label = document.getElementById('label');
       label.textContent = `Click to edit ${captureMode} capture`;
 
+      function showReadyToast() {
+        toast.classList.add('ready');
+      }
+
+      function setPreviewSource(dataUrl) {
+        if (!dataUrl) {
+          showReadyToast();
+          return;
+        }
+        preview.addEventListener('load', showReadyToast, { once: true });
+        preview.addEventListener('error', showReadyToast, { once: true });
+        preview.src = dataUrl;
+        if (preview.complete && preview.naturalWidth > 0) showReadyToast();
+      }
+
       ipcRenderer.invoke('preview-toast-data').then((payload) => {
-        if (payload?.dataUrl) preview.src = payload.dataUrl;
+        setPreviewSource(payload?.dataUrl);
         if (payload?.captureMode) label.textContent = `Click to edit ${payload.captureMode} capture`;
-      }).catch(() => {});
+      }).catch(showReadyToast);
 
       function playCaptureChime() {
         const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -102,7 +126,6 @@
         setTimeout(() => ctx.close().catch(() => {}), 700);
       }
 
-      const toast = document.getElementById('toast');
       const openPreview = () => ipcRenderer.send('preview-toast-clicked');
       toast.addEventListener('click', openPreview);
       toast.addEventListener('keydown', (event) => {

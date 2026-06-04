@@ -290,6 +290,12 @@ function createStreamWithCursorSetting(cursor) {
     /\.toast:focus,[\s\S]*box-shadow: none;/.test(previewToastSource),
     'capture preview toast must not draw a halo',
   );
+  assert.ok(
+    /\.toast:not\(\.ready\)\s*\{[\s\S]*visibility: hidden;[\s\S]*\}/.test(previewToastSource) &&
+    /preview\.addEventListener\('load', showReadyToast, \{ once: true \}\)/.test(previewToastSource) &&
+    /toast\.classList\.add\('ready'\)/.test(previewToastSource),
+    'capture preview toast must stay hidden until the screenshot image is loaded',
+  );
   assert.ok(/const AUTO_HIDE_DELAYS = \[[^\]]*2000/.test(rendererSource), 'toolbar auto-hide delay must include 2 seconds');
   assert.ok(rendererSource.includes("toolbar.classList.add('auto-hidden')"), 'toolbar must use the auto-hidden animation state');
   assert.ok(rendererSource.includes('const finishDragging = () =>'), 'toolbar drag completion must be shared across release paths');
