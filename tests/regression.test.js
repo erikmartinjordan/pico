@@ -8,6 +8,7 @@ const preloadSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'preload
 const mainSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8');
 const rendererSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'renderer.js'), 'utf8');
 const stylesSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'styles.css'), 'utf8');
+const landingSource = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const indexSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'index.html'), 'utf8');
 const preferencesSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'preferences.html'), 'utf8');
 const preferencesScript = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'preferences.js'), 'utf8');
@@ -303,6 +304,12 @@ function createStreamWithCursorSetting(cursor) {
   assert.ok(preloadSource.includes("checkForAppUpdates: () => ipcRenderer.invoke('check-for-app-updates')"), 'preload must expose update checks');
   assert.ok(preloadSource.includes("downloadAppUpdate: () => ipcRenderer.invoke('download-app-update')"), 'preload must expose update downloads');
   assert.ok(preloadSource.includes("installAppUpdate: () => ipcRenderer.invoke('install-app-update')"), 'preload must expose update installation');
+  assert.ok(
+    /function currentMacOSVersion\(\)[\s\S]*Mac OS X/.test(landingSource) &&
+    /function isLegacyMacOS\(version = currentMacOSVersion\(\)\)[\s\S]*version\.major === 10 && version\.minor < 15/.test(landingSource) &&
+    /function preferredMacAsset\(assets = \[\]\)[\s\S]*legacy[\s\S]*universal\|arm64\|mac[\s\S]*return isLegacyMacOS\(\) \? \(legacy \|\| fallback\) : \(modern \|\| fallback \|\| legacy \|\| null\)/.test(landingSource),
+    'landing page must pick the macOS DMG that matches the visitor OS version',
+  );
   assert.ok(!preferencesSource.includes('check-update-setting'), 'preferences must not include update controls');
   assert.ok(!preferencesScript.includes('renderUpdateState'), 'preferences script must not own update state rendering');
   assert.ok(!mainSource.includes("label: 'Check for Updates...'"), 'tray menu must not contain a check for updates item');
