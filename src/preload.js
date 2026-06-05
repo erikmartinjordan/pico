@@ -762,6 +762,7 @@ contextBridge.exposeInMainWorld('pico', {
   onRecordingStopRequested: (callback) => ipcRenderer.on('pro-recording-stop-requested', () => callback()),
   onSettingsChanged: (callback) => ipcRenderer.on('settings-changed', () => callback()),
   notifySettingsChanged: () => ipcRenderer.send('settings-changed'),
+  onAppUpdateState: (callback) => ipcRenderer.on('app-update-state', (_, state) => callback(state)),
 
   // Capture overlay communication
   onCaptureData: (callback) => ipcRenderer.on('capture-data', (_, data) => callback(data)),
@@ -793,6 +794,10 @@ contextBridge.exposeInMainWorld('pico', {
     if (!result?.ok) throw new Error(result?.error || 'Activation failed. Please try again.');
     return result.state;
   },
+  getAppUpdateState: () => ipcRenderer.invoke('get-app-update-state'),
+  checkForAppUpdates: () => ipcRenderer.invoke('check-for-app-updates'),
+  downloadAppUpdate: () => ipcRenderer.invoke('download-app-update'),
+  installAppUpdate: () => ipcRenderer.invoke('install-app-update'),
   openBuyLicense: () => ipcRenderer.invoke('open-buy-license'),
   chooseDefaultSavePath: (currentPath) => ipcRenderer.invoke('choose-default-save-path', currentPath),
   copyToClipboard: (dataUrl) => ipcRenderer.invoke('copy-to-clipboard', dataUrl),

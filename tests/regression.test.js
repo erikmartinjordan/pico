@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
+const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
 const preloadSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'preload.js'), 'utf8');
 const mainSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8');
 const rendererSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'renderer.js'), 'utf8');
@@ -10,6 +11,7 @@ const stylesSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer
 const indexSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'index.html'), 'utf8');
 const preferencesSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'preferences.html'), 'utf8');
 const preferencesScript = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'preferences.js'), 'utf8');
+const aboutSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'about.html'), 'utf8');
 const captureOverlaySource = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'capture-overlay.html'), 'utf8');
 const previewToastSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'preview-toast.html'), 'utf8');
 
@@ -158,6 +160,11 @@ function createStreamWithCursorSetting(cursor) {
 
 {
   assert.ok(
+    /process\.platform === 'darwin'[\s\S]*app\.commandLine\.appendSwitch\('log-level', '3'\)/.test(mainSource),
+    'macOS builds must suppress noisy Chromium GPU EGL terminal logs before Electron initializes',
+  );
+
+  assert.ok(
     captureOverlaySource.includes('<div id="instructions" class="hidden"></div>'),
     'capture overlay instructions must be hidden before capture data arrives to avoid shortcut text flash',
   );
@@ -278,6 +285,41 @@ function createStreamWithCursorSetting(cursor) {
   assert.ok(!indexSource.includes('pro-feature'), 'recording button must not keep old pro feature styling hooks');
   assert.ok(!stylesSource.includes('pro-feature'), 'styles must not keep old pro feature hooks');
   assert.ok(!stylesSource.includes('pro-badge'), 'styles must not keep old pro badges');
+  assert.strictEqual(packageJson.dependencies['electron-updater'], '6.6.2', 'runtime dependencies must include electron-updater');
+  assert.deepStrictEqual(packageJson.build.publish?.[0], {
+    provider: 'github',
+    owner: 'erikmartinjordan',
+    repo: 'orange-fuji',
+  }, 'electron-builder must publish update metadata to GitHub releases');
+  assert.ok(/let autoUpdater = null;[\s\S]*require\('electron-updater'\)/.test(mainSource), 'main process must load electron-updater');
+  assert.ok(/function setupAutoUpdater\(\)/.test(mainSource), 'main process must configure the auto updater');
+  assert.ok(/autoUpdater\.autoDownload = false/.test(mainSource), 'updates must require an explicit user download action');
+  assert.ok(/autoUpdater\.quitAndInstall\(false, true\)/.test(mainSource), 'downloaded updates must install through the updater without reinstalling manually');
+  assert.ok(/process\.platform === 'win32'[\s\S]*return false/.test(mainSource), 'portable Windows builds must not pretend to support in-app updates');
+  assert.ok(mainSource.includes("ipcMain.handle('check-for-app-updates'"), 'main process must expose update checks');
+  assert.ok(mainSource.includes("ipcMain.handle('download-app-update'"), 'main process must expose update downloads');
+  assert.ok(mainSource.includes("ipcMain.handle('install-app-update'"), 'main process must expose update installation');
+  assert.ok(preloadSource.includes("getAppUpdateState: () => ipcRenderer.invoke('get-app-update-state')"), 'preload must expose update state');
+  assert.ok(preloadSource.includes("checkForAppUpdates: () => ipcRenderer.invoke('check-for-app-updates')"), 'preload must expose update checks');
+  assert.ok(preloadSource.includes("downloadAppUpdate: () => ipcRenderer.invoke('download-app-update')"), 'preload must expose update downloads');
+  assert.ok(preloadSource.includes("installAppUpdate: () => ipcRenderer.invoke('install-app-update')"), 'preload must expose update installation');
+  assert.ok(!preferencesSource.includes('check-update-setting'), 'preferences must not include update controls');
+  assert.ok(!preferencesScript.includes('renderUpdateState'), 'preferences script must not own update state rendering');
+  assert.ok(!mainSource.includes("label: 'Check for Updates...'"), 'tray menu must not contain a check for updates item');
+  assert.ok(!mainSource.includes('In-app updates are available'), 'updater must not show explanatory unsupported copy');
+  assert.ok(!mainSource.includes("message: ''"), 'updater states must not leave the About status blank');
+  assert.ok(mainSource.includes("message: 'Up to date'"), 'updater must use concise up-to-date copy');
+  assert.ok(aboutSource.includes("state.error || state.message || 'Up to date'"), 'about page must fall back to up-to-date copy');
+  assert.ok(/message: info\?\.version \? `Version \$\{info\.version\} available` : 'Update available'/.test(mainSource), 'updater must show only the available version when present');
+  assert.ok(aboutSource.includes('id="update-app"'), 'about page must include a single update action button');
+  assert.ok(!aboutSource.includes('id="check-update"'), 'about page must not include a persistent check button');
+  assert.ok(!aboutSource.includes('id="download-update"'), 'about page must not include a separate download button');
+  assert.ok(!aboutSource.includes('id="install-update"'), 'about page must not include a separate install button');
+  assert.ok(/updateApp\.hidden = !canDownload && status !== 'downloading' && !canInstall/.test(aboutSource), 'about page must hide the action button when there is no update');
+  assert.ok(/invokeUpdate\('check-for-app-updates'/.test(aboutSource), 'about page must check updates automatically');
+  assert.ok(/function renderUpdateState\(state = \{\}\)/.test(aboutSource), 'about page must render update state');
+  assert.ok(aboutSource.includes("ipcRenderer.on('app-update-state'"), 'about page must subscribe to update state events');
+  assert.ok(/let aboutWindow = null;/.test(mainSource) && /\[mainWindow, preferencesWindow, aboutWindow\]/.test(mainSource), 'main process must send update state to the about window');
 }
 
 {

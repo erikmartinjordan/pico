@@ -19,10 +19,11 @@
     "build:desktop": "electron-builder --win --linux"
   },
   "devDependencies": {
-    "electron": "^34.5.8",
+    "electron": "^32.3.3",
     "electron-builder": "^25.1.8"
   },
   "dependencies": {
+    "electron-updater": "6.6.2",
     "ffmpeg-static": "5.2.0",
     "gifski": "1.7.1"
   },
@@ -39,6 +40,13 @@
       "package.json"
     ],
     "artifactName": "orange-fuji-${arch}.${ext}",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "erikmartinjordan",
+        "repo": "orange-fuji"
+      }
+    ],
     "mac": {
       "category": "public.app-category.graphics-design",
       "target": [

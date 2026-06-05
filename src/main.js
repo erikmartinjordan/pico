@@ -10,6 +10,16 @@ const fs = require('fs');
 const crypto = require('crypto');
 const https = require('https');
 const { tempRecordingPath, convertWebmToMp4, convertMp4ToGif } = require('./pro/recording');
+let autoUpdater = null;
+try {
+  ({ autoUpdater } = require('electron-updater'));
+} catch (error) {
+  console.warn('[orange-fuji][updater] electron-updater unavailable:', error.message);
+}
+
+if (process.platform === 'darwin') {
+  app.commandLine.appendSwitch('log-level', '3');
+}
 
 let mainWindow = null;
 let captureWindows = [];
@@ -27,11 +37,13 @@ let tray = null;
 let desktopIconsHidden = false;
 let desktopIconsVisibleBeforeRecording = true;
 let preferencesWindow = null;
+let aboutWindow = null;
 let previewToastWindow = null;
 let pendingPreviewToastPayload = null;
 let mainWindowMode = 'toolbar';
 let lastEditorBounds = null;
 let lastToolbarBounds = null;
+let updateCheckInProgress = false;
 
 const TOOLBAR_WINDOW_SIZE = { width: 260, height: 110 };
 const TOOLBAR_MIN_SIZE = { width: 200, height: 110 };
@@ -58,6 +70,15 @@ const DEFAULT_SETTINGS = {
   licenseStatus: '',
   licenseActivationId: '',
   licenseLastValidatedAt: '',
+};
+const updateState = {
+  status: 'idle',
+  supported: false,
+  currentVersion: '',
+  availableVersion: '',
+  message: 'Up to date',
+  progress: null,
+  error: '',
 };
 
 function applyLegacyUserDataPath() {
@@ -320,6 +341,145 @@ function getAppWebPreferences() {
     nodeIntegration: false,
     sandbox: true,
   };
+}
+
+function cloneUpdateState() {
+  return {
+    ...updateState,
+    currentVersion: app.getVersion(),
+  };
+}
+
+function isUpdaterSupported() {
+  if (!autoUpdater || !app.isPackaged) return false;
+  if (process.platform === 'win32') return false;
+  return process.platform === 'darwin' || process.platform === 'linux';
+}
+
+function setUpdateState(nextState = {}) {
+  Object.assign(updateState, nextState, {
+    supported: isUpdaterSupported(),
+    currentVersion: app.getVersion(),
+  });
+  if (nextState.status !== 'downloading') updateState.progress = nextState.progress ?? updateState.progress;
+  const payload = cloneUpdateState();
+  for (const win of [mainWindow, preferencesWindow, aboutWindow]) {
+    if (win && !win.isDestroyed()) win.webContents.send('app-update-state', payload);
+  }
+  return payload;
+}
+
+function setupAutoUpdater() {
+  setUpdateState({
+    supported: isUpdaterSupported(),
+    status: 'idle',
+    message: 'Up to date',
+  });
+  if (!isUpdaterSupported()) return;
+
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on('checking-for-update', () => {
+    setUpdateState({ status: 'checking', message: 'Checking for updates...', error: '', progress: null });
+  });
+  autoUpdater.on('update-available', (info) => {
+    setUpdateState({
+      status: 'available',
+      availableVersion: info?.version || '',
+      message: info?.version ? `Version ${info.version} available` : 'Update available',
+      progress: null,
+    });
+  });
+  autoUpdater.on('update-not-available', () => {
+    setUpdateState({ status: 'idle', availableVersion: '', message: 'Up to date', progress: null });
+  });
+  autoUpdater.on('download-progress', (progress) => {
+    setUpdateState({
+      status: 'downloading',
+      message: 'Downloading update...',
+      progress: {
+        percent: Math.max(0, Math.min(100, Number(progress?.percent) || 0)),
+        transferred: Number(progress?.transferred) || 0,
+        total: Number(progress?.total) || 0,
+      },
+    });
+  });
+  autoUpdater.on('update-downloaded', (info) => {
+    setUpdateState({
+      status: 'downloaded',
+      availableVersion: info?.version || updateState.availableVersion,
+      message: updateState.availableVersion ? `Version ${updateState.availableVersion} ready` : 'Update ready',
+      progress: null,
+    });
+  });
+  autoUpdater.on('error', (error) => {
+    setUpdateState({
+      status: 'error',
+      message: 'Update check failed.',
+      error: error?.message || 'Update check failed.',
+      progress: null,
+    });
+  });
+
+  setTimeout(() => {
+    checkForAppUpdates({ silent: true }).catch((error) => {
+      console.error('[orange-fuji][updater] startup check failed:', error.message);
+    });
+  }, 4000);
+}
+
+async function checkForAppUpdates(options = {}) {
+  if (!isUpdaterSupported()) {
+    return setUpdateState({ status: 'unsupported', message: 'Up to date', progress: null });
+  }
+  if (updateCheckInProgress) return cloneUpdateState();
+  updateCheckInProgress = true;
+  try {
+    const result = await autoUpdater.checkForUpdates();
+    if (!result?.updateInfo && !options.silent) {
+      setUpdateState({ status: 'idle', message: 'Up to date', progress: null });
+    }
+    return cloneUpdateState();
+  } catch (error) {
+    return setUpdateState({
+      status: 'error',
+      message: 'Update check failed.',
+      error: error?.message || 'Update check failed.',
+      progress: null,
+    });
+  } finally {
+    updateCheckInProgress = false;
+  }
+}
+
+async function downloadAppUpdate() {
+  if (!isUpdaterSupported()) {
+    return setUpdateState({ status: 'unsupported', message: 'Up to date', progress: null });
+  }
+  if (updateState.status !== 'available') return cloneUpdateState();
+  setUpdateState({ status: 'downloading', message: 'Downloading update...', progress: { percent: 0, transferred: 0, total: 0 } });
+  try {
+    await autoUpdater.downloadUpdate();
+    return cloneUpdateState();
+  } catch (error) {
+    return setUpdateState({
+      status: 'error',
+      message: 'Update download failed.',
+      error: error?.message || 'Update download failed.',
+      progress: null,
+    });
+  }
+}
+
+function installDownloadedAppUpdate() {
+  if (!isUpdaterSupported()) {
+    return setUpdateState({ status: 'unsupported', message: 'Up to date', progress: null });
+  }
+  if (updateState.status !== 'downloaded') return cloneUpdateState();
+  setUpdateState({ status: 'installing', message: 'Installing update...' });
+  autoUpdater.quitAndInstall(false, true);
+  return cloneUpdateState();
 }
 
 function centeredBounds(size, display = screen.getPrimaryDisplay()) {
@@ -1493,6 +1653,11 @@ function hideRecordingIndicator() {
 }
 
 function showAboutDialog() {
+  if (aboutWindow && !aboutWindow.isDestroyed()) {
+    aboutWindow.focus();
+    return;
+  }
+
   const pkg = require('../package.json');
   const iconPath = path.join(__dirname, 'assets', 'icons', 'icon.png');
   const iconDataUrl = (() => {
@@ -1505,9 +1670,9 @@ function showAboutDialog() {
     }
   })();
 
-  const aboutWin = new BrowserWindow({
-    width: 360,
-    height: 340,
+  aboutWindow = new BrowserWindow({
+    width: 380,
+    height: 430,
     resizable: false,
     maximizable: false,
     minimizable: false,
@@ -1529,19 +1694,23 @@ function showAboutDialog() {
     },
   });
 
-  aboutWin.loadFile(path.join(__dirname, 'renderer', 'about.html'), {
+  aboutWindow.loadFile(path.join(__dirname, 'renderer', 'about.html'), {
     query: { version: pkg.version, description: pkg.description },
   });
 
-  aboutWin.once('ready-to-show', () => {
-    aboutWin.show();
-    aboutWin.focus();
-    aboutWin.webContents.executeJavaScript(`
+  aboutWindow.once('ready-to-show', () => {
+    aboutWindow.show();
+    aboutWindow.focus();
+    aboutWindow.webContents.executeJavaScript(`
       document.getElementById('icon').src = '${iconDataUrl}';
     `);
   });
 
-  aboutWin.setMenuBarVisibility(false);
+  aboutWindow.on('closed', () => {
+    aboutWindow = null;
+  });
+
+  aboutWindow.setMenuBarVisibility(false);
 }
 
 function createMainWindow(focusOnReady = false) {
@@ -2168,6 +2337,14 @@ ipcMain.handle('open-native-preferences', async () => {
   return { success: true };
 });
 
+ipcMain.handle('get-app-update-state', async () => cloneUpdateState());
+
+ipcMain.handle('check-for-app-updates', async () => checkForAppUpdates());
+
+ipcMain.handle('download-app-update', async () => downloadAppUpdate());
+
+ipcMain.handle('install-app-update', async () => installDownloadedAppUpdate());
+
 ipcMain.on('settings-changed', () => {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('settings-changed');
@@ -2569,6 +2746,7 @@ app.whenReady().then(() => {
   ensureLocalLicenseSettings();
   setupRecordingDisplayMediaHandler();
   createMainWindow();
+  setupAutoUpdater();
   setupTray();
   const runWhenWindowReady = (callback) => {
     if (!mainWindow || mainWindow.isDestroyed()) return;
