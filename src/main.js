@@ -1939,7 +1939,7 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
         movable: false,
         fullscreenable: true,
         enableLargerThanScreen: true,
-        ...(isRecordingRegionOverlay ? { acceptFirstMouse: true } : {}),
+        ...(process.platform === 'darwin' ? { acceptFirstMouse: true } : {}),
         show: false,
         webPreferences: {
           preload: path.join(__dirname, 'preload.js'),
@@ -1961,7 +1961,7 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
             x: display.bounds.x, y: display.bounds.y,
             width: display.bounds.width, height: display.bounds.height,
           });
-          if (isRecordingRegionOverlay) win.showInactive();
+          if (process.platform === 'darwin') win.showInactive();
           else win.show();
   
           const screenData = captureData.type === 'multi'

@@ -441,6 +441,11 @@ test('Recording Features', () => {
     /if \(mode !== 'record-region' && options\.showToolbar !== false && mainWindow && !mainWindow\.isDestroyed\(\)\) \{[\s\S]*showWindowInactiveOnMac\(mainWindow\)/.test(mainSource),
     'capture overlays must lift the Orange Fuji toolbar only when the caller allows it',
   );
+  assert.ok(
+    /\.\.\.\(process\.platform === 'darwin' \? \{ acceptFirstMouse: true \} : \{\}\)/.test(mainSource) &&
+    /if \(process\.platform === 'darwin'\) win\.showInactive\(\);[\s\S]*else win\.show\(\);/.test(mainSource),
+    'macOS capture overlays must show without activating Orange Fuji or switching Spaces',
+  );
 
   assert.ok(
     /pendingCaptureReturnMode = returnMode === 'editor' \? 'editor' : null/.test(mainSource) &&
