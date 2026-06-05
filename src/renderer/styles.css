@@ -1868,7 +1868,6 @@ body.has-content .empty-state:not(.hidden) {
   pointer-events: none;
   backdrop-filter: blur(16px) saturate(145%);
   -webkit-backdrop-filter: blur(16px) saturate(145%);
-  box-shadow: 0 12px 30px rgba(72, 40, 20, 0.2);
   opacity: 0;
   transform: translateY(-3px) scale(0.98);
   transition: opacity 0.12s ease, transform 0.12s ease;
@@ -2235,6 +2234,12 @@ body.toolbar-transition .statusbar {
 
     .toolbar-separator {
       background: rgba(255, 255, 255, 0.22);
+    }
+
+    .app-tooltip {
+      border-color: rgba(255,255,255,0.18);
+      background: rgba(30, 31, 36, 0.88);
+      color: rgba(241, 245, 255, 0.94);
     }
   }
 
