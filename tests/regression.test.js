@@ -517,6 +517,12 @@ test('Recording Features', () => {
   );
 
   assert.ok(
+    /async function canReadMacScreenCapture\(\)[\s\S]*desktopCapturer\.getSources\(\{[\s\S]*types: \['screen'\][\s\S]*thumbnailSize: \{ width: 1, height: 1 \}[\s\S]*sources\.some\(\(source\) => source\?\.thumbnail && !source\.thumbnail\.isEmpty\(\)\)/.test(mainSource) &&
+    /if \(await canReadMacScreenCapture\(\)\) return true;/.test(mainSource),
+    'macOS screen recording gate must trust a real capturer probe when TCC status is stale',
+  );
+
+  assert.ok(
     /windowPickerSources = windowSources\.filter\(s => s && s\.name && \(includeOrangeFuji \|\| !isOrangeFujiWindowSource\(s\)\)\)/.test(mainSource) &&
     /filterOrangeFujiWindowBounds\(getVisibleWindowBounds\(\), includeOrangeFuji\)/.test(mainSource),
     'window capture picker must include or filter Orange Fuji windows based on the preference',

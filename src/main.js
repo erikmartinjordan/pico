@@ -843,6 +843,20 @@ async function openMacScreenRecordingSettings() {
   await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
 }
 
+async function canReadMacScreenCapture() {
+  if (process.platform !== 'darwin') return true;
+  try {
+    const sources = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: { width: 1, height: 1 },
+    });
+    return sources.some((source) => source?.thumbnail && !source.thumbnail.isEmpty());
+  } catch (err) {
+    console.error('[orange-fuji] macOS screen recording probe failed:', err.message);
+    return false;
+  }
+}
+
 async function explainMacScreenRecordingPermission() {
   if (process.platform !== 'darwin') return;
   const result = await dialog.showMessageBox(mainWindow, {
@@ -865,6 +879,10 @@ async function ensureMacScreenRecordingPermission() {
   // Let a first capture attempt trigger Apple's TCC prompt when macOS still has
   // not made a decision. For explicit denials, fail fast with useful guidance.
   if (status === 'not-determined' || status === 'unknown') return true;
+
+  // Unsigned DMG builds can keep reporting denied after the user grants Screen
+  // Recording and relaunches. Trust an actual capturer probe over stale TCC state.
+  if (await canReadMacScreenCapture()) return true;
 
   await explainMacScreenRecordingPermission();
   return false;
