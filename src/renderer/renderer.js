@@ -1968,7 +1968,7 @@ function onWheel(e) {
 // Tool Selection
 // ══════════════════════════════════════════════════════════════════════════════
 
-const DRAWING_TOOLS = ['rect', 'ellipse', 'arrow', 'line', 'text'];
+const DRAWING_TOOLS = ['rect', 'ellipse', 'arrow', 'line', 'text', 'pixelate'];
 
 function selectTool(tool) {
   if (state.isEditingText) commitInlineText();
@@ -2216,7 +2216,7 @@ function findAnnotationAt(coords) {
   for (let i = state.annotations.length - 1; i >= 0; i--) {
     const a = state.annotations[i];
     if (a.type === 'text' && findTextAnnotationAt(coords) === i) return i;
-    if (a.type === 'rect' || a.type === 'highlight' || a.type === 'blur' || a.type === 'ellipse') {
+    if (a.type === 'rect' || a.type === 'highlight' || a.type === 'blur' || a.type === 'ellipse' || a.type === 'pixelate') {
       if (coords.x >= a.x && coords.x <= a.x + a.width && coords.y >= a.y && coords.y <= a.y + a.height) return i;
     }
     if (a.type === 'line' || a.type === 'arrow') {
@@ -2454,7 +2454,7 @@ function autoResizeTextInput() {
 function createAnnotation(x1, y1, x2, y2) {
   const base = { type: state.currentTool, color: state.currentColor, strokeWidth: state.strokeWidth };
   switch (state.currentTool) {
-    case 'rect': case 'ellipse': case 'highlight': case 'blur':
+    case 'rect': case 'ellipse': case 'highlight': case 'blur': case 'pixelate':
       return { ...base, x: Math.min(x1, x2), y: Math.min(y1, y2), width: Math.abs(x2 - x1), height: Math.abs(y2 - y1) };
     case 'arrow': case 'line':
       return { ...base, x1, y1, x2, y2 };
@@ -2519,6 +2519,7 @@ function drawPreview(x1, y1, x2, y2) {
     case 'line': ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); break;
     case 'highlight': ctx.fillStyle = state.currentColor + '40'; ctx.setLineDash([]); ctx.fillRect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1)); break;
     case 'blur': ctx.strokeRect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1)); break;
+    case 'pixelate': ctx.strokeRect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1)); break;
   }
   ctx.restore();
 }
@@ -2544,6 +2545,7 @@ function drawAnnotation(ann) {
       break;
     case 'highlight': ctx.fillStyle = ann.color + '40'; ctx.fillRect(ann.x, ann.y, ann.width, ann.height); break;
     case 'blur': applyBlur(ctx, ann.x, ann.y, ann.width, ann.height); break;
+    case 'pixelate': applyPixelate(ctx, ann.x, ann.y, ann.width, ann.height); break;
   }
   ctx.restore();
 }
@@ -2595,6 +2597,20 @@ function applyBlur(ctx, x, y, width, height) {
   ctx.putImageData(imageData, x, y);
 }
 
+function applyPixelate(ctx, x, y, width, height) {
+  const pixelSize = 8;
+  if (width <= 0 || height <= 0) return;
+  const off = document.createElement('canvas');
+  off.width = Math.max(1, Math.ceil(width / pixelSize));
+  off.height = Math.max(1, Math.ceil(height / pixelSize));
+  const offCtx = off.getContext('2d');
+  offCtx.imageSmoothingEnabled = false;
+  offCtx.drawImage(ctx.canvas, x, y, width, height, 0, 0, off.width, off.height);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(off, 0, 0, off.width, off.height, x, y, width, height);
+  ctx.imageSmoothingEnabled = true;
+}
+
 function deleteSelectedAnnotation() {
   if (state.selectedAnnotationIndex < 0) return;
   state.annotations.splice(state.selectedAnnotationIndex, 1);
@@ -2608,7 +2624,7 @@ function deleteSelectedAnnotation() {
 
 function getAnnotationBounds(annotation) {
   if (!annotation) return null;
-  if (annotation.type === 'rect' || annotation.type === 'ellipse' || annotation.type === 'highlight' || annotation.type === 'blur') {
+  if (annotation.type === 'rect' || annotation.type === 'ellipse' || annotation.type === 'highlight' || annotation.type === 'blur' || annotation.type === 'pixelate') {
     return { x: annotation.x, y: annotation.y, width: annotation.width, height: annotation.height, type: 'box' };
   }
   if (annotation.type === 'line' || annotation.type === 'arrow') {
@@ -2734,7 +2750,7 @@ function getCompositeImage() {
 }
 
 function updateStatus() {
-  const names = { select: 'Select', rect: 'Rectangle', ellipse: 'Ellipse', arrow: 'Arrow', line: 'Line', text: 'Text', highlight: 'Highlight', blur: 'Blur' };
+  const names = { select: 'Select', rect: 'Rectangle', ellipse: 'Ellipse', arrow: 'Arrow', line: 'Line', text: 'Text', highlight: 'Highlight', blur: 'Blur', pixelate: 'Pixelate' };
   elements.statusTool.textContent = state.cropActive ? 'Crop' : (names[state.currentTool] || 'Ready');
   elements.statusZoom.textContent = `${Math.round(state.zoom * 100)}%`;
 }
