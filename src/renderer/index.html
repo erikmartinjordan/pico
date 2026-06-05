@@ -43,6 +43,46 @@
         <button class="toolbar-btn tool-btn" data-tool="line" data-tooltip="Line"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 19L19 5"/></svg></button>
         <button class="toolbar-btn tool-btn" data-tool="text" data-tooltip="Text"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 6h12"/><path d="M12 6v12"/><path d="M8 18h8"/></svg></button>
       </div>
+      <div class="toolbar-separator text-style-separator" id="text-style-separator"></div>
+      <div class="toolbar-group text-style-group" id="text-style-group">
+        <div class="font-picker" id="font-picker">
+          <button type="button" class="font-current" id="font-current" aria-label="Font family" aria-haspopup="true" aria-expanded="false">
+            <span class="font-current-label" id="font-current-label">System</span>
+            <svg class="font-current-chevron" viewBox="0 0 8 5" width="8" height="5" fill="none" aria-hidden="true"><path d="M1 1l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </button>
+          <div class="font-menu" id="font-menu" role="menu" aria-label="Font family" aria-hidden="true">
+            <button type="button" class="font-option" data-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" role="menuitem" tabindex="-1" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">System</button>
+            <button type="button" class="font-option" data-family="'SF Pro', -apple-system, sans-serif" role="menuitem" tabindex="-1" style="font-family: 'SF Pro', -apple-system, sans-serif">SF Pro</button>
+            <button type="button" class="font-option" data-family="'Helvetica Neue', Helvetica, Arial, sans-serif" role="menuitem" tabindex="-1" style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif">Helvetica</button>
+            <button type="button" class="font-option" data-family="'Times New Roman', Times, serif" role="menuitem" tabindex="-1" style="font-family: 'Times New Roman', Times, serif">Times New Roman</button>
+            <button type="button" class="font-option" data-family="'Courier New', Courier, monospace" role="menuitem" tabindex="-1" style="font-family: 'Courier New', Courier, monospace">Courier New</button>
+            <button type="button" class="font-option" data-family="Georgia, serif" role="menuitem" tabindex="-1" style="font-family: Georgia, serif">Georgia</button>
+            <button type="button" class="font-option" data-family="'Avenir Next', Avenir, sans-serif" role="menuitem" tabindex="-1" style="font-family: 'Avenir Next', Avenir, sans-serif">Avenir</button>
+          </div>
+        </div>
+        <div class="size-picker" id="size-picker">
+          <button type="button" class="size-current" id="size-current" aria-label="Font size" aria-haspopup="true" aria-expanded="false">
+            <span class="size-current-label" id="size-current-label">24</span>
+            <svg class="size-current-chevron" viewBox="0 0 8 5" width="8" height="5" fill="none" aria-hidden="true"><path d="M1 1l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </button>
+          <div class="size-menu" id="size-menu" role="menu" aria-label="Font size" aria-hidden="true">
+            <button type="button" class="size-option" data-size="12" role="menuitem" tabindex="-1">12</button>
+            <button type="button" class="size-option" data-size="14" role="menuitem" tabindex="-1">14</button>
+            <button type="button" class="size-option" data-size="16" role="menuitem" tabindex="-1">16</button>
+            <button type="button" class="size-option" data-size="18" role="menuitem" tabindex="-1">18</button>
+            <button type="button" class="size-option" data-size="20" role="menuitem" tabindex="-1">20</button>
+            <button type="button" class="size-option" data-size="24" role="menuitem" tabindex="-1">24</button>
+            <button type="button" class="size-option" data-size="28" role="menuitem" tabindex="-1">28</button>
+            <button type="button" class="size-option" data-size="32" role="menuitem" tabindex="-1">32</button>
+            <button type="button" class="size-option" data-size="36" role="menuitem" tabindex="-1">36</button>
+            <button type="button" class="size-option" data-size="48" role="menuitem" tabindex="-1">48</button>
+            <button type="button" class="size-option" data-size="64" role="menuitem" tabindex="-1">64</button>
+            <button type="button" class="size-option" data-size="72" role="menuitem" tabindex="-1">72</button>
+          </div>
+        </div>
+        <button class="toolbar-btn style-btn style-btn--bold" data-style="bold" id="text-style-bold" data-tooltip="Bold" aria-label="Bold" aria-pressed="false"><strong>B</strong></button>
+        <button class="toolbar-btn style-btn style-btn--italic" data-style="italic" id="text-style-italic" data-tooltip="Italic" aria-label="Italic" aria-pressed="false"><em>I</em></button>
+      </div>
       <div class="toolbar-separator"></div>
       <div class="toolbar-group colors">
         <button class="color-swatch" data-color="#f97316" style="--swatch-color:#f97316"></button>

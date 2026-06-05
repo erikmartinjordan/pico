@@ -16,7 +16,9 @@ const state = {
   currentColor: '#f97316',
   strokeWidth: 4,
   textFontSize: 24,
-  textFontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  textFontFamily: '-apple-system, BlinkMacSystemFont, \'Segoe UI\', sans-serif',
+  textBold: true,
+  textItalic: false,
   isDrawing: false,
   startX: 0,
   startY: 0,
@@ -141,10 +143,14 @@ const elements = {
   textWrapper: $('#text-input-wrapper'),
   textInput: $('#inline-text-input'),
   tooltip: $('#app-tooltip'),
-  textFontFamily: $('#text-font-family'),
-  textFontSize: $('#text-font-size'),
+  fontPicker: $('#font-picker'),
+  fontCurrentLabel: $('#font-current-label'),
+  sizePicker: $('#size-picker'),
+  sizeCurrentLabel: $('#size-current-label'),
   textStyleGroup: $('#text-style-group'),
   textStyleSeparator: $('#text-style-separator'),
+  textStyleBold: $('#text-style-bold'),
+  textStyleItalic: $('#text-style-italic'),
   cropOverlay: $('#crop-overlay'),
   cropBox: $('#crop-box'),
   cropHint: $('#crop-hint'),
@@ -177,11 +183,18 @@ function init() {
   bindCrop();
   bindLicense();
   bindTooltips();
-  if (elements.textFontFamily) elements.textFontFamily.value = state.textFontFamily;
-  if (elements.textFontSize) elements.textFontSize.value = String(state.textFontSize);
+  if (elements.fontCurrentLabel) {
+    elements.fontCurrentLabel.textContent = fontFamilyToLabel(state.textFontFamily);
+    elements.fontCurrentLabel.style.fontFamily = state.textFontFamily;
+  }
+  if (elements.sizeCurrentLabel) {
+    elements.sizeCurrentLabel.textContent = String(state.textFontSize);
+  }
   loadRecordingSettings();
   refreshLicenseState();
   selectStrokeWidth(state.strokeWidth);
+  bindFontPicker();
+  bindSizePicker();
   toggleTextStyleControls();
   updateStatus();
   document.activeElement?.blur();
@@ -360,8 +373,8 @@ function bindToolbar() {
   on(elements.recordingPreviewVideo, 'play', startRecordingPreviewTimeline);
   on(elements.recordingPreviewVideo, 'pause', stopRecordingPreviewTimeline);
   on(elements.recordingPreviewVideo, 'ended', stopRecordingPreviewTimeline);
-  on(elements.textFontFamily, 'change', () => selectTextFontFamily(elements.textFontFamily.value));
-  on(elements.textFontSize, 'change', () => selectTextFontSize(parseInt(elements.textFontSize.value)));
+  on(elements.textStyleBold, 'click', () => selectTextBold());
+  on(elements.textStyleItalic, 'click', () => selectTextItalic());
 }
 
 
@@ -387,6 +400,76 @@ function bindStrokePicker() {
       selectStrokeWidth(parseInt(btn.dataset.width));
       setOpen(false);
     });
+  });
+}
+
+
+function bindFontPicker() {
+  const picker = elements.fontPicker;
+  if (!picker) return;
+  let closeTimer = null;
+  const btn = document.getElementById('font-current');
+  const setOpen = (open) => {
+    if (!picker) return;
+    picker.classList.toggle('open', open);
+    const menu = document.getElementById('font-menu');
+    if (menu) menu.setAttribute('aria-hidden', open ? 'false' : 'true');
+    if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  };
+  const scheduleClose = () => {
+    clearTimeout(closeTimer);
+    closeTimer = setTimeout(() => setOpen(false), 180);
+  };
+  on(picker, 'mouseenter', () => { clearTimeout(closeTimer); setOpen(true); });
+  on(picker, 'mouseleave', scheduleClose);
+  on(picker, 'focusin', () => { clearTimeout(closeTimer); setOpen(true); });
+  on(picker, 'focusout', scheduleClose);
+  document.querySelectorAll('.font-option').forEach((opt) => {
+    opt.addEventListener('click', () => {
+      selectTextFontFamily(opt.dataset.family);
+      setOpen(false);
+    });
+  });
+  document.addEventListener('click', (e) => {
+    if (!picker.contains(e.target)) setOpen(false);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') setOpen(false);
+  });
+}
+
+
+function bindSizePicker() {
+  const picker = elements.sizePicker;
+  if (!picker) return;
+  let closeTimer = null;
+  const btn = document.getElementById('size-current');
+  const setOpen = (open) => {
+    if (!picker) return;
+    picker.classList.toggle('open', open);
+    const menu = document.getElementById('size-menu');
+    if (menu) menu.setAttribute('aria-hidden', open ? 'false' : 'true');
+    if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  };
+  const scheduleClose = () => {
+    clearTimeout(closeTimer);
+    closeTimer = setTimeout(() => setOpen(false), 180);
+  };
+  on(picker, 'mouseenter', () => { clearTimeout(closeTimer); setOpen(true); });
+  on(picker, 'mouseleave', scheduleClose);
+  on(picker, 'focusin', () => { clearTimeout(closeTimer); setOpen(true); });
+  on(picker, 'focusout', scheduleClose);
+  document.querySelectorAll('.size-option').forEach((opt) => {
+    opt.addEventListener('click', () => {
+      selectTextFontSize(parseInt(opt.dataset.size, 10));
+      setOpen(false);
+    });
+  });
+  document.addEventListener('click', (e) => {
+    if (!picker.contains(e.target)) setOpen(false);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') setOpen(false);
   });
 }
 
@@ -1925,6 +2008,12 @@ function selectStrokeWidth(width) {
 function selectTextFontSize(size) {
   if (!Number.isFinite(size) || size <= 0) return;
   state.textFontSize = size;
+  if (elements.sizeCurrentLabel) {
+    elements.sizeCurrentLabel.textContent = String(size);
+  }
+  document.querySelectorAll('.size-option').forEach((opt) => {
+    opt.classList.toggle('active', parseInt(opt.dataset.size, 10) === size);
+  });
   if (state.currentTool === 'select' && state.selectedAnnotationIndex >= 0) {
     const selected = state.annotations[state.selectedAnnotationIndex];
     if (selected?.type === 'text') {
@@ -1942,8 +2031,20 @@ function selectTextFontSize(size) {
   }
 }
 
+function fontFamilyToLabel(family) {
+  const option = document.querySelector(`.font-option[data-family="${CSS.escape(family)}"]`);
+  return option ? option.textContent : family;
+}
+
 function selectTextFontFamily(family) {
   state.textFontFamily = family;
+  if (elements.fontCurrentLabel) {
+    elements.fontCurrentLabel.textContent = fontFamilyToLabel(family);
+    elements.fontCurrentLabel.style.fontFamily = family;
+  }
+  document.querySelectorAll('.font-option').forEach((opt) => {
+    opt.classList.toggle('active', opt.dataset.family === family);
+  });
   if (state.currentTool === 'select' && state.selectedAnnotationIndex >= 0) {
     const selected = state.annotations[state.selectedAnnotationIndex];
     if (selected?.type === 'text') {
@@ -1958,14 +2059,61 @@ function selectTextFontFamily(family) {
   if (state.isEditingText) elements.textInput.style.fontFamily = family;
 }
 
+function buildFontString(annotation) {
+  const bold = annotation.fontBold !== undefined ? annotation.fontBold : state.textBold;
+  const italic = annotation.fontItalic !== undefined ? annotation.fontItalic : state.textItalic;
+  const weight = bold ? 'bold' : 'normal';
+  const style = italic ? 'italic' : 'normal';
+  const size = annotation.fontSize || state.textFontSize || 24;
+  const family = annotation.fontFamily || state.textFontFamily || '-apple-system, BlinkMacSystemFont, \'Segoe UI\', sans-serif';
+  return `${style} ${weight} ${size}px ${family}`;
+}
+
+function selectTextBold() {
+  state.textBold = !state.textBold;
+  if (elements.textStyleBold) elements.textStyleBold.setAttribute('aria-pressed', String(state.textBold));
+  if (state.currentTool === 'select' && state.selectedAnnotationIndex >= 0) {
+    const selected = state.annotations[state.selectedAnnotationIndex];
+    if (selected?.type === 'text') {
+      selected.fontBold = state.textBold;
+      state.history = state.history.slice(0, state.historyIndex + 1);
+      state.history.push([...state.annotations.map(a => ({ ...a }))]);
+      state.historyIndex = state.history.length - 1;
+      render();
+      updateToolbarState();
+    }
+  }
+  if (state.isEditingText) {
+    elements.textInput.style.fontWeight = state.textBold ? 'bold' : 'normal';
+  }
+}
+
+function selectTextItalic() {
+  state.textItalic = !state.textItalic;
+  if (elements.textStyleItalic) elements.textStyleItalic.setAttribute('aria-pressed', String(state.textItalic));
+  if (state.currentTool === 'select' && state.selectedAnnotationIndex >= 0) {
+    const selected = state.annotations[state.selectedAnnotationIndex];
+    if (selected?.type === 'text') {
+      selected.fontItalic = state.textItalic;
+      state.history = state.history.slice(0, state.historyIndex + 1);
+      state.history.push([...state.annotations.map(a => ({ ...a }))]);
+      state.historyIndex = state.history.length - 1;
+      render();
+      updateToolbarState();
+    }
+  }
+  if (state.isEditingText) {
+    elements.textInput.style.fontStyle = state.textItalic ? 'italic' : 'normal';
+  }
+}
+
 function getTextBounds(annotation) {
   const ctx = elements.ctx;
-  const fontSize = annotation.fontSize || 24;
-  const fontFamily = annotation.fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  const fontSize = annotation.fontSize || state.textFontSize || 24;
   const lines = annotation.text.split('\n');
   const lineHeight = fontSize * 1.2;
   ctx.save();
-  ctx.font = `bold ${fontSize}px ${fontFamily}`;
+  ctx.font = buildFontString(annotation);
   const maxWidth = Math.max(...lines.map((line) => ctx.measureText(line).width), 0);
   ctx.restore();
   return {
@@ -1983,9 +2131,29 @@ function toggleTextStyleControls() {
   elements.textStyleGroup?.classList.toggle('text-style-hidden', !visible);
   elements.textStyleSeparator?.classList.toggle('text-style-hidden', !visible);
 
-  if (visible && selected?.type === 'text') {
-    if (elements.textFontFamily) elements.textFontFamily.value = selected.fontFamily || state.textFontFamily;
-    if (elements.textFontSize) elements.textFontSize.value = String(selected.fontSize || state.textFontSize);
+  if (visible) {
+    if (selected?.type === 'text') {
+      if (elements.fontCurrentLabel) {
+        const fam = selected.fontFamily || state.textFontFamily;
+        elements.fontCurrentLabel.textContent = fontFamilyToLabel(fam);
+        elements.fontCurrentLabel.style.fontFamily = fam;
+      }
+      if (elements.sizeCurrentLabel) {
+        elements.sizeCurrentLabel.textContent = String(selected.fontSize || state.textFontSize);
+      }
+      if (elements.textStyleBold) elements.textStyleBold.setAttribute('aria-pressed', String(selected.fontBold !== undefined ? selected.fontBold : state.textBold));
+      if (elements.textStyleItalic) elements.textStyleItalic.setAttribute('aria-pressed', String(selected.fontItalic !== undefined ? selected.fontItalic : state.textItalic));
+    } else {
+      if (elements.fontCurrentLabel) {
+        elements.fontCurrentLabel.textContent = fontFamilyToLabel(state.textFontFamily);
+        elements.fontCurrentLabel.style.fontFamily = state.textFontFamily;
+      }
+      if (elements.sizeCurrentLabel) {
+        elements.sizeCurrentLabel.textContent = String(state.textFontSize);
+      }
+      if (elements.textStyleBold) elements.textStyleBold.setAttribute('aria-pressed', String(state.textBold));
+      if (elements.textStyleItalic) elements.textStyleItalic.setAttribute('aria-pressed', String(state.textItalic));
+    }
   }
 }
 
@@ -2209,6 +2377,8 @@ function openInlineText(coords) {
   input.style.color = state.currentColor;
   input.style.fontSize = Math.round(state.textFontSize * state.zoom) + 'px';
   input.style.fontFamily = state.textFontFamily;
+  input.style.fontWeight = state.textBold ? 'bold' : 'normal';
+  input.style.fontStyle = state.textItalic ? 'italic' : 'normal';
   setTimeout(() => input.focus(), 0);
   autoResizeTextInput();
 }
@@ -2227,6 +2397,8 @@ function commitInlineText() {
       color: state.currentColor,
       fontSize: state.textFontSize,
       fontFamily: state.textFontFamily,
+      fontBold: state.textBold,
+      fontItalic: state.textItalic,
     });
   }
   state.pendingTextPos = null;
@@ -2335,7 +2507,7 @@ function drawAnnotation(ann) {
     case 'arrow': drawArrow(ctx, ann.x1, ann.y1, ann.x2, ann.y2, true); break;
     case 'line': ctx.beginPath(); ctx.moveTo(ann.x1, ann.y1); ctx.lineTo(ann.x2, ann.y2); ctx.stroke(); break;
     case 'text':
-      ctx.font = `bold ${ann.fontSize || 24}px ${ann.fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'}`;
+      ctx.font = buildFontString(ann);
       ann.text.split('\n').forEach((line, i) => {
         ctx.fillText(line, ann.x, ann.y + i * ((ann.fontSize || 24) * 1.2));
       });
