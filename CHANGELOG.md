@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.1](https://github.com/erikmartinjordan/orange-fuji/compare/v1.5.0...v1.5.1) (2026-06-05)
+
+
+### 🐛 Fixes
+
+* Moving tab on cmd + shift + s ([789e873](https://github.com/erikmartinjordan/orange-fuji/commit/789e8736103d9e3796b8fa7cb232a16d0675cc4a))
+* Permissions issues on install in macOS ([3e9fd83](https://github.com/erikmartinjordan/orange-fuji/commit/3e9fd8327b334c1b68ea42db58ce424c86041fde))
+
 ## [1.5.0](https://github.com/erikmartinjordan/orange-fuji/compare/v1.4.0...v1.5.0) (2026-06-05)
 
 
