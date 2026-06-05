@@ -337,8 +337,15 @@ body.platform-darwin.has-content .editor-drag-region {
 .style-btn--italic { font-family: "Times New Roman", Times, serif !important; }
 
 .style-btn[aria-pressed="true"] {
-  background: rgba(240, 125, 32, 0.15);
-  color: #f97316;
+  background: var(--style-active-bg, rgba(240, 125, 32, 0.20));
+  color: var(--style-active-color, #c2410c);
+}
+
+@media (prefers-color-scheme: dark) {
+  .style-btn[aria-pressed="true"] {
+    background: var(--style-active-bg, rgba(240, 125, 32, 0.24));
+    color: var(--style-active-color, #fdba74);
+  }
 }
 
 .style-btn strong { font-weight: 700; }
@@ -1401,30 +1408,27 @@ body.has-content .toolbar-group.capture-modes + .toolbar-separator {
   position: relative;
   transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
   outline: none;
-  box-shadow: 0 0 0 2px transparent, 0 0 0 3.5px transparent;
+  box-shadow: 0 0 0 0.5px rgba(255,255,255,0.5);
   -webkit-app-region: no-drag;
 }
 
 .color-swatch:hover {
   transform: scale(1.22);
-  box-shadow: 0 0 0 2px rgba(255,255,255,0.9), 0 0 0 3.5px transparent;
 }
 
 .color-swatch.active {
   transform: scale(1.15);
-  box-shadow: 0 0 0 2px rgba(255,255,255,0.92), 0 0 0 3.5px var(--swatch-color);
+  outline: 0.5px solid rgba(255,255,255,0.5);
+  outline-offset: 1.5px;
 }
 
 .color-swatch.black {
-  box-shadow: 0 0 0 1.5px rgba(255,255,255,0.3), 0 0 0 3.5px transparent;
-}
-
-.color-swatch.black:hover {
-  box-shadow: 0 0 0 2px rgba(255,255,255,0.9), 0 0 0 3.5px transparent;
+  box-shadow: 0 0 0 0.5px rgba(255,255,255,0.3);
 }
 
 .color-swatch.black.active {
-  box-shadow: 0 0 0 2px rgba(255,255,255,0.92), 0 0 0 3.5px #111111;
+  outline: 0.5px solid rgba(255,255,255,0.5);
+  outline-offset: 1.5px;
 }
 
 /* ── Stroke Weight Hover Selector ── */

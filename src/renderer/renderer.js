@@ -17,7 +17,7 @@ const state = {
   strokeWidth: 4,
   textFontSize: 24,
   textFontFamily: '-apple-system, BlinkMacSystemFont, \'Segoe UI\', sans-serif',
-  textBold: true,
+  textBold: false,
   textItalic: false,
   isDrawing: false,
   startX: 0,
@@ -1830,6 +1830,7 @@ function clearCanvas() {
   state.history = [];
   state.historyIndex = -1;
   state.selectedAnnotationIndex = -1;
+  state.currentColor = null;
   state.windowContainerApplied = false;
   state.originalImageBeforeContainer = null;
   elements.canvas.classList.remove('visible');
@@ -1837,6 +1838,15 @@ function clearCanvas() {
   document.body.classList.remove('has-image');
   document.body.classList.remove('has-content');
   document.body.offsetHeight; // force reflow
+  elements.colorSwatches.forEach(s => s.classList.remove('active'));
+  if (elements.textStyleBold) {
+    elements.textStyleBold.style.removeProperty('--style-active-color');
+    elements.textStyleBold.style.removeProperty('--style-active-bg');
+  }
+  if (elements.textStyleItalic) {
+    elements.textStyleItalic.style.removeProperty('--style-active-color');
+    elements.textStyleItalic.style.removeProperty('--style-active-bg');
+  }
   resetFloatingToolbar();
   setAppWindowMode('toolbar');
   elements.statusTool?.parentElement?.classList.remove('visible');
@@ -1958,6 +1968,8 @@ function onWheel(e) {
 // Tool Selection
 // ══════════════════════════════════════════════════════════════════════════════
 
+const DRAWING_TOOLS = ['rect', 'ellipse', 'arrow', 'line', 'text'];
+
 function selectTool(tool) {
   if (state.isEditingText) commitInlineText();
   if (state.cropActive) cancelCrop();
@@ -1965,6 +1977,9 @@ function selectTool(tool) {
   elements.toolBtns.forEach(btn => btn.classList.toggle('active', btn.dataset.tool === tool));
   elements.container.className = tool ? `canvas-container tool-${tool}` : 'canvas-container';
   elements.canvas.style.cursor = !tool ? 'default' : (tool === 'text' ? 'text' : (tool === 'select' ? 'default' : 'crosshair'));
+  if (DRAWING_TOOLS.includes(tool)) {
+    selectColor(state.currentColor || '#f97316');
+  }
   toggleTextStyleControls();
   updateStatus();
 }
@@ -1975,10 +1990,25 @@ function clearToolSelection() {
   render();
 }
 
+function hexToRgba(hex, alpha) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 function selectColor(color) {
   state.currentColor = color;
   elements.colorSwatches.forEach(s => s.classList.toggle('active', s.dataset.color === color));
   if (state.isEditingText) elements.textInput.style.color = color;
+  if (elements.textStyleBold) {
+    elements.textStyleBold.style.setProperty('--style-active-color', color);
+    elements.textStyleBold.style.setProperty('--style-active-bg', hexToRgba(color, 0.2));
+  }
+  if (elements.textStyleItalic) {
+    elements.textStyleItalic.style.setProperty('--style-active-color', color);
+    elements.textStyleItalic.style.setProperty('--style-active-bg', hexToRgba(color, 0.2));
+  }
 
   if (state.selectedAnnotationIndex >= 0) {
     const selected = state.annotations[state.selectedAnnotationIndex];
