@@ -65,7 +65,7 @@
         }
       ],
       "icon": "build/icon.icns",
-      "identity": null
+      "identity": "-"
     },
     "dmg": {
       "icon": "build/icon.icns"

@@ -292,6 +292,7 @@ function createStreamWithCursorSetting(cursor) {
     owner: 'erikmartinjordan',
     repo: 'orange-fuji',
   }, 'electron-builder must publish update metadata to GitHub releases');
+  assert.strictEqual(packageJson.build.mac.identity, '-', 'macOS builds must be ad-hoc signed so privacy permissions use a stable app identity');
   assert.ok(/let autoUpdater = null;[\s\S]*require\('electron-updater'\)/.test(mainSource), 'main process must load electron-updater');
   assert.ok(/function setupAutoUpdater\(\)/.test(mainSource), 'main process must configure the auto updater');
   assert.ok(/autoUpdater\.autoDownload = false/.test(mainSource), 'updates must require an explicit user download action');

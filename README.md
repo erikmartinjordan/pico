@@ -22,17 +22,17 @@ Recommended launch targets:
 
 - Windows: portable EXE
 - Linux: AppImage
-- macOS: experimental unsigned DMG/ZIP for technical users only
+- macOS: experimental ad-hoc signed, unnotarized DMG/ZIP for technical users only
 
 > Windows may show a SmartScreen warning on first launch because releases are not yet signed.
 >
-> macOS builds are intentionally unsigned and not notarized until Orange Fuji can fund an Apple Developer Program account. Recent macOS versions can block unsigned apps and require manual approval in System Settings. If you are not comfortable with that security tradeoff, use the Windows/Linux builds or build Orange Fuji from source on a Mac you control.
+> macOS builds are ad-hoc signed for a stable local app identity, but they are not Developer ID signed or notarized until Orange Fuji can fund an Apple Developer Program account. Recent macOS versions can block unnotarized apps and require manual approval in System Settings. If you are not comfortable with that security tradeoff, use the Windows/Linux builds or build Orange Fuji from source on a Mac you control.
 
 ### macOS status
 
 The native macOS app is not the primary launch target right now. It is useful for testing, but it has two known limitations:
 
-1. Gatekeeper can make unsigned, unnotarized apps difficult or impossible for mainstream users to open.
+1. Gatekeeper can make unnotarized apps difficult or impossible for mainstream users to open.
 2. Screen capture requires Screen Recording permission in System Settings → Privacy & Security → Screen & System Audio Recording. Orange Fuji now detects denied permission and opens the correct settings pane with recovery instructions.
 
 If you test the macOS build, download it only from the official GitHub release, verify checksums when provided, and expect to quit and reopen Orange Fuji after changing Screen Recording permission.
@@ -100,7 +100,7 @@ Before publishing a release:
 
 - Build Windows portable EXE and Linux AppImage as the main artifacts.
 - Publish SHA-256 checksums for every artifact.
-- Label macOS artifacts as unsigned and unnotarized.
+- Label macOS artifacts as ad-hoc signed and unnotarized.
 - Keep the GitHub release page as the only official binary download source.
 - Fund Apple Developer Program membership before marketing macOS as a polished one-click app.
 
