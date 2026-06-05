@@ -2749,6 +2749,19 @@ function macTrayMenuIcon(name) {
   return image;
 }
 
+const TRAY_CAPTURE_SHORTCUTS = {
+  captureRegion: { accelerator: 'Command+Shift+S', key: 'S' },
+  captureWindow: { accelerator: 'Command+Shift+W', key: 'W' },
+  captureFullscreen: { accelerator: 'Command+Shift+F', key: 'F' },
+  recordScreen: { accelerator: 'Command+Shift+R', key: 'R' },
+};
+
+function shortcutAcceleratorsForKey(key) {
+  return process.platform === 'darwin'
+    ? [`Command+Shift+${key}`, `Control+Shift+${key}`]
+    : [`Control+Shift+${key}`];
+}
+
 function setupTray() {
   if (process.platform !== 'darwin' || tray) return;
   const trayIcons = {
@@ -2773,10 +2786,10 @@ function setupTray() {
     { type: 'separator' },
     { label: 'Preferences...', click: () => openPreferencesWindow() },
     { type: 'separator' },
-    { label: 'Capture Region\t⌘⇧S', icon: trayIcons.captureRegion, click: () => mainWindow?.webContents.send('trigger-capture') },
-    { label: 'Capture Window', icon: trayIcons.captureWindow, click: () => mainWindow?.webContents.send('trigger-capture-window') },
-    { label: 'Capture Fullscreen', icon: trayIcons.captureFullscreen, click: () => mainWindow?.webContents.send('trigger-capture-fullscreen') },
-    { label: 'Record Screen', icon: trayIcons.recordScreen, click: () => mainWindow?.webContents.send('trigger-record-screen') },
+    { label: 'Capture Region', accelerator: TRAY_CAPTURE_SHORTCUTS.captureRegion.accelerator, icon: trayIcons.captureRegion, click: () => mainWindow?.webContents.send('trigger-capture') },
+    { label: 'Capture Window', accelerator: TRAY_CAPTURE_SHORTCUTS.captureWindow.accelerator, icon: trayIcons.captureWindow, click: () => mainWindow?.webContents.send('trigger-capture-window') },
+    { label: 'Capture Fullscreen', accelerator: TRAY_CAPTURE_SHORTCUTS.captureFullscreen.accelerator, icon: trayIcons.captureFullscreen, click: () => mainWindow?.webContents.send('trigger-capture-fullscreen') },
+    { label: 'Record Screen', accelerator: TRAY_CAPTURE_SHORTCUTS.recordScreen.accelerator, icon: trayIcons.recordScreen, click: () => mainWindow?.webContents.send('trigger-record-screen') },
     { type: 'separator' },
     { label: 'About', click: showAboutDialog },
     { type: 'separator' },
@@ -2842,16 +2855,32 @@ app.whenReady().then(() => {
     }
     startCapture();
   };
-  // On macOS users may press either Cmd+Shift+S or Ctrl+Shift+S.
-  // Register both explicitly to improve reliability while minimized/hidden.
-  const globalShortcuts = process.platform === 'darwin'
-    ? ['Command+Shift+S', 'Control+Shift+S']
-    : ['CommandOrControl+Shift+S'];
-  globalShortcuts.forEach((accelerator) => {
+
+  const sendShortcutTriggerToRenderer = (channel) => {
+    const wasMissingWindow = !mainWindow || mainWindow.isDestroyed();
+    if (wasMissingWindow) createMainWindow();
+    const sendTrigger = () => mainWindow?.webContents?.send(channel);
+    if (wasMissingWindow || mainWindow?.webContents?.isLoading()) {
+      runWhenWindowReady(sendTrigger);
+      return;
+    }
+    sendTrigger();
+  };
+
+  const shortcutActions = [
+    { ...TRAY_CAPTURE_SHORTCUTS.captureRegion, run: triggerCaptureFromShortcut },
+    { ...TRAY_CAPTURE_SHORTCUTS.captureWindow, run: () => sendShortcutTriggerToRenderer('trigger-capture-window') },
+    { ...TRAY_CAPTURE_SHORTCUTS.captureFullscreen, run: () => sendShortcutTriggerToRenderer('trigger-capture-fullscreen') },
+    { ...TRAY_CAPTURE_SHORTCUTS.recordScreen, run: () => sendShortcutTriggerToRenderer('trigger-record-screen') },
+  ];
+
+  shortcutActions.flatMap((action) => (
+    shortcutAcceleratorsForKey(action.key).map((accelerator) => ({ accelerator, action }))
+  )).forEach(({ accelerator, action }) => {
     const ok = globalShortcut.register(accelerator, () => {
       console.log(`[orange-fuji][shortcut] fired: ${accelerator}`);
       debugWindowState('before-shortcut');
-      triggerCaptureFromShortcut();
+      action.run();
       debugWindowState('after-focus-show');
     });
     console.log(`[orange-fuji][shortcut] register ${accelerator}: ${ok ? 'ok' : 'failed'}`);

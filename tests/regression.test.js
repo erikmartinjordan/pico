@@ -458,6 +458,25 @@ test('Recording Features', () => {
   );
 
   assert.ok(
+    /TRAY_CAPTURE_SHORTCUTS = \{[\s\S]*captureRegion: \{ accelerator: 'Command\+Shift\+S', key: 'S' \}[\s\S]*captureWindow: \{ accelerator: 'Command\+Shift\+W', key: 'W' \}[\s\S]*captureFullscreen: \{ accelerator: 'Command\+Shift\+F', key: 'F' \}[\s\S]*recordScreen: \{ accelerator: 'Command\+Shift\+R', key: 'R' \}/.test(mainSource),
+    'tray capture actions must advertise shortcuts for region, window, fullscreen, and record',
+  );
+
+  assert.ok(
+    /label: 'Capture Region', accelerator: TRAY_CAPTURE_SHORTCUTS\.captureRegion\.accelerator/.test(mainSource) &&
+    /label: 'Capture Window', accelerator: TRAY_CAPTURE_SHORTCUTS\.captureWindow\.accelerator/.test(mainSource) &&
+    /label: 'Capture Fullscreen', accelerator: TRAY_CAPTURE_SHORTCUTS\.captureFullscreen\.accelerator/.test(mainSource) &&
+    /label: 'Record Screen', accelerator: TRAY_CAPTURE_SHORTCUTS\.recordScreen\.accelerator/.test(mainSource),
+    'tray capture shortcuts must use native menu accelerators so the shortcut column aligns',
+  );
+
+  assert.ok(
+    /function shortcutAcceleratorsForKey\(key\) \{[\s\S]*process\.platform === 'darwin'[\s\S]*`Command\+Shift\+\$\{key\}`[\s\S]*`Control\+Shift\+\$\{key\}`[\s\S]*`Control\+Shift\+\$\{key\}`/.test(mainSource) &&
+    /shortcutActions\.flatMap[\s\S]*globalShortcut\.register\(accelerator/.test(mainSource),
+    'global capture shortcuts must use Cmd+Shift on macOS and Ctrl+Shift on Windows/Linux',
+  );
+
+  assert.ok(
     /function rememberMacRecordingReturnApp\(\)/.test(mainSource) &&
     /rememberMacRecordingReturnApp\(\);[\s\S]*captureAllScreens\(\)/.test(mainSource) &&
     /ipcMain\.handle\('pro-recording-restore-frontmost-app'/.test(mainSource) &&
