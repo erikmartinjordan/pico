@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.4.0](https://github.com/erikmartinjordan/orange-fuji/compare/v1.3.0...v1.4.0) (2026-06-05)
+
+
+### ✨ Features
+
+* Add text selector to the editor ([e25a711](https://github.com/erikmartinjordan/orange-fuji/commit/e25a711585ab2c61fda9ce0589ff18c3cd89d52e))
+* Update version from the About page ([88536c6](https://github.com/erikmartinjordan/orange-fuji/commit/88536c6ead264473482c605f03c317d3a9b3f3e1))
+
+
+### 🐛 Fixes
+
+* Autocapture after editing mode ([fcdcca6](https://github.com/erikmartinjordan/orange-fuji/commit/fcdcca664a1f0098a2ab2cb98f6ab991faac8bb2))
+* Improve tooltips ([b31142c](https://github.com/erikmartinjordan/orange-fuji/commit/b31142ceed39566111e576d9bf1507a7021ca38e))
+
 ## [1.3.0](https://github.com/erikmartinjordan/orange-fuji/compare/v1.2.1...v1.3.0) (2026-06-04)
 
 
