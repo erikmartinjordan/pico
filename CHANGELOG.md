@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.5.0](https://github.com/erikmartinjordan/orange-fuji/compare/v1.4.0...v1.5.0) (2026-06-05)
+
+
+### ✨ Features
+
+* add shortcuts for all options ([335874a](https://github.com/erikmartinjordan/orange-fuji/commit/335874ae9a71d5e578065d57cc5d84ae9398f57d))
+* pixelate sensitive info ([8c0cc7e](https://github.com/erikmartinjordan/orange-fuji/commit/8c0cc7ed89b71dd63a8f477a7612eb7e4be28724))
+
+
+### 🐛 Fixes
+
+* Avoid block installation in macOS ([182d510](https://github.com/erikmartinjordan/orange-fuji/commit/182d5106357e259c03dcffd6dfc101bb96dc34ca))
+* Bug that didn't hide pillbar on window capture ([59b8043](https://github.com/erikmartinjordan/orange-fuji/commit/59b8043bab48e1aa2e7c027ab8199d79c3f23d3b))
+* check last updates ([1a4fd41](https://github.com/erikmartinjordan/orange-fuji/commit/1a4fd41499ad08b05873988865c4676741946079))
+* Download installer depending on OS ([04be852](https://github.com/erikmartinjordan/orange-fuji/commit/04be852b5016fb863283aab0ca7e1b05878e81fd))
+* Test OS before downloading the package ([26d11c3](https://github.com/erikmartinjordan/orange-fuji/commit/26d11c3459b2775225e5add7a27d23fd4d9e9263))
+
 ## [1.4.0](https://github.com/erikmartinjordan/orange-fuji/compare/v1.3.0...v1.4.0) (2026-06-05)
 
 
