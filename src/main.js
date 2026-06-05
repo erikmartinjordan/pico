@@ -908,6 +908,7 @@ async function captureNativeMacWindow() {
     throw err;
   } finally {
     try { fs.unlinkSync(filePath); } catch (e) {}
+    notifyRendererCaptureFinished();
     if (!completed && mainWindow && !mainWindow.isVisible()) showMainWindowForCurrentMode();
   }
 }
@@ -2145,7 +2146,7 @@ ipcMain.handle('start-capture-window', async (event, options = {}) => {
       return openWindowPickerFallback(options);
     }
 
-    await createCaptureOverlays(captureData, 'window', winBounds);
+    await createCaptureOverlays(captureData, 'window', winBounds, options);
     return { success: true };
   } catch (err) {
     notifyRendererCaptureFinished();

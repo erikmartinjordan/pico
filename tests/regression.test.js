@@ -500,6 +500,16 @@ test('Recording Features', () => {
     'window capture picker must include or filter Orange Fuji windows based on the preference',
   );
 
+  assert.ok(
+    /await createCaptureOverlays\(captureData, 'window', winBounds, options\)/.test(mainSource),
+    'window capture overlays must receive capture options so the toolbar pill stays hidden when Orange Fuji capture is disabled',
+  );
+
+  assert.ok(
+    /async function captureNativeMacWindow\(\)[\s\S]*finally \{[\s\S]*notifyRendererCaptureFinished\(\);[\s\S]*if \(!completed && mainWindow && !mainWindow\.isVisible\(\)\) showMainWindowForCurrentMode\(\);[\s\S]*\}/.test(mainSource),
+    'native macOS window capture must clear renderer capture mode so pillbar auto-hide resumes',
+  );
+
   const codeSurfaces = [
     ['src/preload.js', preloadSource],
     ['src/renderer/renderer.js', rendererSource],
