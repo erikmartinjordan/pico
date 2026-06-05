@@ -334,10 +334,33 @@
     return 'unknown';
   }
 
+  function currentMacOSVersion() {
+    const match = (navigator.userAgent || '').match(/Mac OS X (\d+)[._](\d+)(?:[._](\d+))?/i);
+    if (!match) return null;
+    return {
+      major: Number(match[1]),
+      minor: Number(match[2]),
+      patch: Number(match[3] || 0),
+    };
+  }
+
+  function isLegacyMacOS(version = currentMacOSVersion()) {
+    return Boolean(version && version.major === 10 && version.minor < 15);
+  }
+
+  function preferredMacAsset(assets = []) {
+    const dmgAssets = assets.filter((candidate) => /\.dmg$/i.test(candidate.name || ''));
+    const legacy = dmgAssets.find((candidate) => /legacy/i.test(candidate.name || ''));
+    const modern = dmgAssets.find((candidate) => /universal|arm64|mac/i.test(candidate.name || '') && !/legacy/i.test(candidate.name || ''));
+    const fallback = dmgAssets.find((candidate) => !/legacy/i.test(candidate.name || '')) || dmgAssets[0] || null;
+    return isLegacyMacOS() ? (legacy || fallback) : (modern || fallback || legacy || null);
+  }
+
   function preferredAsset(assets = [], platform = currentPlatform()) {
+    if (platform === 'macos') return preferredMacAsset(assets);
+
     const matchers = {
       windows: [/orange-fuji.*portable.*\.exe$/i, /orange-fuji.*\.exe$/i],
-      macos: [/orange-fuji.*\.dmg$/i, /orange-fuji.*\.zip$/i],
       linux: [/orange-fuji.*\.appimage$/i],
     }[platform] || [];
 
@@ -352,7 +375,7 @@
   function downloadLabel(platform = currentPlatform(), hasAsset = true) {
     if (!hasAsset) return 'View downloads';
     if (platform === 'windows') return 'Download for Windows';
-    if (platform === 'macos') return 'Download for macOS';
+    if (platform === 'macos') return isLegacyMacOS() ? 'Download for older macOS' : 'Download for macOS';
     if (platform === 'linux') return 'Download for Linux';
     return 'Download';
   }
