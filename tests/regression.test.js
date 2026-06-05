@@ -427,8 +427,19 @@ test('Recording Features', () => {
   );
 
   assert.ok(
-    /if \(mode !== 'record-region' && mainWindow && !mainWindow\.isDestroyed\(\)\) \{[\s\S]*showWindowInactiveOnMac\(mainWindow\)/.test(mainSource),
-    'recording region overlays must not lift the Orange Fuji toolbar on macOS full-screen Spaces',
+    /if \(mode !== 'record-region' && options\.showToolbar !== false && mainWindow && !mainWindow\.isDestroyed\(\)\) \{[\s\S]*showWindowInactiveOnMac\(mainWindow\)/.test(mainSource),
+    'capture overlays must lift the Orange Fuji toolbar only when the caller allows it',
+  );
+
+  assert.ok(
+    /pendingCaptureReturnMode = returnMode === 'editor' \? 'editor' : null/.test(mainSource) &&
+    /createCaptureOverlays\(captureData, 'region', \[\], \{ showToolbar: options\?\.showToolbar !== false \}\)/.test(mainSource),
+    'global shortcut captures from editor mode must not force the window into toolbar mode while selecting a region',
+  );
+
+  assert.ok(
+    /const returnMode = pendingCaptureReturnMode;[\s\S]*pendingCaptureReturnMode = null;[\s\S]*if \(returnMode === 'editor'\) applyEditorWindowMode\(\{ show: true \}\);[\s\S]*else applyToolbarWindowMode\(\{ show: true \}\);/.test(mainSource),
+    'region capture completion must restore editor mode when capture started from editor mode',
   );
 
   assert.ok(

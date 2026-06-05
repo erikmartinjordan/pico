@@ -44,6 +44,7 @@ let mainWindowMode = 'toolbar';
 let lastEditorBounds = null;
 let lastToolbarBounds = null;
 let updateCheckInProgress = false;
+let pendingCaptureReturnMode = null;
 
 const TOOLBAR_WINDOW_SIZE = { width: 260, height: 110 };
 const TOOLBAR_MIN_SIZE = { width: 200, height: 110 };
@@ -1874,7 +1875,7 @@ async function captureAllScreens() {
   };
 }
 
-async function createCaptureOverlays(captureData, mode = 'region', windowBounds = []) {
+async function createCaptureOverlays(captureData, mode = 'region', windowBounds = [], options = {}) {
     const displays = screen.getAllDisplays();
     const readyPromises = [];
     const isRecordingRegionOverlay = process.platform === 'darwin' && mode === 'record-region';
@@ -1972,9 +1973,9 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
   
     await Promise.all(readyPromises);
 
-    // Once screenshot overlays are visible, lift the toolbar pill above them without stealing app focus.
-    // Recording region selection must stay overlay-only on macOS so full-screen app Spaces are not disturbed.
-    if (mode !== 'record-region' && mainWindow && !mainWindow.isDestroyed()) {
+    // Once screenshot overlays are visible, lift the toolbar pill above them without stealing app focus
+    // only for toolbar-driven captures. Editor shortcut captures should not morph the editor into the pillbar.
+    if (mode !== 'record-region' && options.showToolbar !== false && mainWindow && !mainWindow.isDestroyed()) {
       applyToolbarWindowMode();
 
       if (process.platform === 'darwin') {
@@ -2027,6 +2028,8 @@ async function hideOrangeFujiWindowsBeforeCapture(options = {}) {
 
 async function captureRegion(options = {}) {
   notifyRendererCaptureModeStarted();
+  const returnMode = mainWindowMode;
+  pendingCaptureReturnMode = returnMode === 'editor' ? 'editor' : null;
   try {
     if (!await hasUsageEntitlement()) {
       notifyRendererCaptureFinished();
@@ -2041,9 +2044,10 @@ async function captureRegion(options = {}) {
     await hideOrangeFujiWindowsBeforeCapture(options);
     const captureData = await withHiddenDesktopIcons(options, async () => captureAllScreens());
     console.log('[orange-fuji][capture] capture data ready; creating overlays');
-    await createCaptureOverlays(captureData, 'region', []);
+    await createCaptureOverlays(captureData, 'region', [], { showToolbar: options?.showToolbar !== false });
     return { success: true };
   } catch (err) {
+    pendingCaptureReturnMode = null;
     notifyRendererCaptureFinished();
     console.error('[orange-fuji][capture] capture failed:', err.message);
     if (mainWindow) showMainWindowForCurrentMode();
@@ -2225,10 +2229,13 @@ ipcMain.on('window-overlay-select', async (event, windowName) => {
 ipcMain.on('capture-complete', (event, imageDataUrl) => {
   captureWindows.forEach(w => { if (!w.isDestroyed()) w.close(); });
   captureWindows = [];
+  const returnMode = pendingCaptureReturnMode;
+  pendingCaptureReturnMode = null;
   copyDataUrlToClipboard(imageDataUrl);
   if (mainWindow) {
     notifyRendererCaptureFinished();
-    applyToolbarWindowMode({ show: true });
+    if (returnMode === 'editor') applyEditorWindowMode({ show: true });
+    else applyToolbarWindowMode({ show: true });
     triggerPreviewToast({ dataUrl: imageDataUrl, captureMode: 'region' });
   }
 });
@@ -2243,8 +2250,13 @@ ipcMain.on('capture-cancel', () => {
     if (mainWindow) showMainWindowForCurrentMode();
     return;
   }
+  const returnMode = pendingCaptureReturnMode;
+  pendingCaptureReturnMode = null;
   notifyRendererCaptureFinished();
-  if (mainWindow) showMainWindowForCurrentMode();
+  if (mainWindow) {
+    if (returnMode === 'editor') applyEditorWindowMode({ show: true });
+    else showMainWindowForCurrentMode();
+  }
 });
 
 ipcMain.on('recording-region-complete', (event, region) => {
