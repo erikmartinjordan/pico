@@ -2718,8 +2718,20 @@ ipcMain.on('pro-recording-stop-clicked', () => {
 // ── App Lifecycle ───────────────────────────────────────────────────────────
 
 
+function macTrayMenuIcon(name) {
+  const image = nativeImage.createFromPath(path.join(__dirname, 'assets', 'icons', 'macos', 'menu', name));
+  image.setTemplateImage(true);
+  return image;
+}
+
 function setupTray() {
   if (process.platform !== 'darwin' || tray) return;
+  const trayIcons = {
+    captureRegion: macTrayMenuIcon('CaptureRegionTemplate.png'),
+    captureWindow: macTrayMenuIcon('CaptureWindowTemplate.png'),
+    captureFullscreen: macTrayMenuIcon('CaptureFullscreenTemplate.png'),
+    recordScreen: macTrayMenuIcon('RecordScreenTemplate.png'),
+  };
   const iconPath = path.join(__dirname, 'assets', 'icons', 'macos', 'StatusTemplate-volcano-thicker.png');
   const icon2xPath = path.join(__dirname, 'assets', 'icons', 'macos', 'StatusTemplate-volcano-thicker@2x.png');
   const trayIcon = nativeImage.createEmpty();
@@ -2736,10 +2748,10 @@ function setupTray() {
     { type: 'separator' },
     { label: 'Preferences...', click: () => openPreferencesWindow() },
     { type: 'separator' },
-    { label: 'Capture Region\t⌘⇧S', click: () => mainWindow?.webContents.send('trigger-capture') },
-    { label: 'Capture Window', click: () => mainWindow?.webContents.send('trigger-capture-window') },
-    { label: 'Capture Fullscreen', click: () => mainWindow?.webContents.send('trigger-capture-fullscreen') },
-    { label: 'Record Screen', click: () => mainWindow?.webContents.send('trigger-record-screen') },
+    { label: 'Capture Region\t⌘⇧S', icon: trayIcons.captureRegion, click: () => mainWindow?.webContents.send('trigger-capture') },
+    { label: 'Capture Window', icon: trayIcons.captureWindow, click: () => mainWindow?.webContents.send('trigger-capture-window') },
+    { label: 'Capture Fullscreen', icon: trayIcons.captureFullscreen, click: () => mainWindow?.webContents.send('trigger-capture-fullscreen') },
+    { label: 'Record Screen', icon: trayIcons.recordScreen, click: () => mainWindow?.webContents.send('trigger-record-screen') },
     { type: 'separator' },
     { label: 'About', click: showAboutDialog },
     { type: 'separator' },
