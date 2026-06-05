@@ -309,6 +309,9 @@ function createStreamWithCursorSetting(cursor) {
   assert.ok(!mainSource.includes('In-app updates are available'), 'updater must not show explanatory unsupported copy');
   assert.ok(!mainSource.includes("message: ''"), 'updater states must not leave the About status blank');
   assert.ok(mainSource.includes("message: 'Up to date'"), 'updater must use concise up-to-date copy');
+  assert.ok(/function isMissingUpdateMetadataError\(error\)[\s\S]*message\.includes\('404'\)[\s\S]*latest-mac\.yml/.test(mainSource), 'updater must detect missing GitHub release metadata without showing raw HTTP errors');
+  assert.ok(/function updateCheckFailureState\(error, message = 'Update check failed\.'\)[\s\S]*status: 'idle'[\s\S]*message: 'Up to date'[\s\S]*error: ''/.test(mainSource), 'missing update metadata must render as a clean up-to-date state');
+  assert.ok(/const hasExplicitError = Object\.prototype\.hasOwnProperty\.call\(nextState, 'error'\);[\s\S]*nextState\.status !== 'error' \? \{ error: '' \}/.test(mainSource), 'non-error update states must clear stale error text');
   assert.ok(aboutSource.includes("state.error || state.message || 'Up to date'"), 'about page must fall back to up-to-date copy');
   assert.ok(/message: info\?\.version \? `Version \$\{info\.version\} available` : 'Update available'/.test(mainSource), 'updater must show only the available version when present');
   assert.ok(aboutSource.includes('id="update-app"'), 'about page must include a single update action button');

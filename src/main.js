@@ -357,8 +357,47 @@ function isUpdaterSupported() {
   return process.platform === 'darwin' || process.platform === 'linux';
 }
 
+function isMissingUpdateMetadataError(error) {
+  const message = String(error?.message || error || '').toLowerCase();
+  return (
+    message.includes('404') &&
+    (
+      message.includes('latest-mac.yml') ||
+      message.includes('latest.yml') ||
+      message.includes('latest-linux.yml') ||
+      message.includes('app-update.yml')
+    )
+  );
+}
+
+function updateCheckFailureState(error, message = 'Update check failed.') {
+  if (isMissingUpdateMetadataError(error)) {
+    console.warn('[orange-fuji][updater] update metadata unavailable:', error?.message || error);
+    return {
+      status: 'idle',
+      availableVersion: '',
+      message: 'Up to date',
+      error: '',
+      progress: null,
+    };
+  }
+
+  console.error('[orange-fuji][updater]', message, error?.message || error);
+  return {
+    status: 'error',
+    message,
+    error: message,
+    progress: null,
+  };
+}
+
 function setUpdateState(nextState = {}) {
-  Object.assign(updateState, nextState, {
+  const hasExplicitError = Object.prototype.hasOwnProperty.call(nextState, 'error');
+  const normalizedState = {
+    ...nextState,
+    ...(!hasExplicitError && nextState.status !== 'error' ? { error: '' } : {}),
+  };
+  Object.assign(updateState, normalizedState, {
     supported: isUpdaterSupported(),
     currentVersion: app.getVersion(),
   });
@@ -415,12 +454,7 @@ function setupAutoUpdater() {
     });
   });
   autoUpdater.on('error', (error) => {
-    setUpdateState({
-      status: 'error',
-      message: 'Update check failed.',
-      error: error?.message || 'Update check failed.',
-      progress: null,
-    });
+    setUpdateState(updateCheckFailureState(error));
   });
 
   setTimeout(() => {
@@ -443,12 +477,7 @@ async function checkForAppUpdates(options = {}) {
     }
     return cloneUpdateState();
   } catch (error) {
-    return setUpdateState({
-      status: 'error',
-      message: 'Update check failed.',
-      error: error?.message || 'Update check failed.',
-      progress: null,
-    });
+    return setUpdateState(updateCheckFailureState(error));
   } finally {
     updateCheckInProgress = false;
   }
@@ -464,12 +493,7 @@ async function downloadAppUpdate() {
     await autoUpdater.downloadUpdate();
     return cloneUpdateState();
   } catch (error) {
-    return setUpdateState({
-      status: 'error',
-      message: 'Update download failed.',
-      error: error?.message || 'Update download failed.',
-      progress: null,
-    });
+    return setUpdateState(updateCheckFailureState(error, 'Update download failed.'));
   }
 }
 
