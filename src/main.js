@@ -21,22 +21,6 @@ if (process.platform === 'darwin') {
   app.commandLine.appendSwitch('log-level', '3');
 }
 
-function suppressMacPanelStyleWarning() {
-  if (process.platform !== 'darwin' || !process.stderr?.write) return;
-  const originalWrite = process.stderr.write.bind(process.stderr);
-  process.stderr.write = (chunk, encoding, callback) => {
-    const text = Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk ?? '');
-    if (text.includes('NSWindow does not support nonactivating panel styleMask')) {
-      if (typeof encoding === 'function') encoding();
-      if (typeof callback === 'function') callback();
-      return true;
-    }
-    return originalWrite(chunk, encoding, callback);
-  };
-}
-
-suppressMacPanelStyleWarning();
-
 let mainWindow = null;
 let captureWindows = [];
 let windowPickerWindow = null;

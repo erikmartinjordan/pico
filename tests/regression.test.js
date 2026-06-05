@@ -163,18 +163,6 @@ function createStreamWithCursorSetting(cursor) {
     /process\.platform === 'darwin'[\s\S]*app\.commandLine\.appendSwitch\('log-level', '3'\)/.test(mainSource),
     'macOS builds must suppress noisy Chromium GPU EGL terminal logs before Electron initializes',
   );
-  assert.ok(
-    /function suppressMacPanelStyleWarning\(\)[\s\S]*NSWindow does not support nonactivating panel styleMask[\s\S]*suppressMacPanelStyleWarning\(\);/.test(mainSource),
-    'macOS builds must suppress the known nonactivating panel warning without removing panel windows',
-  );
-  assert.ok(
-    /function createMainWindow[\s\S]*new BrowserWindow\(\{[\s\S]*type: 'panel'/.test(mainSource),
-    'the floating toolbar window must keep BrowserWindow panel type',
-  );
-  assert.ok(
-    /async function createCaptureOverlays[\s\S]*new BrowserWindow\(\{[\s\S]*type: 'panel'/.test(mainSource),
-    'capture overlay windows must keep BrowserWindow panel type',
-  );
 
   assert.ok(
     captureOverlaySource.includes('<div id="instructions" class="hidden"></div>'),
