@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.5.3](https://github.com/erikmartinjordan/orange-fuji/compare/v1.5.2...v1.5.3) (2026-06-06)
+
+
+### 🐛 Fixes
+
+* Autoupdates and blockmap assets ([995a1cb](https://github.com/erikmartinjordan/orange-fuji/commit/995a1cb4598fe13039a684752e97d738314e7dd9))
+* Signature while no notarization ([980f340](https://github.com/erikmartinjordan/orange-fuji/commit/980f3402797a4f6cd31d3f51bccf53dc5e32a4da))
+* window moving around ([ba7c53d](https://github.com/erikmartinjordan/orange-fuji/commit/ba7c53d72300b9db3733f53cfe962dea20dff805))
+
 ## [1.5.2](https://github.com/erikmartinjordan/orange-fuji/compare/v1.5.1...v1.5.2) (2026-06-06)
 
 
