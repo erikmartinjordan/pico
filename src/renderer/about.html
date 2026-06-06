@@ -211,7 +211,7 @@
     ipcRenderer.on('app-update-state', (_, state) => renderUpdateState(state));
     ipcRenderer.invoke('get-app-update-state').then((state) => {
       renderUpdateState(state);
-      if (state?.supported !== false && (state?.status === 'idle' || !state?.status) && state?.message !== 'Up to date') {
+      if (state?.supported !== false && (state?.status === 'idle' || !state?.status)) {
         invokeUpdate('check-for-app-updates', { status: 'checking', supported: true, message: 'Checking...' });
       }
     }).catch((error) => {

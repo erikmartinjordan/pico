@@ -328,6 +328,8 @@ function createStreamWithCursorSetting(cursor) {
   assert.ok(!aboutSource.includes('id="install-update"'), 'about page must not include a separate install button');
   assert.ok(/updateApp\.hidden = !canDownload && status !== 'downloading' && !canInstall/.test(aboutSource), 'about page must hide the action button when there is no update');
   assert.ok(/invokeUpdate\('check-for-app-updates'/.test(aboutSource), 'about page must check updates automatically');
+  assert.ok(/state\?\.supported !== false && \(state\?\.status === 'idle' \|\| !state\?\.status\)/.test(aboutSource), 'about page must check for updates even when the cached status says up to date');
+  assert.ok(!/state\?\.message !== 'Up to date'/.test(aboutSource), 'about page must not skip update checks just because the initial message says up to date');
   assert.ok(/function renderUpdateState\(state = \{\}\)/.test(aboutSource), 'about page must render update state');
   assert.ok(aboutSource.includes("ipcRenderer.on('app-update-state'"), 'about page must subscribe to update state events');
   assert.ok(/let aboutWindow = null;/.test(mainSource) && /\[mainWindow, preferencesWindow, aboutWindow\]/.test(mainSource), 'main process must send update state to the about window');
