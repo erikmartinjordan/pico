@@ -2142,7 +2142,7 @@ ipcMain.handle('start-capture', async (event, options = {}) => {
     return captureRegion(options);
   });
 
-ipcMain.handle('start-capture-window', async (event, options = {}) => {
+async function captureWindow(options = {}) {
   notifyRendererCaptureModeStarted();
   if (!await hasUsageEntitlement()) {
     notifyRendererCaptureFinished();
@@ -2195,9 +2195,11 @@ ipcMain.handle('start-capture-window', async (event, options = {}) => {
     if (mainWindow) showMainWindowForCurrentMode();
     return { success: false, error: err.message };
   }
-});
+}
 
-ipcMain.handle('start-capture-fullscreen', async (event, options = {}) => {
+ipcMain.handle('start-capture-window', async (event, options = {}) => captureWindow(options));
+
+async function captureFullscreen(options = {}) {
   notifyRendererCaptureModeStarted();
   if (!await hasUsageEntitlement()) {
     notifyRendererCaptureFinished();
@@ -2224,7 +2226,9 @@ ipcMain.handle('start-capture-fullscreen', async (event, options = {}) => {
     if (mainWindow) showMainWindowForCurrentMode();
     return { success: false, error: err.message };
   }
-});
+}
+
+ipcMain.handle('start-capture-fullscreen', async (event, options = {}) => captureFullscreen(options));
 
 ipcMain.on('window-overlay-select', async (event, windowName) => {
   // Use desktopCapturer to get a pixel-perfect capture of the selected window.
@@ -2850,17 +2854,21 @@ app.whenReady().then(() => {
     const wasMissingWindow = !mainWindow || mainWindow.isDestroyed();
     if (wasMissingWindow) createMainWindow();
 
+    const shortcutCaptureOptions = () => {
+      const settings = readSettings();
+      return {
+        hideDesktopIcons: settings.hideDesktopIcons,
+        captureOrangeFuji: settings.captureOrangeFuji,
+        showToolbar: false,
+      };
+    };
+
     const startCapture = () => {
       if (recordingInProgress) {
         mainWindow?.webContents?.send('pro-recording-stop-requested');
         return;
       }
-      const settings = readSettings();
-      captureRegion({
-        hideDesktopIcons: settings.hideDesktopIcons,
-        captureOrangeFuji: settings.captureOrangeFuji,
-        showToolbar: false,
-      });
+      captureRegion(shortcutCaptureOptions());
     };
 
     if (wasMissingWindow) {
@@ -2872,6 +2880,24 @@ app.whenReady().then(() => {
       return;
     }
     startCapture();
+  };
+
+  const triggerWindowCaptureFromShortcut = () => {
+    const settings = readSettings();
+    captureWindow({
+      hideDesktopIcons: settings.hideDesktopIcons,
+      captureOrangeFuji: settings.captureOrangeFuji,
+      showToolbar: false,
+    });
+  };
+
+  const triggerFullscreenCaptureFromShortcut = () => {
+    const settings = readSettings();
+    captureFullscreen({
+      hideDesktopIcons: settings.hideDesktopIcons,
+      captureOrangeFuji: settings.captureOrangeFuji,
+      showToolbar: false,
+    });
   };
 
   const sendShortcutTriggerToRenderer = (channel) => {
@@ -2887,8 +2913,8 @@ app.whenReady().then(() => {
 
   const shortcutActions = [
     { ...TRAY_CAPTURE_SHORTCUTS.captureRegion, run: triggerCaptureFromShortcut },
-    { ...TRAY_CAPTURE_SHORTCUTS.captureWindow, run: () => sendShortcutTriggerToRenderer('trigger-capture-window') },
-    { ...TRAY_CAPTURE_SHORTCUTS.captureFullscreen, run: () => sendShortcutTriggerToRenderer('trigger-capture-fullscreen') },
+    { ...TRAY_CAPTURE_SHORTCUTS.captureWindow, run: triggerWindowCaptureFromShortcut },
+    { ...TRAY_CAPTURE_SHORTCUTS.captureFullscreen, run: triggerFullscreenCaptureFromShortcut },
     { ...TRAY_CAPTURE_SHORTCUTS.recordScreen, run: () => sendShortcutTriggerToRenderer('trigger-record-screen') },
   ];
 

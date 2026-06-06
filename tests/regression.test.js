@@ -503,6 +503,23 @@ test('Recording Features', () => {
     /shortcutActions\.flatMap[\s\S]*globalShortcut\.register\(accelerator/.test(mainSource),
     'global capture shortcuts must use Cmd+Shift on macOS and Ctrl+Shift on Windows/Linux',
   );
+  assert.ok(
+    /async function captureWindow\(options = \{\}\)/.test(mainSource) &&
+    /ipcMain\.handle\('start-capture-window', async \(event, options = \{\}\) => captureWindow\(options\)\)/.test(mainSource) &&
+    /captureWindow\(\{[\s\S]*showToolbar: false[\s\S]*\}\)/.test(mainSource),
+    'global window capture shortcut must use the main-process capture path without activating the renderer window',
+  );
+  assert.ok(
+    /async function captureFullscreen\(options = \{\}\)/.test(mainSource) &&
+    /ipcMain\.handle\('start-capture-fullscreen', async \(event, options = \{\}\) => captureFullscreen\(options\)\)/.test(mainSource) &&
+    /captureFullscreen\(\{[\s\S]*showToolbar: false[\s\S]*\}\)/.test(mainSource),
+    'global fullscreen capture shortcut must use the main-process capture path without activating the renderer window',
+  );
+  assert.ok(
+    !/\{ \.\.\.TRAY_CAPTURE_SHORTCUTS\.captureWindow, run: \(\) => sendShortcutTriggerToRenderer\('trigger-capture-window'\) \}/.test(mainSource) &&
+    !/\{ \.\.\.TRAY_CAPTURE_SHORTCUTS\.captureFullscreen, run: \(\) => sendShortcutTriggerToRenderer\('trigger-capture-fullscreen'\) \}/.test(mainSource),
+    'global screenshot shortcuts must not bounce through renderer events that can switch macOS Spaces',
+  );
 
   assert.ok(
     /function rememberMacRecordingReturnApp\(\)/.test(mainSource) &&
