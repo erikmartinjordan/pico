@@ -18,6 +18,7 @@ const previewToastSource = fs.readFileSync(path.join(__dirname, '..', 'src', 're
 const releaseWorkflowSource = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'release-please.yml'), 'utf8');
 const buildWorkflowSource = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'build.yml'), 'utf8');
 const legacyMacBuilderSource = fs.readFileSync(path.join(__dirname, '..', 'config', 'electron-builder.legacy-mac.cjs'), 'utf8');
+const macAdHocSignSource = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'sign-mac-ad-hoc.js'), 'utf8');
 
 const tests = [];
 
@@ -295,7 +296,10 @@ function createStreamWithCursorSetting(cursor) {
     owner: 'erikmartinjordan',
     repo: 'orange-fuji',
   }, 'electron-builder must publish update metadata to GitHub releases');
-  assert.strictEqual(packageJson.build.mac.identity, '-', 'macOS builds must be ad-hoc signed so privacy permissions use a stable app identity');
+  assert.strictEqual(packageJson.build.mac.identity, '-', 'macOS builds must remain ad-hoc signed until a Developer ID certificate is available');
+  assert.strictEqual(packageJson.build.afterSign, 'scripts/sign-mac-ad-hoc.js', 'macOS builds must normalize the ad-hoc signature after packaging');
+  assert.ok(/context\.electronPlatformName !== 'darwin'/.test(macAdHocSignSource), 'mac ad-hoc signing hook must only run for macOS builds');
+  assert.ok(/'--identifier'[\s\S]*appInfo\.id/.test(macAdHocSignSource), 'mac ad-hoc signing hook must bind the app bundle identifier into the signature');
   assert.ok(/let autoUpdater = null;[\s\S]*require\('electron-updater'\)/.test(mainSource), 'main process must load electron-updater');
   assert.ok(/function setupAutoUpdater\(\)/.test(mainSource), 'main process must configure the auto updater');
   assert.ok(/autoUpdater\.autoDownload = false/.test(mainSource), 'updates must require an explicit user download action');

@@ -35,6 +35,7 @@
       "output": "dist",
       "buildResources": "build"
     },
+    "afterSign": "scripts/sign-mac-ad-hoc.js",
     "files": [
       "src/**/*",
       "package.json"

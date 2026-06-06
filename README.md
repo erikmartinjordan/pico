@@ -26,14 +26,14 @@ Recommended launch targets:
 
 > Windows may show a SmartScreen warning on first launch because releases are not yet signed.
 >
-> macOS builds are ad-hoc signed for a stable local app identity, but they are not Developer ID signed or notarized until Orange Fuji can fund an Apple Developer Program account. Recent macOS versions can block unnotarized apps and require manual approval in System Settings. If you are not comfortable with that security tradeoff, use the Windows/Linux builds or build Orange Fuji from source on a Mac you control.
+> macOS builds are ad-hoc signed, but they are not Developer ID signed or notarized until Orange Fuji can fund an Apple Developer Program account. Recent macOS versions can block unnotarized apps, require manual approval in System Settings, and ask for Screen Recording permission again after installs or updates because the app does not yet have a stable Developer ID identity. If you are not comfortable with that security tradeoff, use the Windows/Linux builds or build Orange Fuji from source on a Mac you control.
 
 ### macOS status
 
 The native macOS app is not the primary launch target right now. It is useful for testing, but it has two known limitations:
 
 1. Gatekeeper can make unnotarized apps difficult or impossible for mainstream users to open.
-2. Screen capture requires Screen Recording permission in System Settings → Privacy & Security → Screen & System Audio Recording. Orange Fuji now detects denied permission and opens the correct settings pane with recovery instructions.
+2. Screen capture requires Screen Recording permission in System Settings → Privacy & Security → Screen & System Audio Recording. Without Developer ID signing and notarization, macOS can treat updated builds as a new app and ask for this permission again. Orange Fuji detects denied permission and opens the correct settings pane with recovery instructions.
 
 If you test the macOS build, download it only from the official GitHub release, verify checksums when provided, and expect to quit and reopen Orange Fuji after changing Screen Recording permission.
 
