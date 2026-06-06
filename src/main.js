@@ -374,10 +374,10 @@ function updateCheckFailureState(error, message = 'Update check failed.') {
   if (isMissingUpdateMetadataError(error)) {
     console.warn('[orange-fuji][updater] update metadata unavailable:', error?.message || error);
     return {
-      status: 'idle',
+      status: 'error',
       availableVersion: '',
-      message: 'Up to date',
-      error: '',
+      message: 'Update metadata unavailable.',
+      error: 'Update metadata unavailable.',
       progress: null,
     };
   }

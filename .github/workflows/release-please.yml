@@ -95,9 +95,11 @@ jobs:
         with:
           name: release-${{ matrix.platform }}
           path: |
-            dist/*.dmg
-            dist/*.zip
-            dist/*.exe
+            dist/**/*.dmg
+            dist/**/*.zip
+            dist/**/*.exe
+            dist/**/*.yml
+            dist/**/*.blockmap
           if-no-files-found: ignore
 
   upload-release-assets:
@@ -141,11 +143,11 @@ jobs:
       - name: Collect binaries
         run: |
           mkdir -p release
-          find artifacts -type f \( -name "*.dmg" -o -name "*.zip" -o -name "*.exe" \) -exec cp {} release/ \;
+          find artifacts -type f \( -name "*.dmg" -o -name "*.zip" -o -name "*.exe" -o -name "*.yml" -o -name "*.blockmap" \) -exec cp {} release/ \;
           ls -lh release/
           test "$(find release -type f | wc -l)" -gt 0
 
-      - name: Upload binaries to GitHub Release
+      - name: Upload binaries and updater metadata to GitHub Release
         run: gh release upload "${{ inputs.release_tag || needs.release-please.outputs.tag_name }}" release/* --repo "${{ github.repository }}" --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

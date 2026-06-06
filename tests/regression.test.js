@@ -15,6 +15,9 @@ const preferencesScript = fs.readFileSync(path.join(__dirname, '..', 'src', 'ren
 const aboutSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'about.html'), 'utf8');
 const captureOverlaySource = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'capture-overlay.html'), 'utf8');
 const previewToastSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'preview-toast.html'), 'utf8');
+const releaseWorkflowSource = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'release-please.yml'), 'utf8');
+const buildWorkflowSource = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'build.yml'), 'utf8');
+const legacyMacBuilderSource = fs.readFileSync(path.join(__dirname, '..', 'config', 'electron-builder.legacy-mac.cjs'), 'utf8');
 
 const tests = [];
 
@@ -318,7 +321,7 @@ function createStreamWithCursorSetting(cursor) {
   assert.ok(!mainSource.includes("message: ''"), 'updater states must not leave the About status blank');
   assert.ok(mainSource.includes("message: 'Up to date'"), 'updater must use concise up-to-date copy');
   assert.ok(/function isMissingUpdateMetadataError\(error\)[\s\S]*message\.includes\('404'\)[\s\S]*latest-mac\.yml/.test(mainSource), 'updater must detect missing GitHub release metadata without showing raw HTTP errors');
-  assert.ok(/function updateCheckFailureState\(error, message = 'Update check failed\.'\)[\s\S]*status: 'idle'[\s\S]*message: 'Up to date'[\s\S]*error: ''/.test(mainSource), 'missing update metadata must render as a clean up-to-date state');
+  assert.ok(/function updateCheckFailureState\(error, message = 'Update check failed\.'\)[\s\S]*status: 'error'[\s\S]*message: 'Update metadata unavailable\.'[\s\S]*error: 'Update metadata unavailable\.'/.test(mainSource), 'missing update metadata must render as an actionable updater error');
   assert.ok(/const hasExplicitError = Object\.prototype\.hasOwnProperty\.call\(nextState, 'error'\);[\s\S]*nextState\.status !== 'error' \? \{ error: '' \}/.test(mainSource), 'non-error update states must clear stale error text');
   assert.ok(aboutSource.includes("state.error || state.message || 'Up to date'"), 'about page must fall back to up-to-date copy');
   assert.ok(/message: info\?\.version \? `Version \$\{info\.version\} available` : 'Update available'/.test(mainSource), 'updater must show only the available version when present');
@@ -333,6 +336,12 @@ function createStreamWithCursorSetting(cursor) {
   assert.ok(/function renderUpdateState\(state = \{\}\)/.test(aboutSource), 'about page must render update state');
   assert.ok(aboutSource.includes("ipcRenderer.on('app-update-state'"), 'about page must subscribe to update state events');
   assert.ok(/let aboutWindow = null;/.test(mainSource) && /\[mainWindow, preferencesWindow, aboutWindow\]/.test(mainSource), 'main process must send update state to the about window');
+  assert.ok(releaseWorkflowSource.includes('dist/**/*.yml'), 'release workflow must upload updater metadata files');
+  assert.ok(releaseWorkflowSource.includes('dist/**/*.blockmap'), 'release workflow must upload updater blockmaps');
+  assert.ok(/-name "\*\.yml"[\s\S]*-name "\*\.blockmap"/.test(releaseWorkflowSource), 'release workflow must collect updater metadata for GitHub Releases');
+  assert.ok(buildWorkflowSource.includes('dist/**/*.yml'), 'build workflow artifacts must include updater metadata files');
+  assert.ok(/const \{ publish: _publish, \.\.\.buildWithoutPublish \} = build;/.test(legacyMacBuilderSource), 'legacy mac build must not inherit release publishing metadata');
+  assert.ok(legacyMacBuilderSource.includes("output: 'dist/legacy'"), 'legacy mac build must not overwrite modern mac updater metadata');
 }
 
 {

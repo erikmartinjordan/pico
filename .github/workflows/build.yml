@@ -77,7 +77,9 @@ jobs:
         with:
           name: orange-fuji-${{ matrix.platform }}
           path: |
-            dist/*.dmg
-            dist/*.zip
-            dist/*.exe
+            dist/**/*.dmg
+            dist/**/*.zip
+            dist/**/*.exe
+            dist/**/*.yml
+            dist/**/*.blockmap
           if-no-files-found: ignore

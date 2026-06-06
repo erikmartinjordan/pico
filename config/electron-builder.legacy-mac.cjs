@@ -1,9 +1,14 @@
 const { build } = require('../package.json');
+const { publish: _publish, ...buildWithoutPublish } = build;
 
 const legacyMacBuild = {
-  ...build,
+  ...buildWithoutPublish,
   artifactName: 'orange-fuji-legacy.${ext}',
   electronVersion: '22.3.27',
+  directories: {
+    ...build.directories,
+    output: 'dist/legacy',
+  },
   mac: {
     ...build.mac,
     minimumSystemVersion: '10.13.0',
