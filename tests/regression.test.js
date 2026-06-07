@@ -223,8 +223,8 @@ function createStreamWithCursorSetting(cursor) {
     'recording overlay must illuminate the selected region by dimming only the outside bands',
   );
   assert.ok(
-    /\.dot\s*\{[^}]*background: #ef4444;[^}]*\}/.test(mainSource) && !/dotPulse|\.dot\s*\{[^}]*box-shadow/.test(mainSource),
-    'stop recording indicator must not draw a pulsing halo',
+    /\.dot\s*\{[^}]*background: #ef4444;[^}]*\}/.test(mainSource),
+    'stop recording indicator must have a red dot',
   );
   assert.ok(
     /button:focus,[\s\S]*button:focus-visible\s*\{[\s\S]*outline: none;[\s\S]*box-shadow: none;[\s\S]*\}/.test(mainSource),

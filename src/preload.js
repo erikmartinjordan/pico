@@ -230,6 +230,16 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
   const displayBounds = region.displayBounds || { x: 0, y: 0, width: region.width, height: region.height };
   const pixelScaleX = region.width > 0 ? srcRegion.width / region.width : scaleFactor;
   const pixelScaleY = region.height > 0 ? srcRegion.height / region.height : scaleFactor;
+
+  // macOS Retina workaround: getDisplayMedia sometimes returns a video stream at
+  // the physical pixel resolution while MediaTrack.getSettings() reports logical
+  // resolution. We detect the actual video frame dimensions once loaded and
+  // correct all source-side coordinates so the crop rectangle is accurate.
+  const expectedStreamFullW = Math.round(displayBounds.width * scaleFactor);
+  const expectedStreamFullH = Math.round(displayBounds.height * scaleFactor);
+  let videoCorrectionX = 1;
+  let videoCorrectionY = 1;
+  let videoDimensionsKnown = false;
   const fps = 60;
   const enableAutoZoom = options.autoZoom !== false;
   const drawSyntheticCursor = shouldDrawSyntheticCursor(sourceStream);
@@ -481,12 +491,22 @@ function createAutoZoomStream(sourceStream, region, options = {}) {
     const sx = safeCenterX - cropW / 2;
     const sy = safeCenterY - cropH / 2;
 
+    if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && expectedStreamFullW > 0 && !videoDimensionsKnown) {
+      const cx = video.videoWidth / expectedStreamFullW;
+      const cy = video.videoHeight / expectedStreamFullH;
+      if (Number.isFinite(cx) && Number.isFinite(cy) && cx > 0 && cy > 0) {
+        videoCorrectionX = cx;
+        videoCorrectionY = cy;
+      }
+      videoDimensionsKnown = true;
+    }
+
     ctx.fillStyle = '#09090b';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(video, sx, sy, cropW, cropH, 0, 0, canvas.width, canvas.height);
+      ctx.drawImage(video, sx * videoCorrectionX, sy * videoCorrectionY, cropW * videoCorrectionX, cropH * videoCorrectionY, 0, 0, canvas.width, canvas.height);
     }
     drawCursorOverlay(sx, sy, cropW, cropH, now, dt);
 
