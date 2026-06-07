@@ -1071,6 +1071,19 @@ body.has-content .toolbar-group.capture-modes + .toolbar-separator {
   color: #1e8a3e;
 }
 
+.preferences-license-status {
+  min-height: 0;
+  font-size: 11px;
+  line-height: 1.35;
+  color: rgba(255,255,255,0.55);
+  transition: min-height 0.15s ease;
+}
+
+.preferences-dialog .preferences-license-status {
+  text-align: center;
+  margin: -2px 0 0;
+}
+
 .preferences-actions {
   display: flex;
   justify-content: flex-end;

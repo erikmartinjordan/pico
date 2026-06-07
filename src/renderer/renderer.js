@@ -928,6 +928,19 @@ function saveRecordingSettings() {
 
 function openPreferences() {
   if (!elements.preferencesDialog) return;
+  const statusEl = document.getElementById('preferences-license-status');
+  if (statusEl) {
+    window.pico.getLicenseState().then((state) => {
+      if (!state || state.licensed) {
+        statusEl.textContent = '';
+      } else if (state.trial?.expired) {
+        statusEl.textContent = 'Trial ended. Activate a license to continue.';
+      } else {
+        const d = state.trial.daysRemaining;
+        statusEl.textContent = `${d} day${d === 1 ? '' : 's'} left in your trial.`;
+      }
+    }).catch(() => { statusEl.textContent = ''; });
+  }
   elements.preferencesDialog.showModal();
 }
 

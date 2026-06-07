@@ -76,20 +76,17 @@ function renderLicenseState(state) {
   if (licenseEmailSetting && state.email) licenseEmailSetting.value = state.email;
 
   if (state.licensed) {
-    licenseStatusSetting.textContent = `Active license for ${state.email}`;
     setLicenseMessage('License active.', 'success');
     return;
   }
 
   if (state.trial?.expired) {
-    licenseStatusSetting.textContent = 'Trial ended. Activate a license to continue.';
-    setLicenseMessage('', '');
+    setLicenseMessage('Trial ended. Activate a license to continue.', '');
     return;
   }
 
   const days = state.trial?.daysRemaining ?? 0;
-  licenseStatusSetting.textContent = `${days} day${days === 1 ? '' : 's'} left in your trial.`;
-  setLicenseMessage('', '');
+  setLicenseMessage(`${days} day${days === 1 ? '' : 's'} left in your trial.`, '');
 }
 
 async function loadLicenseState() {
