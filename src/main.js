@@ -1617,7 +1617,8 @@ function showRecordingIndicator(options = {}) {
           pointer-events: auto;
         }
         .status { display: flex; align-items: center; gap: 9px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: rgba(255,255,255,0.7); }
-        .dot { width: 10px; height: 10px; border-radius: 50%; background: #ef4444; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.70), 0 0 18px rgba(239, 68, 68, 0.35); animation: dotPulse 1.2s ease-in-out infinite; }
+        @keyframes dotPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.15); box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.90), 0 0 24px rgba(239, 68, 68, 0.50); } }
         button {
           border: 1px solid rgba(255, 255, 255, 0.12);
           border-radius: 8px;
