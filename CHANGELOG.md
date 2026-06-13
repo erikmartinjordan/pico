@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.5.4](https://github.com/erikmartinjordan/orange-fuji/compare/v1.5.3...v1.5.4) (2026-06-13)
+
+
+### 🐛 Fixes
+
+* prevent capture focus jumps ([a3c6777](https://github.com/erikmartinjordan/orange-fuji/commit/a3c6777385da4d852fea5a116f53ef7d2fd0391c))
+* Pulse effect while recording ([7fcf89e](https://github.com/erikmartinjordan/orange-fuji/commit/7fcf89ee27685746a3abd5c4d60248551c071620))
+* stabilize recording window lifecycle ([949dad4](https://github.com/erikmartinjordan/orange-fuji/commit/949dad4eabba125ad5cb08e4f0578a3e16c92817))
+* Video selection on retina displays ([2d0d287](https://github.com/erikmartinjordan/orange-fuji/commit/2d0d28757acc4c26baa889003d98d5e0e2daf1d6))
+
 ## [1.5.3](https://github.com/erikmartinjordan/orange-fuji/compare/v1.5.2...v1.5.3) (2026-06-06)
 
 
