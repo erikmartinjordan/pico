@@ -186,6 +186,21 @@ function createStreamWithCursorSetting(cursor) {
     'record-region completion must include a selected screenshot seed for first-frame alignment',
   );
   assert.ok(
+    /function cancelCaptureFromKeyboard\(e\)[\s\S]*e\.key !== 'Escape'[\s\S]*isCanceled = true;[\s\S]*isSelecting = false;[\s\S]*window\.pico\.captureCancel\(\)/.test(captureOverlaySource) &&
+    /window\.addEventListener\('keydown', cancelCaptureFromKeyboard, true\)/.test(captureOverlaySource) &&
+    /document\.addEventListener\('keydown', cancelCaptureFromKeyboard, true\)/.test(captureOverlaySource) &&
+    /if \(isCanceled \|\| captureMode === 'window' \|\| !isSelecting\) return/.test(captureOverlaySource),
+    'Esc must cancel region selection even while the pointer is down and must prevent mouseup completion',
+  );
+  assert.ok(
+    /function cancelActiveCapture\(\) \{[\s\S]*closeCaptureWindows\(\);[\s\S]*recordingRegionSelection/.test(mainSource) &&
+    /globalShortcut\.register\('Esc', cancelActiveCapture\)/.test(mainSource) &&
+    /globalShortcut\.unregister\('Esc'\)/.test(mainSource) &&
+    /win\.webContents\.on\('before-input-event', \(event, input\) => \{[\s\S]*input\.key === 'Escape'[\s\S]*cancelActiveCapture\(\)/.test(mainSource) &&
+    /ipcMain\.on\('capture-cancel', cancelActiveCapture\)/.test(mainSource),
+    'main process must also cancel active capture on Esc when the overlay renderer is not focused',
+  );
+  assert.ok(
     /videoBitsPerSecond:\s*50_000_000/.test(preloadSource),
     'screen recorder must request a high video bitrate to preserve screen-detail alignment checks',
   );
@@ -574,12 +589,9 @@ test('Recording Features', () => {
   );
 
   assert.ok(
-    /function rememberMacRecordingReturnApp\(\)/.test(mainSource) &&
-    /rememberMacRecordingReturnApp\(\);[\s\S]*captureAllScreens\(\)/.test(mainSource) &&
-    /ipcMain\.handle\('pro-recording-restore-frontmost-app'/.test(mainSource) &&
-    /ipcRenderer\.invoke\('pro-recording-restore-frontmost-app'\)/.test(preloadSource) &&
-    /showRecordingIndicator\(\{ inlinePreview: Boolean\(payload\?\.inlinePreview\) \}\);[\s\S]*setTimeout\(\(\) => restoreMacRecordingReturnApp\(\), 120\);[\s\S]*setTimeout\(\(\) => restoreMacRecordingReturnApp\(\), 360\);/.test(mainSource),
-    'region recording must restore the previously frontmost macOS app after getDisplayMedia activates Electron',
+    !/rememberMacRecordingReturnApp|restoreMacRecordingReturnApp|pro-recording-restore-frontmost-app/.test(mainSource) &&
+    !/pro-recording-restore-frontmost-app/.test(preloadSource),
+    'recording must not reopen the previous frontmost app because that can pull Chrome over the desktop',
   );
 
   assert.ok(

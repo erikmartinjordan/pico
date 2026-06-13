@@ -23,6 +23,7 @@ if (process.platform === 'darwin') {
 
 let mainWindow = null;
 let captureWindows = [];
+let captureEscapeShortcutRegistered = false;
 let windowPickerWindow = null;
 let windowPickerSources = [];
 let recordingIndicatorWindows = [];
@@ -32,7 +33,6 @@ let lastRecordingSourceId = null;
 let lastRecordingRegion = null;
 let recordingDisplayMediaSourceId = null;
 let recordingInProgress = false;
-let recordingReturnAppPath = '';
 let pendingRecordingWindowClose = false;
 let allowMainWindowCloseAfterRecordingCleanup = false;
 let pendingAppWindowClose = false;
@@ -770,6 +770,46 @@ function notifyRendererCaptureFinished() {
   mainWindow.webContents.send('capture-finished');
 }
 
+function unregisterCaptureEscapeShortcut() {
+  if (!captureEscapeShortcutRegistered) return;
+  try { globalShortcut.unregister('Esc'); } catch (_) {}
+  captureEscapeShortcutRegistered = false;
+}
+
+function closeCaptureWindows() {
+  captureWindows.forEach(w => { if (!w.isDestroyed()) w.close(); });
+  captureWindows = [];
+  unregisterCaptureEscapeShortcut();
+}
+
+function cancelActiveCapture() {
+  closeCaptureWindows();
+  if (recordingRegionSelection) {
+    recordingRegionSelection.resolve(null);
+    recordingRegionSelection = null;
+    notifyRendererCaptureFinished();
+    if (mainWindow) showMainWindowForCurrentMode();
+    return;
+  }
+  const returnMode = pendingCaptureReturnMode;
+  pendingCaptureReturnMode = null;
+  notifyRendererCaptureFinished();
+  if (mainWindow) {
+    if (returnMode === 'editor') applyEditorWindowMode({ show: true });
+    else showMainWindowForCurrentMode();
+  }
+}
+
+function registerCaptureEscapeShortcut() {
+  unregisterCaptureEscapeShortcut();
+  try {
+    captureEscapeShortcutRegistered = globalShortcut.register('Esc', cancelActiveCapture);
+  } catch (error) {
+    captureEscapeShortcutRegistered = false;
+    console.error('[orange-fuji][capture] failed to register Escape cancel shortcut:', error.message);
+  }
+}
+
 function openPreferencesWindow() {
   if (preferencesWindow && !preferencesWindow.isDestroyed()) {
     preferencesWindow.focus();
@@ -1414,29 +1454,6 @@ function showWindowInactiveOnMac(win) {
   else win.show();
 }
 
-function rememberMacRecordingReturnApp() {
-  if (process.platform !== 'darwin') return;
-  try {
-    const appPath = execSync('osascript -e \'POSIX path of (path to frontmost application as alias)\'', {
-      encoding: 'utf8',
-      timeout: 1500,
-    }).trim();
-    const normalized = appPath.toLowerCase();
-    if (!appPath || normalized.includes('/electron.app') || normalized.includes('/orange-fuji/')) return;
-    recordingReturnAppPath = appPath;
-  } catch (error) {
-    console.error('[orange-fuji][recording] failed to remember frontmost app:', error.message);
-  }
-}
-
-function restoreMacRecordingReturnApp() {
-  if (process.platform !== 'darwin' || !recordingReturnAppPath) return;
-  const appPath = recordingReturnAppPath;
-  execFile('open', [appPath], (error) => {
-    if (error) console.error('[orange-fuji][recording] failed to restore frontmost app:', error.message);
-  });
-}
-
 function rectsOverlap(a, b, padding = 0) {
   return !(
     a.x + a.width <= b.x - padding ||
@@ -1805,11 +1822,9 @@ function hideRecordingIndicator(options = {}) {
 
 function forceRecordingCleanupForWindowClose() {
   recordingInProgress = false;
-  recordingReturnAppPath = '';
   recordingDisplayMediaSourceId = null;
   hideRecordingIndicator({ skipMainWindowRestore: true });
-  captureWindows.forEach(w => { if (!w.isDestroyed()) w.close(); });
-  captureWindows = [];
+  closeCaptureWindows();
   if (windowPickerWindow && !windowPickerWindow.isDestroyed()) windowPickerWindow.close();
   windowPickerSources = [];
   if (recordingRegionSelection) {
@@ -2139,6 +2154,12 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
         try { win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch (_) {}
       }
       win.loadFile(path.join(__dirname, 'renderer', 'capture-overlay.html'));
+      win.webContents.on('before-input-event', (event, input) => {
+        if (input.key === 'Escape') {
+          event.preventDefault();
+          cancelActiveCapture();
+        }
+      });
   
       const p = new Promise((resolve) => {
         win.webContents.once('did-finish-load', () => {
@@ -2195,11 +2216,15 @@ async function createCaptureOverlays(captureData, mode = 'region', windowBounds 
       });
       readyPromises.push(p);
   
-      win.on('closed', () => { captureWindows = captureWindows.filter(w => w !== win); });
+      win.on('closed', () => {
+        captureWindows = captureWindows.filter(w => w !== win);
+        if (captureWindows.length === 0) unregisterCaptureEscapeShortcut();
+      });
       captureWindows.push(win);
     });
   
     await Promise.all(readyPromises);
+    registerCaptureEscapeShortcut();
 
     // Once screenshot overlays are visible, lift the toolbar pill above them without stealing app focus
     // only for toolbar-driven captures. Editor shortcut captures should not morph the editor into the pillbar.
@@ -2418,8 +2443,7 @@ ipcMain.handle('start-capture-fullscreen', async (event, options = {}) => captur
 ipcMain.on('window-overlay-select', async (event, windowName) => {
   // Use desktopCapturer to get a pixel-perfect capture of the selected window.
   // This avoids the frame inset guessing entirely.
-  captureWindows.forEach(w => { if (!w.isDestroyed()) w.close(); });
-  captureWindows = [];
+  closeCaptureWindows();
 
   try {
     // Find matching source by name (best match)
@@ -2459,8 +2483,7 @@ ipcMain.on('window-overlay-select', async (event, windowName) => {
 });
 
 ipcMain.on('capture-complete', (event, imageDataUrl) => {
-  captureWindows.forEach(w => { if (!w.isDestroyed()) w.close(); });
-  captureWindows = [];
+  closeCaptureWindows();
   const returnMode = pendingCaptureReturnMode;
   pendingCaptureReturnMode = null;
   copyDataUrlToClipboard(imageDataUrl);
@@ -2472,28 +2495,10 @@ ipcMain.on('capture-complete', (event, imageDataUrl) => {
   }
 });
 
-ipcMain.on('capture-cancel', () => {
-  captureWindows.forEach(w => { if (!w.isDestroyed()) w.close(); });
-  captureWindows = [];
-  if (recordingRegionSelection) {
-    recordingRegionSelection.resolve(null);
-    recordingRegionSelection = null;
-    notifyRendererCaptureFinished();
-    if (mainWindow) showMainWindowForCurrentMode();
-    return;
-  }
-  const returnMode = pendingCaptureReturnMode;
-  pendingCaptureReturnMode = null;
-  notifyRendererCaptureFinished();
-  if (mainWindow) {
-    if (returnMode === 'editor') applyEditorWindowMode({ show: true });
-    else showMainWindowForCurrentMode();
-  }
-});
+ipcMain.on('capture-cancel', cancelActiveCapture);
 
 ipcMain.on('recording-region-complete', (event, region) => {
-  captureWindows.forEach(w => { if (!w.isDestroyed()) w.close(); });
-  captureWindows = [];
+  closeCaptureWindows();
   if (recordingRegionSelection) {
     recordingRegionSelection.resolve(region);
     recordingRegionSelection = null;
@@ -2694,22 +2699,12 @@ ipcMain.handle('pro-recording-indicator-show', async (event, payload = {}) => {
   recordingInProgress = true;
   if (payload?.region) lastRecordingRegion = payload.region;
   showRecordingIndicator({ inlinePreview: Boolean(payload?.inlinePreview) });
-  if (process.platform === 'darwin' && payload?.region && !payload?.inlinePreview) {
-    setTimeout(() => restoreMacRecordingReturnApp(), 120);
-    setTimeout(() => restoreMacRecordingReturnApp(), 360);
-  }
   return { success: true };
 });
 
 ipcMain.handle('pro-recording-indicator-hide', async (event, payload = {}) => {
   recordingInProgress = false;
-  recordingReturnAppPath = '';
   hideRecordingIndicator({ skipMainWindowRestore: Boolean(payload?.skipMainWindowRestore) });
-  return { success: true };
-});
-
-ipcMain.handle('pro-recording-restore-frontmost-app', async () => {
-  restoreMacRecordingReturnApp();
   return { success: true };
 });
 
@@ -2774,7 +2769,6 @@ async function chooseRecordingRegionSource(options = {}) {
       if (!await ensureMacScreenRecordingPermission()) {
         throw new Error('Screen Recording permission is required.');
       }
-      rememberMacRecordingReturnApp();
       const captureData = await withHiddenDesktopIcons({ ...options, hideDesktopIcons: false }, async () => captureAllScreens());
       await createCaptureOverlays(captureData, 'record-region', []);
     } catch (error) {

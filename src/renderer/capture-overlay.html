@@ -269,6 +269,7 @@
     let currentX = 0;
     let currentY = 0;
     let hoveredWindow = null;
+    let isCanceled = false;
 
     // Scale factors to map display-relative window bounds to viewport coordinates.
     // The screenshot is stretched to fill the viewport, so window bounds (in display coords)
@@ -739,7 +740,7 @@
     }
 
     document.addEventListener('mouseup', () => {
-      if (captureMode === 'window' || !isSelecting) return;
+      if (isCanceled || captureMode === 'window' || !isSelecting) return;
       isSelecting = false;
       loupeCanvas.style.display = 'none';
       loupeCoords.style.display = 'none';
@@ -758,9 +759,21 @@
       cropFromScreenRect(rect).then((dataUrl) => window.pico.captureComplete(dataUrl));
     });
 
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') window.pico.captureCancel();
-    });
+    function cancelCaptureFromKeyboard(e) {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      isCanceled = true;
+      isSelecting = false;
+      selection.classList.remove('visible');
+      dimensions.classList.remove('visible');
+      loupeCanvas.style.display = 'none';
+      loupeCoords.style.display = 'none';
+      window.pico.captureCancel();
+    }
+
+    window.addEventListener('keydown', cancelCaptureFromKeyboard, true);
+    document.addEventListener('keydown', cancelCaptureFromKeyboard, true);
   </script>
 </body>
 </html>

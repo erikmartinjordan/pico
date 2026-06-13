@@ -662,7 +662,6 @@ async function startRecording(options = {}) {
       systemAudio = false;
       rawStream = await getDesktopStream(source.id, false);
     }
-    await ipcRenderer.invoke('pro-recording-restore-frontmost-app').catch(() => {});
     if (rawStream.getAudioTracks().length === 0) systemAudio = false;
 
     let zoomPipeline = null;
