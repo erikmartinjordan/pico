@@ -1629,6 +1629,15 @@ function showRecordingIndicator(options = {}) {
       overlayWindow.setContentProtection(true);
       overlayWindow.setIgnoreMouseEvents(true, { forward: true });
 
+      overlayWindow.webContents.on('dom-ready', async () => {
+        if (overlayWindow.isDestroyed()) return;
+        await overlayWindow.webContents.insertCSS(`
+          * {
+            cursor: none !important;
+          }
+        `);
+      });
+
       overlayWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`
       <!DOCTYPE html>
       <html>
