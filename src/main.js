@@ -33,6 +33,10 @@ let lastRecordingRegion = null;
 let recordingDisplayMediaSourceId = null;
 let recordingInProgress = false;
 let recordingReturnAppPath = '';
+let pendingRecordingWindowClose = false;
+let allowMainWindowCloseAfterRecordingCleanup = false;
+let pendingAppWindowClose = false;
+let allowMainWindowCloseAfterRendererCleanup = false;
 let tray = null;
 let desktopIconsHidden = false;
 let desktopIconsVisibleBeforeRecording = true;
@@ -607,6 +611,10 @@ function applyToolbarWindowMode(options = {}) {
   mainWindow.setBounds(getToolbarWindowBounds(), false);
 
   if (options.show) {
+    if (recordingInProgress) {
+      mainWindow.hide();
+      return;
+    }
     if (mainWindow.isMinimized()) mainWindow.restore();
     if (process.platform === 'darwin') {
       mainWindow.showInactive();
@@ -642,6 +650,10 @@ function applyEditorWindowMode(options = {}) {
   }
 
   if (options.show) {
+    if (recordingInProgress) {
+      mainWindow.hide();
+      return;
+    }
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.show();
     mainWindow.moveTop();
@@ -650,6 +662,10 @@ function applyEditorWindowMode(options = {}) {
 }
 
 function showMainWindowForCurrentMode() {
+  if (recordingInProgress && mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.hide();
+    return;
+  }
   if (mainWindowMode === 'editor') applyEditorWindowMode({ show: true });
   else applyToolbarWindowMode({ show: true });
 }
@@ -1421,6 +1437,98 @@ function restoreMacRecordingReturnApp() {
   });
 }
 
+function rectsOverlap(a, b, padding = 0) {
+  return !(
+    a.x + a.width <= b.x - padding ||
+    a.x >= b.x + b.width + padding ||
+    a.y + a.height <= b.y - padding ||
+    a.y >= b.y + b.height + padding
+  );
+}
+
+function clampToRange(value, min, max) {
+  if (max < min) return min;
+  return Math.min(Math.max(value, min), max);
+}
+
+function getRecordingControlsBounds(targetDisplay, controlSize) {
+  const { bounds, workArea } = targetDisplay;
+  const margin = 16;
+  const defaultBounds = {
+    x: Math.round(workArea.x + (workArea.width - controlSize.width) / 2),
+    y: Math.round(workArea.y + workArea.height - controlSize.height - margin),
+    width: controlSize.width,
+    height: controlSize.height,
+  };
+
+  if (!lastRecordingRegion || String(lastRecordingRegion.displayId) !== String(targetDisplay.id)) {
+    return defaultBounds;
+  }
+
+  const work = {
+    x: workArea.x - bounds.x,
+    y: workArea.y - bounds.y,
+    width: workArea.width,
+    height: workArea.height,
+  };
+  const region = {
+    x: Math.max(work.x, Math.round(lastRecordingRegion.x)),
+    y: Math.max(work.y, Math.round(lastRecordingRegion.y)),
+    width: Math.max(1, Math.round(lastRecordingRegion.width)),
+    height: Math.max(1, Math.round(lastRecordingRegion.height)),
+  };
+  region.width = Math.min(region.width, work.x + work.width - region.x);
+  region.height = Math.min(region.height, work.y + work.height - region.y);
+
+  const centeredX = region.x + (region.width - controlSize.width) / 2;
+  const centeredY = region.y + (region.height - controlSize.height) / 2;
+  const candidates = [
+    {
+      x: clampToRange(centeredX, work.x, work.x + work.width - controlSize.width),
+      y: region.y + region.height + margin,
+      name: 'below',
+    },
+    {
+      x: clampToRange(centeredX, work.x, work.x + work.width - controlSize.width),
+      y: region.y - controlSize.height - margin,
+      name: 'above',
+    },
+    {
+      x: region.x + region.width + margin,
+      y: clampToRange(centeredY, work.y, work.y + work.height - controlSize.height),
+      name: 'right',
+    },
+    {
+      x: region.x - controlSize.width - margin,
+      y: clampToRange(centeredY, work.y, work.y + work.height - controlSize.height),
+      name: 'left',
+    },
+  ];
+
+  const fits = (candidate) => (
+    candidate.x >= work.x &&
+    candidate.y >= work.y &&
+    candidate.x + controlSize.width <= work.x + work.width &&
+    candidate.y + controlSize.height <= work.y + work.height
+  );
+
+  const selected = candidates.find((candidate) => {
+    const rect = { ...candidate, width: controlSize.width, height: controlSize.height };
+    return fits(candidate) && !rectsOverlap(rect, region, margin);
+  });
+
+  if (selected) {
+    return {
+      x: Math.round(bounds.x + selected.x),
+      y: Math.round(bounds.y + selected.y),
+      width: controlSize.width,
+      height: controlSize.height,
+    };
+  }
+
+  return defaultBounds;
+}
+
 function showRecordingIndicator(options = {}) {
   if (recordingIndicatorWindows.length > 0) {
     recordingIndicatorWindows.forEach(showWindowInactiveOnMac);
@@ -1552,14 +1660,12 @@ function showRecordingIndicator(options = {}) {
     }
   }
 
-  const { workArea } = targetDisplay;
-  const controlsX = Math.round(workArea.x + (workArea.width - controlWidth) / 2);
-  const controlsY = Math.round(workArea.y + workArea.height - controlHeight - 16);
+  const controlsBounds = getRecordingControlsBounds(targetDisplay, { width: controlWidth, height: controlHeight });
   const controlsWindow = new BrowserWindow({
     width: controlWidth,
     height: controlHeight,
-    x: controlsX,
-    y: controlsY,
+    x: controlsBounds.x,
+    y: controlsBounds.y,
     ...(process.platform === 'darwin' ? { acceptFirstMouse: true } : {}),
     frame: false,
     transparent: true,
@@ -1682,7 +1788,7 @@ function showRecordingIndicator(options = {}) {
   }
 }
 
-function hideRecordingIndicator() {
+function hideRecordingIndicator(options = {}) {
   for (const w of recordingIndicatorWindows) {
     if (!w.isDestroyed()) w.close();
   }
@@ -1692,9 +1798,77 @@ function hideRecordingIndicator() {
   restoreMacDesktopIconsAfterRecording();
 
   // Restore Orange Fuji main window when recording ends
-  if (mainWindow && !mainWindow.isDestroyed()) {
+  if (!options.skipMainWindowRestore && mainWindow && !mainWindow.isDestroyed()) {
     showMainWindowForCurrentMode();
   }
+}
+
+function forceRecordingCleanupForWindowClose() {
+  recordingInProgress = false;
+  recordingReturnAppPath = '';
+  recordingDisplayMediaSourceId = null;
+  hideRecordingIndicator({ skipMainWindowRestore: true });
+  captureWindows.forEach(w => { if (!w.isDestroyed()) w.close(); });
+  captureWindows = [];
+  if (windowPickerWindow && !windowPickerWindow.isDestroyed()) windowPickerWindow.close();
+  windowPickerSources = [];
+  if (recordingRegionSelection) {
+    recordingRegionSelection.resolve(null);
+    recordingRegionSelection = null;
+  }
+  if (recordingSourceSelection) {
+    recordingSourceSelection.resolve(null);
+    recordingSourceSelection = null;
+  }
+}
+
+function closeMainWindowAfterRecordingCleanup() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  pendingRecordingWindowClose = false;
+  allowMainWindowCloseAfterRecordingCleanup = true;
+  mainWindow.close();
+}
+
+function requestRecordingCleanupBeforeMainWindowClose(event) {
+  if (!recordingInProgress || allowMainWindowCloseAfterRecordingCleanup) return false;
+  event.preventDefault();
+  if (pendingRecordingWindowClose) return true;
+  pendingRecordingWindowClose = true;
+  try {
+    mainWindow.webContents.send('pro-recording-window-close-requested');
+  } catch (error) {
+    console.error('[orange-fuji][recording] failed to request close cleanup:', error.message);
+  }
+  setTimeout(() => {
+    if (!pendingRecordingWindowClose) return;
+    forceRecordingCleanupForWindowClose();
+    closeMainWindowAfterRecordingCleanup();
+  }, 2000);
+  return true;
+}
+
+function closeMainWindowAfterRendererCleanup() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  pendingAppWindowClose = false;
+  allowMainWindowCloseAfterRendererCleanup = true;
+  mainWindow.close();
+}
+
+function requestRendererCleanupBeforeMainWindowClose(event) {
+  if (allowMainWindowCloseAfterRendererCleanup) return false;
+  event.preventDefault();
+  if (pendingAppWindowClose) return true;
+  pendingAppWindowClose = true;
+  try {
+    mainWindow.webContents.send('app-window-close-requested');
+  } catch (error) {
+    console.error('[orange-fuji] failed to request renderer close cleanup:', error.message);
+  }
+  setTimeout(() => {
+    if (!pendingAppWindowClose) return;
+    closeMainWindowAfterRendererCleanup();
+  }, 1000);
+  return true;
 }
 
 function showAboutDialog() {
@@ -1822,7 +1996,17 @@ function createMainWindow(focusOnReady = false) {
   mainWindow.on('move', rememberEditorBounds);
   mainWindow.on('resize', rememberToolbarBounds);
   mainWindow.on('move', rememberToolbarBounds);
-  mainWindow.on('closed', () => { mainWindow = null; });
+  mainWindow.on('close', (event) => {
+    if (requestRecordingCleanupBeforeMainWindowClose(event)) return;
+    requestRendererCleanupBeforeMainWindowClose(event);
+  });
+  mainWindow.on('closed', () => {
+    allowMainWindowCloseAfterRecordingCleanup = false;
+    allowMainWindowCloseAfterRendererCleanup = false;
+    pendingRecordingWindowClose = false;
+    pendingAppWindowClose = false;
+    mainWindow = null;
+  });
 }
 
 // ── Screen Capture ──────────────────────────────────────────────────────────
@@ -2517,10 +2701,10 @@ ipcMain.handle('pro-recording-indicator-show', async (event, payload = {}) => {
   return { success: true };
 });
 
-ipcMain.handle('pro-recording-indicator-hide', async () => {
+ipcMain.handle('pro-recording-indicator-hide', async (event, payload = {}) => {
   recordingInProgress = false;
   recordingReturnAppPath = '';
-  hideRecordingIndicator();
+  hideRecordingIndicator({ skipMainWindowRestore: Boolean(payload?.skipMainWindowRestore) });
   return { success: true };
 });
 
@@ -2761,6 +2945,19 @@ ipcMain.handle('pro-trim-recording', async (event, payload) => {
 
 ipcMain.on('pro-recording-stop-clicked', () => {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('pro-recording-stop-requested');
+});
+
+ipcMain.on('pro-recording-window-close-cleaned-up', () => {
+  forceRecordingCleanupForWindowClose();
+  closeMainWindowAfterRecordingCleanup();
+});
+
+ipcMain.on('app-window-close-cleaned-up', (event, payload = {}) => {
+  if (payload?.handled) {
+    pendingAppWindowClose = false;
+    return;
+  }
+  closeMainWindowAfterRendererCleanup();
 });
 
 // ── App Lifecycle ───────────────────────────────────────────────────────────

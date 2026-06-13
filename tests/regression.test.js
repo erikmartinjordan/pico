@@ -443,6 +443,18 @@ test('Recording Features', () => {
   );
 
   assert.ok(
+    /inlinePreview: Boolean\(options\?\.previewVideoId\)/.test(preloadSource) &&
+    /if \(started\.inlinePreview\) \{[\s\S]*showLiveRecordingPreview\(started, normalizedFormat\);[\s\S]*\} else \{[\s\S]*discardRecordingPreview\(\{ silent: true, keepWindowMode: true \}\)/.test(rendererSource),
+    'normal desktop recordings must not switch the hidden app window into live preview/editor mode while recording',
+  );
+
+  assert.ok(
+    /if \(options\.show\) \{[\s\S]*if \(recordingInProgress\) \{[\s\S]*mainWindow\.hide\(\);[\s\S]*return;[\s\S]*\}/.test(mainSource) &&
+    /function showMainWindowForCurrentMode\(\) \{[\s\S]*if \(recordingInProgress && mainWindow && !mainWindow\.isDestroyed\(\)\) \{[\s\S]*mainWindow\.hide\(\);[\s\S]*return;[\s\S]*\}/.test(mainSource),
+    'main process must refuse to show the app window while a recording is active',
+  );
+
+  assert.ok(
     /autoZoom:\s*mode === 'region' \? state\.recordingSettings\.autoZoom : false/.test(rendererSource),
     'renderer must pass the user autozoom setting when starting region recordings',
   );
@@ -483,6 +495,46 @@ test('Recording Features', () => {
     /recordingInProgress = false;[\s\S]*hideRecordingIndicator/.test(mainSource) &&
     /if \(recordingInProgress\) \{[\s\S]*pro-recording-stop-requested/.test(mainSource),
     'global capture shortcut must stop an active hidden macOS region recording instead of starting a new capture',
+  );
+
+  assert.ok(
+    /mainWindow\.on\('close', \(event\) => \{[\s\S]*requestRecordingCleanupBeforeMainWindowClose\(event\)/.test(mainSource) &&
+    /pro-recording-window-close-requested/.test(mainSource) &&
+    /pro-recording-window-close-cleaned-up/.test(mainSource) &&
+    /hideRecordingIndicator\(\{ skipMainWindowRestore: true \}\)/.test(mainSource),
+    'closing the main window during recording must discard-stop and clean indicator overlays without reopening the app',
+  );
+
+  assert.ok(
+    /requestRendererCleanupBeforeMainWindowClose\(event\)/.test(mainSource) &&
+    /app-window-close-requested/.test(mainSource) &&
+    /app-window-close-cleaned-up/.test(mainSource) &&
+    /onAppWindowCloseRequested/.test(preloadSource) &&
+    /confirmAppWindowClose/.test(preloadSource) &&
+    /function prepareForAppWindowClose\(\)/.test(rendererSource) &&
+    /let handled = false;[\s\S]*if \(state\.recordingPreview\) \{[\s\S]*clearTimeline\(\);[\s\S]*discardRecordingPreview\(\{ silent: true \}\);[\s\S]*handled = true;/.test(rendererSource) &&
+    /confirmAppWindowClose\?\.\(\{ handled \}\)/.test(rendererSource) &&
+    /if \(payload\?\.handled\) \{[\s\S]*pendingAppWindowClose = false;[\s\S]*return;[\s\S]*\}/.test(mainSource),
+    'red semaphore close must behave like Discard for an open recording preview instead of closing the native window',
+  );
+
+  assert.ok(
+    /const shouldDiscard = Boolean\(options\?\.discard\)/.test(preloadSource) &&
+    /if \(shouldDiscard\) \{[\s\S]*pro-recording-indicator-hide', \{ skipMainWindowRestore: true \}[\s\S]*resolve\(\{ discarded: true \}\)/.test(preloadSource) &&
+    /onRecordingWindowCloseRequested/.test(preloadSource) &&
+    /confirmRecordingWindowClose/.test(preloadSource) &&
+    /ipcMain\.handle\('pro-recording-indicator-hide', async \(event, payload = \{\}\)[\s\S]*skipMainWindowRestore: Boolean\(payload\?\.skipMainWindowRestore\)/.test(mainSource) &&
+    /async function stopRecordingForWindowClose\(\)/.test(rendererSource) &&
+    /window\.pico\.stopRecording\(\{ discard: true \}\)/.test(rendererSource),
+    'renderer recorder cleanup must support discarding an active recording when the app window closes',
+  );
+
+  assert.ok(
+    /function getRecordingControlsBounds\(targetDisplay, controlSize\)/.test(mainSource) &&
+    /const candidates = \[[\s\S]*name: 'below'[\s\S]*name: 'above'[\s\S]*name: 'right'[\s\S]*name: 'left'/.test(mainSource) &&
+    /!rectsOverlap\(rect, region, margin\)/.test(mainSource) &&
+    /const controlsBounds = getRecordingControlsBounds\(targetDisplay, \{ width: controlWidth, height: controlHeight \}\)/.test(mainSource),
+    'stop recording controls must be placed outside the selected region whenever display space allows',
   );
 
   assert.ok(

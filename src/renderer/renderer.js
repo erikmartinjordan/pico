@@ -590,6 +590,12 @@ function bindIPC() {
   window.pico.onRecordingStopRequested(() => {
     if (state.isRecording) toggleRecording();
   });
+  window.pico.onRecordingWindowCloseRequested?.(() => {
+    stopRecordingForWindowClose();
+  });
+  window.pico.onAppWindowCloseRequested?.(() => {
+    prepareForAppWindowClose();
+  });
   window.pico.onSettingsChanged?.(() => { loadRecordingSettings(); scheduleAutoHideFn(); });
   window.pico.onSaveRecordingStarted?.(() => setRecordingSaveProgress(true));
 }
@@ -877,7 +883,11 @@ async function startRecordingWithFormat(format = 'mp4', mode = 'region') {
     state.isRecording = true;
     state.recordingFormat = normalizedFormat;
     state.recordingMode = mode;
-    showLiveRecordingPreview(started, normalizedFormat);
+    if (started.inlinePreview) {
+      showLiveRecordingPreview(started, normalizedFormat);
+    } else {
+      discardRecordingPreview({ silent: true, keepWindowMode: true });
+    }
     setRecordingIndicator(true);
     const targetLabel = mode === 'region' ? 'selected region' : (started.source?.name || 'window');
     showToast(started.systemAudio ? `Recording ${targetLabel} as ${normalizedFormat.toUpperCase()}` : `Recording ${targetLabel} as ${normalizedFormat.toUpperCase()} without system audio`, started.systemAudio ? 'success' : 'info');
@@ -968,6 +978,39 @@ async function toggleRecording(event) {
     showToast(`Recording failed: ${err.message}`, 'error');
   } finally {
     setRecordingSaveProgress(false);
+  }
+}
+
+async function stopRecordingForWindowClose() {
+  try {
+    if (state.isRecording) {
+      await window.pico.stopRecording({ discard: true });
+    }
+  } catch (error) {
+    console.error('[orange-fuji][recording] failed to stop during window close:', error);
+  } finally {
+    state.isRecording = false;
+    setRecordingIndicator(false);
+    setRecordingSaveProgress(false);
+    discardRecordingPreview({ silent: true, keepWindowMode: true });
+    window.pico.confirmRecordingWindowClose?.();
+  }
+}
+
+function prepareForAppWindowClose() {
+  let handled = false;
+  try {
+    if (state.recordingPreview) {
+      clearTimeline();
+      discardRecordingPreview({ silent: true });
+      handled = true;
+    }
+    setRecordingSaveProgress(false);
+    hideRecordingFormatMenu();
+  } catch (error) {
+    console.error('[orange-fuji] failed to clean up before window close:', error);
+  } finally {
+    window.pico.confirmAppWindowClose?.({ handled });
   }
 }
 

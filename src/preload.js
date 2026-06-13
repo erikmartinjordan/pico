@@ -700,7 +700,7 @@ async function startRecording(options = {}) {
       region: source.mode === 'region' ? (streamAlignedRegion || source.region) : null,
       inlinePreview: Boolean(options?.previewVideoId),
     }).catch(() => {});
-    return { success: true, pro: true, source, systemAudio, mimeType };
+    return { success: true, pro: true, source, systemAudio, mimeType, inlinePreview: Boolean(options?.previewVideoId) };
   } catch (error) {
     proRecordingZoomStop?.();
     rawStream?.getTracks().forEach((track) => track.stop());
@@ -722,9 +722,15 @@ function stopRecording(options = {}) {
     }
 
     const shouldExportGif = options === true || options?.format === 'gif' || Boolean(options?.gif);
+    const shouldDiscard = Boolean(options?.discard);
     proRecorder.onerror = (event) => reject(event.error || new Error('Screen recording failed'));
     proRecorder.onstop = async () => {
       try {
+        if (shouldDiscard) {
+          await ipcRenderer.invoke('pro-recording-indicator-hide', { skipMainWindowRestore: true });
+          resolve({ discarded: true });
+          return;
+        }
         const blob = new Blob(proRecordingChunks, { type: proRecorder.mimeType || 'video/webm' });
         if (blob.size === 0) {
           throw new Error('Recording did not capture any video data. Please try again.');
@@ -741,7 +747,7 @@ function stopRecording(options = {}) {
       } catch (error) {
         reject(error);
       } finally {
-        ipcRenderer.invoke('pro-recording-indicator-hide').catch(() => {});
+        ipcRenderer.invoke('pro-recording-indicator-hide', shouldDiscard ? { skipMainWindowRestore: true } : {}).catch(() => {});
         proRecordingZoomStop?.();
         proRecordingRawStream?.getTracks().forEach((track) => track.stop());
         proRecordingStream?.getTracks().forEach((track) => track.stop());
@@ -780,6 +786,10 @@ contextBridge.exposeInMainWorld('pico', {
   openNativePreferences: () => ipcRenderer.invoke('open-native-preferences'),
   onLoadCaptureData: (callback) => ipcRenderer.on('load-capture-data', (_, data) => callback(data)),
   onRecordingStopRequested: (callback) => ipcRenderer.on('pro-recording-stop-requested', () => callback()),
+  onRecordingWindowCloseRequested: (callback) => ipcRenderer.on('pro-recording-window-close-requested', () => callback()),
+  confirmRecordingWindowClose: () => ipcRenderer.send('pro-recording-window-close-cleaned-up'),
+  onAppWindowCloseRequested: (callback) => ipcRenderer.on('app-window-close-requested', () => callback()),
+  confirmAppWindowClose: (payload = {}) => ipcRenderer.send('app-window-close-cleaned-up', payload),
   onSettingsChanged: (callback) => ipcRenderer.on('settings-changed', () => callback()),
   notifySettingsChanged: () => ipcRenderer.send('settings-changed'),
   onAppUpdateState: (callback) => ipcRenderer.on('app-update-state', (_, state) => callback(state)),
